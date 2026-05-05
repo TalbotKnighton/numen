@@ -1,0 +1,8 @@
+{
+  "julia": "1.10",
+  "packages": {
+    "JSON3":        { "uuid": "0f8b85d8-7e73-4b43-9b59-51e9f87eb7d7", "version": "1" },
+    "OrdinaryDiffEq": { "uuid": "1dea7af3-3e70-54e6-95c3-0bf5283fa5ed", "version": "6" },
+    "StructTypes":  { "uuid": "856f2bd8-1eba-4b0a-8007-ebc267875bd4", "version": "1" }
+  }
+}
