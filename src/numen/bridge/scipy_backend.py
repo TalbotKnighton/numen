@@ -26,7 +26,12 @@ class ScipyBackend:
         self.rtol = rtol
         self.atol = atol
 
-    def solve(self, compiled_spec: CompiledSpec, tspan: tuple[float, float]) -> SolveResult:
+    def solve(
+        self,
+        compiled_spec: CompiledSpec,
+        tspan: tuple[float, float],
+        t_eval: "np.ndarray | None" = None,
+    ) -> SolveResult:
         missing = [s.dynamics_fn for s in compiled_spec.systems if s.python_fn is None]
         if missing:
             raise ValueError(
@@ -43,12 +48,17 @@ class ScipyBackend:
                 sys.python_fn(dx, x, p, t, compiled_spec, sys)
             return dx.array
 
+        if t_eval is not None:
+            dense_eval = np.sort(np.unique(np.concatenate([t_eval, tstops]))) if tstops else t_eval
+        else:
+            dense_eval = tstops if tstops else None
+
         sol = solve_ivp(
             rhs,
             tspan,
             compiled_spec.x0,
             method=self.method,
-            t_eval=tstops if tstops else None,
+            t_eval=dense_eval,
             rtol=self.rtol,
             atol=self.atol,
         )
