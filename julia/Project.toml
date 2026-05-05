@@ -1,0 +1,10 @@
+[package]
+name = "Numen"
+uuid = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+version = "0.1.0"
+
+[deps]
+JSON3       = "0f8b85d8-7e73-4b43-9b59-51e9f87eb7d7"
+OrdinaryDiffEq = "1dea7af3-3e70-54e6-95c3-0bf5283fa5ed"
+PythonCall  = "6099a3de-0909-46bc-b1f4-468b9a2dfc0d"
+StructTypes = "856f2bd8-1eba-4b0a-8007-ebc267875bd4"
