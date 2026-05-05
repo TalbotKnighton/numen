@@ -7,6 +7,7 @@ include("types.jl")
 include("solver.jl")
 include("events.jl")
 
-export solve, CompiledSpec, SolvePayload
+export solve, CompiledSpec, CompiledSystemSpec, SolvePayload,
+       state_idx, param_idx, state_range, param_range
 
 end

@@ -1,6 +1,7 @@
 module OscillatorDynamics
 
-using Numen: CompiledSpec, CompiledSystemSpec, state_idx, param_idx
+# CompiledSpec, CompiledSystemSpec, state_idx, param_idx are available via Main.Numen
+import Main: CompiledSpec, CompiledSystemSpec, state_idx, param_idx
 
 """
     oscillator_dynamics!(dx, x, p, t, spec, sys)

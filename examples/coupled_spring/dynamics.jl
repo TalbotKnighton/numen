@@ -1,6 +1,6 @@
 module SpringDynamics
 
-using Numen: CompiledSpec, CompiledSystemSpec, state_idx, param_idx
+import Main: CompiledSpec, CompiledSystemSpec, state_idx, param_idx
 
 """
     mass_kinematics_dynamics!(dx, x, p, t, spec, sys)
