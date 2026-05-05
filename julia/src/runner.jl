@@ -4,14 +4,20 @@ Standalone Julia runner called by JuliaBackend via subprocess.
 Usage:
     julia --project=<julia_env> runner.jl <payload.json> <result.json> [dynamics.jl ...]
 
-Reads a SolvePayload from payload.json, runs the ODE solver, writes a
-SolveResult to result.json, then exits.  Any extra .jl arguments are
-included (in order) before solving so user dynamics modules are available.
+Reads a SolvePayload from payload.json, runs the ODE solver payload.reps times,
+writes a SolveResult + per-solve timings to result.json, then exits.
+
+When payload.reps > 1 the first solve includes JIT compilation of user dynamics
+functions; subsequent solves are warm (compiled code, no tracing overhead).
+The result trajectory is taken from the final solve.
+
+Timing breakdown visible to Python:
+  startup_ms   = wall time of this process − sum(timings_ms)
+  timings_ms[0] = first solve  (JIT + dynamics)
+  timings_ms[1:] = warm solves (dynamics only)
 """
 
 import Pkg
-# Activate the juliapkg-managed environment if JULIA_PROJECT is set,
-# otherwise activate the numen julia/ project directly.
 let proj = get(ENV, "JULIA_PROJECT", nothing)
     if proj !== nothing
         Pkg.activate(proj; io=devnull)
@@ -25,21 +31,29 @@ using JSON3
 payload_file = ARGS[1]
 result_file  = ARGS[2]
 
-# Include any user-supplied dynamics files
 for f in ARGS[3:end]
     include(f)
 end
 
-payload = open(payload_file) do io
-    JSON3.read(io, SolvePayload)
+# Read reps from the raw JSON before constructing SolvePayload (which has no reps field).
+# StructTypes.Struct() ignores unknown keys, so SolvePayload deserialization is unaffected.
+raw_json = read(payload_file, String)
+reps     = get(JSON3.read(raw_json), :reps, 1)
+payload  = JSON3.read(raw_json, SolvePayload)
+
+payload_json = JSON3.write(payload)
+
+timings_ms = Float64[]
+t0         = time_ns()
+result     = Numen.solve(payload_json)
+push!(timings_ms, (time_ns() - t0) / 1e6)
+for _ in 2:reps
+    t0     = time_ns()
+    result = Numen.solve(payload_json)
+    push!(timings_ms, (time_ns() - t0) / 1e6)
 end
 
-result = Numen.solve(JSON3.write(payload))
-
 open(result_file, "w") do io
-    # Serialize x as a vector of row-vectors (state_size × n_steps) so Python
-    # np.array produces shape (state_size, n_steps) directly without transposing.
-    # JSON3 flattens Matrix to a 1-D array, so we must convert explicitly.
     x_rows = [result.x[i, :] for i in 1:size(result.x, 1)]
-    JSON3.write(io, Dict("t" => result.t, "x" => x_rows))
+    JSON3.write(io, Dict("t" => result.t, "x" => x_rows, "timings_ms" => timings_ms))
 end

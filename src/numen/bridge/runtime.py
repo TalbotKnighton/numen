@@ -3,7 +3,8 @@ from __future__ import annotations
 import json
 import subprocess
 import tempfile
-from dataclasses import dataclass
+import time
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import numpy as np
@@ -16,16 +17,37 @@ _RUNNER_JL = _JULIA_PKG_DIR / "src" / "runner.jl"
 
 @dataclass
 class SolveResult:
-    t: np.ndarray   # shape (n_steps,)
-    x: np.ndarray   # shape (state_size, n_steps)
+    t: np.ndarray           # shape (n_steps,)
+    x: np.ndarray           # shape (state_size, n_steps)
+    timings_ms: list[float] = field(default_factory=list)
+    # timings_ms[0]  = first solve  (JIT + dynamics), if reps >= 1
+    # timings_ms[1:] = warm solves  (dynamics only),  if reps >  1
+    # startup_ms     = wall time − sum(timings_ms)    (subprocess + package load)
+
+    @property
+    def startup_ms(self) -> float:
+        return self._startup_ms
+
+    def _set_startup(self, wall_ms: float) -> None:
+        self._startup_ms = wall_ms - sum(self.timings_ms)
+
+    @property
+    def jit_ms(self) -> float | None:
+        return self.timings_ms[0] if self.timings_ms else None
+
+    @property
+    def warm_ms(self) -> float | None:
+        warm = self.timings_ms[1:]
+        return min(warm) if warm else None
 
 
 class JuliaBackend:
     """Julia + OrdinaryDiffEq.jl solver backend via subprocess.
 
-    Spawns a fresh Julia process for each solve to avoid juliacall's
-    in-process shared-library issues.  Julia startup (~500 ms) dominates
-    the first call; subsequent calls pay the same cost (no warm state).
+    Spawns a fresh Julia process for each ``solve`` call. Startup (~2–3 s)
+    includes Julia boot, package loading, and user dynamics file ``include``.
+    Within that process, ``reps`` solves are timed individually: the first
+    includes JIT compilation of user dynamics; subsequent ones are warm.
 
     Args:
         julia_file: Path to the .jl file that defines all ``dynamics_fn`` modules.
@@ -36,7 +58,10 @@ class JuliaBackend:
     Example::
 
         backend = JuliaBackend(julia_file="examples/oscillator/dynamics.jl")
-        result  = backend.solve(spec, tspan=(0.0, 5.0))
+        result  = backend.solve(spec, tspan=(0.0, 5.0), reps=6)
+        print(f"startup {result.startup_ms:.0f} ms  "
+              f"JIT {result.jit_ms:.0f} ms  "
+              f"warm {result.warm_ms:.0f} ms")
     """
 
     def __init__(
@@ -51,7 +76,21 @@ class JuliaBackend:
         self.rtol = rtol
         self.atol = atol
 
-    def solve(self, compiled_spec: CompiledSpec, tspan: tuple[float, float]) -> SolveResult:
+    def solve(
+        self,
+        compiled_spec: CompiledSpec,
+        tspan: tuple[float, float],
+        reps: int = 1,
+    ) -> SolveResult:
+        """Run the ODE solver via Julia subprocess.
+
+        Args:
+            compiled_spec: Compiled simulation spec.
+            tspan:         (t0, tf) integration interval.
+            reps:          Number of solves to run inside the subprocess.
+                           reps=1 → single solve (no warm timing).
+                           reps>1 → first solve is JIT, rest are warm.
+        """
         missing = [s.dynamics_fn for s in compiled_spec.systems if not s.dynamics_fn]
         if missing:
             raise ValueError(
@@ -62,6 +101,7 @@ class JuliaBackend:
         payload = {
             "spec": compiled_spec.to_dict(),
             "tspan": list(tspan),
+            "reps": reps,
         }
 
         payload_path = Path(tempfile.mktemp(suffix=".json"))
@@ -80,7 +120,10 @@ class JuliaBackend:
             if self._julia_file:
                 cmd.append(self._julia_file)
 
+            t0 = time.perf_counter()
             proc = subprocess.run(cmd, capture_output=True, text=True)
+            wall_ms = (time.perf_counter() - t0) * 1000
+
             if proc.returncode != 0:
                 raise RuntimeError(
                     f"Julia subprocess failed (exit {proc.returncode}):\n"
@@ -94,4 +137,6 @@ class JuliaBackend:
 
         t = np.array(data["t"])
         x = np.array(data["x"])   # shape (state_size, n_steps) — runner.jl serializes row-wise
-        return SolveResult(t=t, x=x)
+        result = SolveResult(t=t, x=x, timings_ms=data.get("timings_ms", []))
+        result._set_startup(wall_ms)
+        return result

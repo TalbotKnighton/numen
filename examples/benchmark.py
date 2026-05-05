@@ -76,12 +76,11 @@ def run_benchmark(n_list: list[int], include_julia: bool = True) -> None:
 
     rtol, atol = 1e-6, 1e-8
 
-    julia_col = "  {'julia ms':>10}" if include_julia else ""
     header = (
         f"\n{'N':>5}  {'state':>5}  "
         f"{'scipy ms':>9}  "
-        f"{'JAX cold ms':>12}  {'JAX warm ms':>12}  {'JAX speedup':>11}"
-        + (f"  {'julia ms':>10}  {'julia speedup':>13}" if include_julia else "")
+        f"{'JAX cold ms':>12}  {'JAX warm ms':>12}  {'JAX spdup':>9}"
+        + (f"  {'jl startup':>10}  {'jl JIT ms':>9}  {'jl warm ms':>10}  {'jl spdup':>8}" if include_julia else "")
     )
     print(header)
     print("-" * (len(header.expandtabs()) + 2))
@@ -96,21 +95,28 @@ def run_benchmark(n_list: list[int], include_julia: bool = True) -> None:
 
         _, scipy_warm = _timeit(lambda: scipy.solve(spec, TSPAN), REPS)
         jax_cold, jax_warm = _timeit(lambda: jax.solve(spec, TSPAN), REPS)
-
         jax_speedup = scipy_warm / jax_warm if jax_warm > 0 else float("inf")
 
         julia_str = ""
         if include_julia:
             from numen.bridge.runtime import JuliaBackend
-            julia = JuliaBackend(julia_file=_DYNAMICS_JL, rtol=rtol, atol=atol)
-            julia_cold, _ = _timeit(lambda: julia.solve(spec, TSPAN), 1)
-            julia_speedup = scipy_warm / julia_cold
-            julia_str = f"  {julia_cold * 1000:>10.0f}  {julia_speedup:>13.1f}x"
+            julia  = JuliaBackend(julia_file=_DYNAMICS_JL, rtol=rtol, atol=atol)
+            result = julia.solve(spec, TSPAN, reps=REPS + 1)
+            jl_startup = result.startup_ms
+            jl_jit     = result.jit_ms        # first solve: JIT + dynamics
+            jl_warm    = result.warm_ms        # best subsequent: dynamics only
+            jl_speedup = scipy_warm / (jl_warm / 1000) if jl_warm else float("inf")
+            julia_str  = (
+                f"  {jl_startup:>10.0f}"
+                f"  {jl_jit:>9.1f}"
+                f"  {jl_warm:>10.1f}"
+                f"  {jl_speedup:>8.1f}x"
+            )
 
         print(
             f"{n:>5}  {states:>5}  "
             f"{scipy_warm * 1000:>9.1f}  "
-            f"{jax_cold * 1000:>12.1f}  {jax_warm * 1000:>12.1f}  {jax_speedup:>11.1f}x"
+            f"{jax_cold * 1000:>12.1f}  {jax_warm * 1000:>12.1f}  {jax_speedup:>9.1f}x"
             + julia_str
         )
 
@@ -151,7 +157,7 @@ if __name__ == "__main__":
     print(f"Backends: ScipyBackend (RK45)  |  JAXBackend (diffrax Tsit5){julia_note}")
     print(f"Tolerances: rtol=1e-6, atol=1e-8  |  warm = best of {REPS} runs")
     if include_julia:
-        print("Note: Julia time = subprocess launch + JIT + solve (no warm state across calls)")
+        print("Julia columns: startup = subprocess+pkgs overhead | JIT = first solve incl. compile | warm = dynamics only")
 
     check_accuracy(include_julia=include_julia)
     run_benchmark(n_list, include_julia=include_julia)
