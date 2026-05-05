@@ -3,6 +3,25 @@ module FluidPoppetDynamics
 import Main: CompiledSpec, CompiledSystemSpec, state_idx, param_idx
 
 # ---------------------------------------------------------------------------
+# Smooth contact helper
+# ---------------------------------------------------------------------------
+
+const STOP_DELTA = 1e-6  # 1 µm smoothing distance (matches Python _STOP_DELTA)
+
+"""
+    soft_pen(x) -> Float64
+
+C1-smooth approximation of max(0, x) with quadratic ramp over [0, STOP_DELTA].
+Removes the slope kink at contact onset that causes ODE solvers to take many
+tiny rejected steps each time the poppet grazes a stop.
+"""
+function soft_pen(x::Float64)::Float64
+    x <= 0.0 && return 0.0
+    x >= STOP_DELTA && return x - 0.5 * STOP_DELTA
+    return 0.5 * x * x / STOP_DELTA
+end
+
+# ---------------------------------------------------------------------------
 # Shared physics helper
 # ---------------------------------------------------------------------------
 
@@ -192,12 +211,14 @@ function poppet_mechanics_dynamics!(
         F_pressure = (P_in - P_out) * seat_area
         F_spring   = -(spring_k * pos + spring_preload)
 
-        pen_close    = max(0.0, -pos)
-        pen_open     = max(0.0,  pos - max_travel)
-        v_into_close = (pos <= 0.0 && vel < 0.0) ? -vel : 0.0
-        v_into_open  = (pos >= max_travel && vel > 0.0) ?  vel : 0.0
-        F_stop = (k_stop * pen_close + c_stop * v_into_close
-                 - k_stop * pen_open  - c_stop * v_into_open)
+        pen_close  = soft_pen(-pos)
+        pen_open   = soft_pen(pos - max_travel)
+        alpha_close = clamp(-pos / STOP_DELTA, 0.0, 1.0)
+        alpha_open  = clamp((pos - max_travel) / STOP_DELTA, 0.0, 1.0)
+        v_damp_close = max(0.0, -vel) * alpha_close
+        v_damp_open  = max(0.0,  vel) * alpha_open
+        F_stop = (k_stop * pen_close + c_stop * v_damp_close
+                 - k_stop * pen_open  - c_stop * v_damp_open)
 
         i_vel = state_idx(spec, id_p * ".velocity")
         dx[i_vel] += (F_pressure + F_spring + F_stop) / mass

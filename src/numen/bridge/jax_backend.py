@@ -42,10 +42,19 @@ class JAXBackend:
                  are present.
     """
 
-    def __init__(self, rtol: float = 1e-6, atol: float = 1e-8, n_saves: int = 500) -> None:
-        self.rtol    = rtol
-        self.atol    = atol
-        self.n_saves = n_saves
+    def __init__(
+        self,
+        rtol: float = 1e-6,
+        atol: float = 1e-8,
+        n_saves: int = 500,
+        max_steps: int = 100_000,
+        solver: str = "Dopri5",
+    ) -> None:
+        self.rtol      = rtol
+        self.atol      = atol
+        self.n_saves   = n_saves
+        self.max_steps = max_steps
+        self.solver    = solver
         self._cache: dict[tuple, Callable] = {}
 
     def _build_run_fn(self, compiled_spec: CompiledSpec, tspan: tuple[float, float]) -> Callable:
@@ -61,8 +70,10 @@ class JAXBackend:
         tstops   = _build_tstops(compiled_spec.discrete_dts, tspan)
         save_ts  = jnp.array(tstops) if tstops else jnp.linspace(t0, tf, self.n_saves)
 
-        ctrl     = diffrax.PIDController(rtol=self.rtol, atol=self.atol)
-        saveat   = diffrax.SaveAt(ts=save_ts)
+        max_steps = self.max_steps
+        ctrl      = diffrax.PIDController(rtol=self.rtol, atol=self.atol)
+        saveat    = diffrax.SaveAt(ts=save_ts)
+        _solver   = getattr(diffrax, self.solver)()
 
         @jax.jit
         def run(x0: jnp.ndarray) -> Any:
@@ -74,7 +85,7 @@ class JAXBackend:
 
             return diffrax.diffeqsolve(
                 diffrax.ODETerm(rhs),
-                diffrax.Tsit5(),
+                _solver,
                 t0=t0,
                 t1=tf,
                 dt0=None,
@@ -82,6 +93,7 @@ class JAXBackend:
                 args=None,
                 saveat=saveat,
                 stepsize_controller=ctrl,
+                max_steps=max_steps,
             )
 
         return run
