@@ -1,0 +1,45 @@
+======================================================================
+Fluid Poppet Check Valve — Backend Benchmark
+Date:       2026-05-05 02:53:33
+Problem:    pneumatic 4-CV network + 1-DOF spring-mass poppet
+State size: 6   Param size: 28
+tspan:      (0.0, 0.15)  (150 ms)
+Tolerances: rtol=1e-08  atol=1e-10
+Reps (warm timing): 5
+======================================================================
+
+--- ScipyBackend (RK45) ---
+  cold (first call):    9519.5 ms
+  warm (best of 5):    9342.4 ms
+  output steps:       2090
+
+--- JAXBackend (diffrax Dopri5) ---
+  cold (first call):     555.8 ms
+  warm (best of 5):       6.1 ms
+  scipy/JAX speedup:  1543.0x  (warm vs warm)
+
+--- JuliaBackend (OrdinaryDiffEq Tsit5) ---
+  subprocess startup:     3320 ms  (Julia boot + pkgs + include)
+  JIT solve:            3155.8 ms  (first solve, compiles dynamics)
+  warm solve:             35.1 ms  (subsequent, compiled)
+  scipy/Julia speedup:   265.8x  (scipy warm vs julia warm)
+  output steps:       2443
+
+--- JuliaBackend (OrdinaryDiffEq Vern7) ---
+  subprocess startup:     2438 ms  (Julia boot + pkgs + include)
+  JIT solve:            4643.2 ms  (first solve, compiles dynamics)
+  warm solve:             37.9 ms  (subsequent, compiled)
+  scipy/Julia speedup:   246.7x  (scipy warm vs julia warm)
+  output steps:       1408
+
+======================================================================
+Summary (warm solve times — steady-state throughput)
+----------------------------------------------------------------------
+  Backend                           warm ms    vs scipy
+  ------------------------------ ----------  ----------
+  ScipyBackend (RK45)                9342.4  (baseline)
+  JAXBackend (Dopri5)                   6.1     1543.0x
+  JuliaBackend (Tsit5)                 35.1      265.8x
+  JuliaBackend (Vern7)                 37.9      246.7x
+  JuliaBackend+startup                 7119  (cold subprocess)
+======================================================================

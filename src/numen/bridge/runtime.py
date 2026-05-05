@@ -99,9 +99,12 @@ class JuliaBackend:
             )
 
         payload = {
-            "spec": compiled_spec.to_dict(),
-            "tspan": list(tspan),
-            "reps": reps,
+            "spec":   compiled_spec.to_dict(),
+            "tspan":  list(tspan),
+            "reps":   reps,
+            "method": self.method,
+            "rtol":   self.rtol,
+            "atol":   self.atol,
         }
 
         payload_path = Path(tempfile.mktemp(suffix=".json"))

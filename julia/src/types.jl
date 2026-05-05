@@ -24,6 +24,9 @@ StructTypes.StructType(::Type{CompiledSpec}) = StructTypes.Struct()
 struct SolvePayload
     spec::CompiledSpec
     tspan::Vector{Float64}
+    method::String
+    rtol::Float64
+    atol::Float64
 end
 
 StructTypes.StructType(::Type{SolvePayload}) = StructTypes.Struct()

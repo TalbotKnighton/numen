@@ -5,23 +5,21 @@ Entry point called from Python via juliacall. Receives a JSON-encoded SolvePaylo
 builds and solves the ODE system, returns a SolveResult.
 """
 function solve(payload_json::String)::SolveResult
-    payload = JSON3.read(payload_json, SolvePayload)
-    spec    = payload.spec
-    tspan   = (payload.tspan[1], payload.tspan[2])
-
+    payload   = JSON3.read(payload_json, SolvePayload)
+    spec      = payload.spec
+    tspan     = (payload.tspan[1], payload.tspan[2])
     dynamics! = build_dynamics(spec)
+    tstops    = build_tstops(spec.discrete_dts, tspan)
 
-    tstops = build_tstops(spec.discrete_dts, tspan)
-
-    prob = ODEProblem(dynamics!, copy(spec.x0), tspan, copy(spec.p))
-
-    sol = OrdinaryDiffEq.solve(
+    prob   = ODEProblem(dynamics!, copy(spec.x0), tspan, copy(spec.p))
+    solver = getfield(OrdinaryDiffEq, Symbol(payload.method))()
+    sol    = OrdinaryDiffEq.solve(
         prob,
-        Tsit5(),
+        solver,
         tstops  = tstops,
         saveat  = tstops,
-        abstol  = 1e-8,
-        reltol  = 1e-6,
+        abstol  = payload.atol,
+        reltol  = payload.rtol,
     )
 
     x_matrix = hcat(sol.u...)

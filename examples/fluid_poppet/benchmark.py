@@ -89,7 +89,7 @@ def run_benchmark(include_julia: bool = True) -> str:
         jax_cold, jax_warm = _timeit(lambda: jax.solve(spec, TSPAN), REPS)
         emit(f"  cold (first call):  {jax_cold * 1000:8.1f} ms")
         emit(f"  warm (best of {REPS}):  {jax_warm * 1000:8.1f} ms")
-        emit(f"  scipy/JAX speedup:  {scipy_warm / jax_warm:.1f}x  (warm vs warm, both Dopri5/RK45)")
+        emit(f"  scipy/JAX speedup:  {scipy_warm / jax_warm:.1f}x  (warm vs warm)")
         jax_ok = True
     except Exception as e:
         first_line = str(e).split("\n")[0][:120]
@@ -97,22 +97,27 @@ def run_benchmark(include_julia: bool = True) -> str:
         jax_ok = False
 
     # ------------------------------------------------------------------
-    # JuliaBackend
+    # JuliaBackend — Tsit5 (5th-order, same family as Dopri5) and
+    # Vern7 (7th-order Verner, highest-quality explicit RK in ODE.jl v6)
+    # DP5 was removed from OrdinaryDiffEq.jl v6 public exports.
     # ------------------------------------------------------------------
+    julia_results: dict[str, object] = {}
     if include_julia:
-        emit("\n--- JuliaBackend (subprocess OrdinaryDiffEq Tsit5) ---")
-        try:
-            from numen.bridge.runtime import JuliaBackend
-            julia  = JuliaBackend(julia_file=_DYN_JL, rtol=RTOL, atol=ATOL)
-            result = julia.solve(spec, TSPAN, reps=REPS + 1)
-            emit(f"  subprocess startup: {result.startup_ms:8.0f} ms  (Julia boot + pkgs + include)")
-            emit(f"  JIT solve:          {result.jit_ms:8.1f} ms  (first solve, compiles dynamics)")
-            emit(f"  warm solve:         {result.warm_ms:8.1f} ms  (subsequent, compiled)")
-            emit(f"  scipy/Julia speedup:{scipy_warm / (result.warm_ms / 1000):8.1f}x  (scipy warm vs julia warm)")
-            emit(f"  output steps:       {len(result.t)}")
-        except Exception:
-            emit("  FAILED")
-            emit(traceback.format_exc())
+        for jl_method in ["Tsit5", "Vern7"]:
+            emit(f"\n--- JuliaBackend (OrdinaryDiffEq {jl_method}) ---")
+            try:
+                from numen.bridge.runtime import JuliaBackend
+                julia  = JuliaBackend(julia_file=_DYN_JL, method=jl_method, rtol=RTOL, atol=ATOL)
+                result = julia.solve(spec, TSPAN, reps=REPS + 1)
+                emit(f"  subprocess startup: {result.startup_ms:8.0f} ms  (Julia boot + pkgs + include)")
+                emit(f"  JIT solve:          {result.jit_ms:8.1f} ms  (first solve, compiles dynamics)")
+                emit(f"  warm solve:         {result.warm_ms:8.1f} ms  (subsequent, compiled)")
+                emit(f"  scipy/Julia speedup:{scipy_warm / (result.warm_ms / 1000):8.1f}x  (scipy warm vs julia warm)")
+                emit(f"  output steps:       {len(result.t)}")
+                julia_results[jl_method] = result
+            except Exception:
+                emit("  FAILED")
+                emit(traceback.format_exc())
     else:
         emit("\n--- JuliaBackend --- SKIPPED (--no-julia)")
 
@@ -132,11 +137,13 @@ def run_benchmark(include_julia: bool = True) -> str:
         emit(f"  {'JAXBackend (Dopri5)':<30} {'incompatible':>10}  {'—':>10}")
 
     if include_julia:
-        try:
-            emit(f"  {'JuliaBackend warm (Tsit5)':<30} {result.warm_ms:>10.1f}  {scipy_warm / (result.warm_ms/1000):>9.1f}x")
-            emit(f"  {'JuliaBackend+startup':<30} {result.startup_ms + result.jit_ms + result.warm_ms:>10.0f}  {'(cold subprocess)':>10}")
-        except Exception:
-            pass
+        for jl_method, res in julia_results.items():
+            label = f"JuliaBackend ({jl_method})"
+            emit(f"  {label:<30} {res.warm_ms:>10.1f}  {scipy_warm / (res.warm_ms/1000):>9.1f}x")
+        if julia_results:
+            # cold-start cost for the last successful Julia run
+            last = next(reversed(julia_results.values()))
+            emit(f"  {'JuliaBackend+startup':<30} {last.startup_ms + last.jit_ms + last.warm_ms:>10.0f}  {'(cold subprocess)':>10}")
 
     emit("=" * 70)
 
