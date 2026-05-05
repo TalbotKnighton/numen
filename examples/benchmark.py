@@ -1,5 +1,5 @@
 """
-Backend performance comparison: ScipyBackend vs JAXBackend
+Backend performance comparison: ScipyBackend vs JAXBackend vs JuliaBackend
 
 Creates N independent harmonic oscillators (no coupling) and times each backend.
 All backends solve the same compiled spec with identical tolerances.
@@ -8,13 +8,12 @@ JAX reports two times:
   cold — first call, includes XLA compilation
   warm — best of REPS subsequent calls, pure XLA execution
 
-The cold time reveals the tracing cost: Python loops over entity_groups run
-at trace time, so it scales with N.  The warm time is what matters for
-repeated solves (e.g., Monte Carlo, parameter sweeps, live simulation).
+Julia reports one time (subprocess launch dominates; no warm-up state).
 
 Usage:
     python examples/benchmark.py                 # default N list
     python examples/benchmark.py 1 10 100 500    # custom N values
+    python examples/benchmark.py --no-julia      # skip Julia (slow startup)
 """
 from __future__ import annotations
 
@@ -27,6 +26,7 @@ import numpy as np
 
 # Resolve the oscillator example directory for local imports
 _OSC_DIR = os.path.join(os.path.dirname(__file__), "oscillator")
+_DYNAMICS_JL = os.path.join(_OSC_DIR, "dynamics.jl")
 sys.path.insert(0, _OSC_DIR)
 
 from components import OscillatorComponent
@@ -70,19 +70,21 @@ def _timeit(fn, reps: int) -> tuple[float, float]:
     return cold, best
 
 
-def run_benchmark(n_list: list[int]) -> None:
+def run_benchmark(n_list: list[int], include_julia: bool = True) -> None:
     from numen.bridge.scipy_backend import ScipyBackend
     from numen.bridge.jax_backend import JAXBackend
 
     rtol, atol = 1e-6, 1e-8
 
+    julia_col = "  {'julia ms':>10}" if include_julia else ""
     header = (
         f"\n{'N':>5}  {'state':>5}  "
         f"{'scipy ms':>9}  "
-        f"{'JAX cold ms':>12}  {'JAX warm ms':>12}  {'speedup':>8}"
+        f"{'JAX cold ms':>12}  {'JAX warm ms':>12}  {'JAX speedup':>11}"
+        + (f"  {'julia ms':>10}  {'julia speedup':>13}" if include_julia else "")
     )
     print(header)
-    print("-" * len(header.expandtabs()))
+    print("-" * (len(header.expandtabs()) + 2))
 
     for n in n_list:
         world  = make_world(n)
@@ -95,45 +97,61 @@ def run_benchmark(n_list: list[int]) -> None:
         _, scipy_warm = _timeit(lambda: scipy.solve(spec, TSPAN), REPS)
         jax_cold, jax_warm = _timeit(lambda: jax.solve(spec, TSPAN), REPS)
 
-        speedup = scipy_warm / jax_warm if jax_warm > 0 else float("inf")
+        jax_speedup = scipy_warm / jax_warm if jax_warm > 0 else float("inf")
+
+        julia_str = ""
+        if include_julia:
+            from numen.bridge.runtime import JuliaBackend
+            julia = JuliaBackend(julia_file=_DYNAMICS_JL, rtol=rtol, atol=atol)
+            julia_cold, _ = _timeit(lambda: julia.solve(spec, TSPAN), 1)
+            julia_speedup = scipy_warm / julia_cold
+            julia_str = f"  {julia_cold * 1000:>10.0f}  {julia_speedup:>13.1f}x"
 
         print(
             f"{n:>5}  {states:>5}  "
             f"{scipy_warm * 1000:>9.1f}  "
-            f"{jax_cold * 1000:>12.1f}  {jax_warm * 1000:>12.1f}  {speedup:>8.1f}x"
+            f"{jax_cold * 1000:>12.1f}  {jax_warm * 1000:>12.1f}  {jax_speedup:>11.1f}x"
+            + julia_str
         )
 
 
-def check_accuracy(n: int = 3) -> None:
-    """Spot-check: final states from scipy and JAX should agree to near-tolerance.
-
-    Uses a shared dense linspace so both backends save at identical times,
-    avoiding interpolation error in the comparison.
-    """
+def check_accuracy(n: int = 3, include_julia: bool = True) -> None:
+    """Spot-check: final states from scipy and JAX should agree to near-tolerance."""
     from numen.bridge.scipy_backend import ScipyBackend
     from numen.bridge.jax_backend import JAXBackend
 
     world  = make_world(n)
     spec   = compile_spec(world)
 
-    # Use a shared fine grid so save points are identical
     scipy_r = ScipyBackend(rtol=1e-9, atol=1e-9).solve(spec, TSPAN)
     jax_r   = JAXBackend(rtol=1e-9, atol=1e-9, n_saves=len(scipy_r.t)).solve(spec, TSPAN)
 
-    # Compare at the final time step (both solvers hit t=TSPAN[1])
     scipy_final = scipy_r.x[:, -1]
     jax_final   = jax_r.x[:, -1]
     max_err = np.max(np.abs(scipy_final - jax_final))
     print(f"\nAccuracy check (N={n}): final-state |scipy − JAX| = {max_err:.2e}")
 
+    if include_julia:
+        from numen.bridge.runtime import JuliaBackend
+        julia_r = JuliaBackend(julia_file=_DYNAMICS_JL, rtol=1e-9, atol=1e-9).solve(spec, TSPAN)
+        julia_final = julia_r.x[:, -1]
+        max_err_j = np.max(np.abs(scipy_final - julia_final))
+        print(f"Accuracy check (N={n}): final-state |scipy − Julia| = {max_err_j:.2e}")
+
 
 if __name__ == "__main__":
-    n_list = [int(x) for x in sys.argv[1:]] if len(sys.argv) > 1 else [1, 5, 20, 50, 100]
+    args = sys.argv[1:]
+    include_julia = "--no-julia" not in args
+    n_args = [a for a in args if not a.startswith("--")]
+    n_list = [int(x) for x in n_args] if n_args else [1, 5, 20, 50, 100]
 
+    julia_note = "  |  JuliaBackend (subprocess Tsit5)" if include_julia else "  [Julia skipped]"
     print("Numen backend comparison")
     print(f"Problem : independent harmonic oscillators, N={n_list}, tspan=(0, 2 s)")
-    print(f"Backends: ScipyBackend (RK45)  |  JAXBackend (diffrax Tsit5)")
+    print(f"Backends: ScipyBackend (RK45)  |  JAXBackend (diffrax Tsit5){julia_note}")
     print(f"Tolerances: rtol=1e-6, atol=1e-8  |  warm = best of {REPS} runs")
+    if include_julia:
+        print("Note: Julia time = subprocess launch + JIT + solve (no warm state across calls)")
 
-    check_accuracy()
-    run_benchmark(n_list)
+    check_accuracy(include_julia=include_julia)
+    run_benchmark(n_list, include_julia=include_julia)
