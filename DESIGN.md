@@ -461,8 +461,186 @@ numen init  <project-name>
 
 ---
 
+## Target Simulation Domains
+
+The framework is intended to be general enough to cover all of these, individually and coupled:
+
+| Domain | Example | Solver character |
+|---|---|---|
+| Free-flight 6DOF rigid body | spacecraft, missile, aircraft | ODE — plain Newton-Euler + quaternion kinematics |
+| Constrained multibody / mechanisms | deployable structures, robot arms, hinged control surfaces | DAE — joint constraints reduce DOF |
+| Lumped-parameter fluid networks | hydraulic circuits, propellant feed systems | Stiff ODE/DAE — pressure-flow balance |
+| Lumped-parameter thermal networks | heat exchangers, thermal control systems | Stiff ODE |
+| Coupled fluid + mechanical | hydraulic actuator driving a mechanism, fuel slosh + vehicle dynamics | DAE — cross-domain algebraic coupling |
+
+"Lumped" is the key qualifier throughout — spatially discretized (node/element) models, not PDEs.
+
+---
+
+## Multibody.jl and Mechanisms
+
+### What Multibody.jl is
+
+Multibody.jl is a 3D rigid body mechanics library built on ModelingToolkit. It is the Julia equivalent of Modelica's MultiBody standard library. You define bodies, joints (revolute, prismatic, spherical, universal), and forces; it symbolically generates the equations of motion and hands them to OrdinaryDiffEq. It handles:
+
+- Quaternion kinematics and normalization constraints
+- Joint constraints as DAEs (a revolute joint constrains 5 of 6 DOF, producing algebraic equations)
+- Kinematic chains and trees
+- MTK's index reduction to convert the DAE to an ODE before integration
+
+### When to use it vs. plain dynamics functions
+
+| Situation | Approach |
+|---|---|
+| Free-flying 6DOF body (no joints) | User dynamics function — Newton-Euler + quaternion kinematics, ~30 lines of Julia |
+| Constrained mechanism (joints) | Multibody.jl — joint constraints are DAEs; index reduction is non-trivial to do by hand |
+| Coupled fluid + mechanism | MTK acausal connections — cross-domain coupling handled symbolically |
+
+The 1D mechanical components in `ModelingToolkitStandardLibrary` (translational, rotational) are **not** what we use — those are for control-system block diagrams along a single axis. Multibody.jl is the 3D package.
+
+### Why Multibody.jl fits the architecture
+
+The key insight is that Simbox does not use MTK's *component library* — it uses MTK as the *symbolic preprocessing layer*. `build_mtk_system(spec)` (see Layer 7) translates a Python-authored `CompiledSpec` into an MTK system. For mechanism components, that translation calls into Multibody.jl. For fluid components it uses custom MTK components. For free-body 6DOF it may bypass MTK entirely and go straight to OrdinaryDiffEq.
+
+---
+
+## The ODE vs. DAE Boundary
+
+This is the central architectural decision when adding new component types.
+
+**ODE components** (flat state vector, user dynamics function):
+- Free-flying rigid bodies — position, velocity, quaternion, angular velocity as `IntegratedField`s
+- Oscillators, springs, dampers with no closed kinematic loops
+- Thermal lumped networks (no algebraic constraints)
+- Fluid networks reformulated to eliminate pressure as an algebraic variable
+
+**DAE components** (require MTK index reduction):
+- Any body connected to another via a joint — the joint constraint is algebraic
+- Fluid networks with instantaneous pressure balance at nodes
+- Coupled fluid + mechanical where actuator force is an algebraic function of pressure and area
+
+The rule: if a component introduces an **algebraic equation** (a constraint with no time derivative), it is a DAE component and must go through `build_mtk_system`. If every equation is `ẋ = f(x, p, t)`, it is an ODE component and can use the current flat dynamics function approach.
+
+---
+
+## `build_mtk_system` (Unimplemented)
+
+This is the missing piece that bridges the Python spec layer and the Julia solver for DAE / constrained problems.
+
+**Current state**: The Julia backend calls OrdinaryDiffEq directly with user-provided `dynamics!` functions. This works for ODE problems (oscillators, free-flight 6DOF) but cannot handle joint constraints or fluid pressure balance without manual reformulation.
+
+**Target**: `build_mtk_system(spec::CompiledSpec)` inspects each `CompiledSystemSpec` and dispatches:
+
+```julia
+function build_mtk_system(spec::CompiledSpec)
+    # For each system, build the appropriate MTK component or subsystem.
+    # Return a composed ODESystem (or DAESystem) ready for ODEProblem.
+end
+```
+
+Dispatch categories:
+- `dynamics_fn` starts with `"Multibody."` → build Multibody.jl body/joint components and connect them
+- `dynamics_fn` starts with `"Fluid."` → build custom MTK hydraulic/pneumatic components
+- `dynamics_fn` starts with `"Thermal."` → build custom MTK thermal components
+- Anything else → wrap in a plain ODE term (current behavior)
+
+Python component types encode the topology that `build_mtk_system` needs. For example, a `RevoluteJointComponent` carries the joint axis, parent body ID, and child body ID as parameters; `build_mtk_system` reads those and calls `Multibody.Revolute(...)`.
+
+**Sketch of Python component types for a two-link arm**:
+
+```python
+class RigidBodyComponent(Component):
+    mass:             Annotated[float,  ParameterField()]
+    inertia:          Annotated[Array3, ParameterField(size=3)]   # principal moments
+    position:         Annotated[Array3, IntegratedField(size=3)]
+    velocity:         Annotated[Array3, IntegratedField(size=3)]
+    quaternion:       Annotated[Array4, IntegratedField(size=4)]  # [w, x, y, z]
+    angular_velocity: Annotated[Array3, IntegratedField(size=3)]
+
+class RevoluteJointComponent(Component):
+    axis:      Annotated[Array3, ParameterField(size=3)]   # rotation axis in parent frame
+    angle:     Annotated[float,  IntegratedField()]
+    ang_rate:  Annotated[float,  IntegratedField()]
+    # parent_body_id and child_body_id declared in the system's entity_slots topology
+```
+
+The joint itself carries no force equations — topology lives in the system, equations live in `build_mtk_system`.
+
+---
+
 ## Open Questions
 
 1. **Stiffness detection** — automatic solver selection (inspect Jacobian sparsity) or user-specified integrator?
 2. **Batching / Monte Carlo** — multiple initial conditions in parallel via DiffEq.jl ensemble problems?
 3. **Callback mid-simulation protocol** — how Python callbacks yield control back to the Julia integrator.
+4. **`build_mtk_system` dispatch** — how does a `CompiledSystemSpec` signal which MTK backend to use? Tag in `dynamics_fn` string prefix (e.g. `"Multibody."`) vs. explicit `backend` field on the system?
+5. **Minimal-coordinate vs. maximal-coordinate formulation** — Multibody.jl uses maximal coordinates + DAE index reduction by default. For large mechanisms this is fine. For real-time or Monte Carlo use cases, minimal-coordinate formulations (Hamiltonian mechanics, Lie group integrators) may be needed.
+6. **`size=N` on field annotations** — `IntegratedField(size=3)` for vector-valued state is specified in DESIGN.md but not yet implemented in `flatten.py`. This is a prerequisite for any 3D component type.
+7. **Automatic Julia codegen from symbolic dynamics** — see discussion below.
+
+---
+
+## Automatic Julia Codegen (Open Question)
+
+### The problem
+
+Currently dynamics functions must be written twice: once in Python (`dynamics.py`, used by scipy/JAX backends) and once in Julia (`dynamics.jl`, used by the Julia backend). The Python and Julia versions are structurally identical — the derivations are the same, only the syntax differs. Writing both is not onerous (the derivations are the hard part, not the transcription), but it is a maintenance surface.
+
+### Why general Python → Julia transpilation doesn't work
+
+Arbitrary Python-to-Julia transpilation is an unsolved problem. Python's dynamic typing and runtime behaviour make full transpilation brittle. Tools like `py2many` exist but fail on non-trivial code.
+
+### Why our specific case is tractable
+
+Simbox dynamics functions are extremely constrained:
+- Read scalars from `x[i]` and `p[j]` at known integer indices
+- Compute pure arithmetic (`+`, `-`, `*`, `/`, `^`, `sin`, `cos`, etc.)
+- Accumulate into `dx[k]`
+- No data structures, no branching, no Python-specific idioms
+
+That subset is essentially symbolic math. SymPy can represent these expressions, and `sympy.julia_code(expr)` already generates Julia scalar arithmetic. At compile time, `state_idx` / `param_idx` lookups resolve to integer literals, so the generated Julia is index-clean with no dict lookups.
+
+### Proposed hybrid approach
+
+Rather than mandating one authoring style, offer both and let the user choose per system:
+
+**Option A — Hand-written (current, always available)**
+
+Write `dynamics.py` and `dynamics.jl` separately. Appropriate when the equations are complex, involve external libraries, or contain control flow that doesn't map to pure arithmetic.
+
+**Option B — Symbolic (automatic codegen)**
+
+Write one `symbolic_rhs` method on the System class returning a dict of SymPy expressions. The compiler generates both the Python callable and the Julia function body automatically.
+
+```python
+class OscillatorSystem(System):
+    def symbolic_rhs(self, sym: SymSpec) -> dict[str, sp.Expr]:
+        pos   = sym.state("position")
+        vel   = sym.state("velocity")
+        omega = sym.param("omega")
+        zeta  = sym.param("damping")
+        return {
+            "position": vel,
+            "velocity": -omega**2 * pos - 2*zeta*omega*vel,
+        }
+```
+
+From this, the compiler:
+1. **Lambdifies** SymPy expressions → numpy/JAX callable (no hand-written `dynamics.py`)
+2. **Emits Julia** via `sympy.julia_code` with integer indices substituted (no hand-written `dynamics.jl`)
+3. **Feeds MTK directly** — SymPy ↔ Symbolics.jl have partial interop; this is the long-term path to `build_mtk_system` for ODE systems
+
+### What's off-the-shelf vs. new
+
+| Piece | Status |
+|---|---|
+| SymPy symbolic expressions | Off-the-shelf |
+| `sympy.lambdify` → numpy/JAX | Off-the-shelf |
+| `sympy.julia_code` | Off-the-shelf (scalar arithmetic) |
+| Substituting Simbox index maps into SymPy expressions at compile time | New (small, ~100 lines) |
+| Emitting a complete Julia `dynamics!` function from the codegen | New (small, ~50 lines) |
+| SymPy → MTK symbolic system (for DAE / `build_mtk_system`) | Partially solved via Symbolics.jl interop |
+
+### Decision
+
+Not implementing now — writing equations in two languages is acceptable given that the derivations (the hard part) only happen once. The hybrid option is worth adding later if the maintenance cost becomes real. Symbolic authoring would also be the natural path toward `build_mtk_system` for ODE systems.
