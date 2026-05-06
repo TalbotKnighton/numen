@@ -21,6 +21,14 @@ from rich.text import Text
 
 from numen._scaffold import EXAMPLES, TEMPLATES
 
+# Ensure UTF-8 output on Windows (cmd.exe / PowerShell default to CP1252)
+if sys.platform == "win32":
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except AttributeError:
+        pass
+
 # ─── App ──────────────────────────────────────────────────────────────────────
 app = typer.Typer(
     name="numen",
