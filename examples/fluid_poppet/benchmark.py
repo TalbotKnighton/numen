@@ -122,28 +122,64 @@ def run_benchmark(include_julia: bool = True) -> str:
         emit("\n--- JuliaBackend --- SKIPPED (--no-julia)")
 
     # ------------------------------------------------------------------
+    # JuliaServerBackend — persistent process, warm after first solve
+    # ------------------------------------------------------------------
+    server_warm_ms: float | None = None
+    server_startup_ms: float | None = None
+    server_jit_ms: float | None = None
+    if include_julia:
+        emit(f"\n--- JuliaServerBackend (persistent process, Tsit5) ---")
+        try:
+            from numen.bridge.server_backend import JuliaServerBackend
+            t_open = time.perf_counter()
+            with JuliaServerBackend(julia_file=_DYN_JL, method="Tsit5",
+                                    rtol=RTOL, atol=ATOL, eager=True) as server:
+                server_startup_ms = (time.perf_counter() - t_open) * 1000
+                emit(f"  process startup:    {server_startup_ms:8.0f} ms  (Julia boot + pkgs)")
+
+                t0 = time.perf_counter()
+                server.solve(spec, TSPAN)
+                server_jit_ms = (time.perf_counter() - t0) * 1000
+                emit(f"  JIT solve:          {server_jit_ms:8.1f} ms")
+
+                warm_times = []
+                for _ in range(REPS):
+                    t0 = time.perf_counter()
+                    r_srv = server.solve(spec, TSPAN)
+                    warm_times.append((time.perf_counter() - t0) * 1000)
+                server_warm_ms = min(warm_times)
+                emit(f"  warm (best of {REPS}):  {server_warm_ms:8.1f} ms")
+                emit(f"  scipy/server speedup:{scipy_warm / (server_warm_ms/1000):8.1f}x")
+                emit(f"  output steps:       {len(r_srv.t)}")
+        except Exception:
+            emit("  FAILED")
+            emit(traceback.format_exc())
+
+    # ------------------------------------------------------------------
     # Summary table
     # ------------------------------------------------------------------
     emit("\n" + "=" * 70)
     emit("Summary (warm solve times — steady-state throughput)")
     emit("-" * 70)
-    emit(f"  {'Backend':<30} {'warm ms':>10}  {'vs scipy':>10}")
-    emit(f"  {'-'*30} {'-'*10}  {'-'*10}")
-    emit(f"  {'ScipyBackend (RK45)':<30} {scipy_warm * 1000:>10.1f}  {'(baseline)':>10}")
+    emit(f"  {'Backend':<35} {'warm ms':>10}  {'vs scipy':>10}")
+    emit(f"  {'-'*35} {'-'*10}  {'-'*10}")
+    emit(f"  {'ScipyBackend (RK45)':<35} {scipy_warm * 1000:>10.1f}  {'(baseline)':>10}")
 
     if jax_ok:
-        emit(f"  {'JAXBackend (Dopri5)':<30} {jax_warm * 1000:>10.1f}  {scipy_warm / jax_warm:>9.1f}x")
+        emit(f"  {'JAXBackend (Dopri5)':<35} {jax_warm * 1000:>10.1f}  {scipy_warm / jax_warm:>9.1f}x")
     else:
-        emit(f"  {'JAXBackend (Dopri5)':<30} {'incompatible':>10}  {'—':>10}")
+        emit(f"  {'JAXBackend (Dopri5)':<35} {'incompatible':>10}  {'—':>10}")
 
     if include_julia:
         for jl_method, res in julia_results.items():
-            label = f"JuliaBackend ({jl_method})"
-            emit(f"  {label:<30} {res.warm_ms:>10.1f}  {scipy_warm / (res.warm_ms/1000):>9.1f}x")
+            label = f"JuliaBackend subprocess ({jl_method})"
+            emit(f"  {label:<35} {res.warm_ms:>10.1f}  {scipy_warm / (res.warm_ms/1000):>9.1f}x")
         if julia_results:
-            # cold-start cost for the last successful Julia run
             last = next(reversed(julia_results.values()))
-            emit(f"  {'JuliaBackend+startup':<30} {last.startup_ms + last.jit_ms + last.warm_ms:>10.0f}  {'(cold subprocess)':>10}")
+            emit(f"  {'  +subprocess cold start':<35} {last.startup_ms + last.jit_ms + last.warm_ms:>10.0f}  {'ms (subprocess)':>10}")
+        if server_warm_ms is not None:
+            emit(f"  {'JuliaServerBackend (Tsit5)':<35} {server_warm_ms:>10.1f}  {scipy_warm / (server_warm_ms/1000):>9.1f}x")
+            emit(f"  {'  +server cold start':<35} {server_startup_ms + server_jit_ms + server_warm_ms:>10.0f}  {'ms (server)':>10}")
 
     emit("=" * 70)
 

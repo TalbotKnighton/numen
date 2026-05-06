@@ -1,6 +1,6 @@
 ======================================================================
 Fluid Poppet Check Valve — Backend Benchmark
-Date:       2026-05-05 02:53:33
+Date:       2026-05-06 00:17:34
 Problem:    pneumatic 4-CV network + 1-DOF spring-mass poppet
 State size: 6   Param size: 28
 tspan:      (0.0, 0.15)  (150 ms)
@@ -9,37 +9,46 @@ Reps (warm timing): 5
 ======================================================================
 
 --- ScipyBackend (RK45) ---
-  cold (first call):    9519.5 ms
-  warm (best of 5):    9342.4 ms
+  cold (first call):    9419.0 ms
+  warm (best of 5):    9282.8 ms
   output steps:       2090
 
 --- JAXBackend (diffrax Dopri5) ---
-  cold (first call):     555.8 ms
-  warm (best of 5):       6.1 ms
-  scipy/JAX speedup:  1543.0x  (warm vs warm)
+  cold (first call):     511.6 ms
+  warm (best of 5):       6.0 ms
+  scipy/JAX speedup:  1539.8x  (warm vs warm)
 
 --- JuliaBackend (OrdinaryDiffEq Tsit5) ---
-  subprocess startup:     3320 ms  (Julia boot + pkgs + include)
-  JIT solve:            3155.8 ms  (first solve, compiles dynamics)
-  warm solve:             35.1 ms  (subsequent, compiled)
-  scipy/Julia speedup:   265.8x  (scipy warm vs julia warm)
+  subprocess startup:     2425 ms  (Julia boot + pkgs + include)
+  JIT solve:            3114.3 ms  (first solve, compiles dynamics)
+  warm solve:             35.7 ms  (subsequent, compiled)
+  scipy/Julia speedup:   260.2x  (scipy warm vs julia warm)
   output steps:       2443
 
 --- JuliaBackend (OrdinaryDiffEq Vern7) ---
-  subprocess startup:     2438 ms  (Julia boot + pkgs + include)
-  JIT solve:            4643.2 ms  (first solve, compiles dynamics)
-  warm solve:             37.9 ms  (subsequent, compiled)
-  scipy/Julia speedup:   246.7x  (scipy warm vs julia warm)
+  subprocess startup:     2432 ms  (Julia boot + pkgs + include)
+  JIT solve:            4690.2 ms  (first solve, compiles dynamics)
+  warm solve:             38.0 ms  (subsequent, compiled)
+  scipy/Julia speedup:   244.3x  (scipy warm vs julia warm)
   output steps:       1408
+
+--- JuliaServerBackend (persistent process, Tsit5) ---
+  process startup:        1455 ms  (Julia boot + pkgs)
+  JIT solve:            3858.0 ms
+  warm (best of 5):      33.8 ms
+  scipy/server speedup:   274.5x
+  output steps:       2443
 
 ======================================================================
 Summary (warm solve times — steady-state throughput)
 ----------------------------------------------------------------------
-  Backend                           warm ms    vs scipy
-  ------------------------------ ----------  ----------
-  ScipyBackend (RK45)                9342.4  (baseline)
-  JAXBackend (Dopri5)                   6.1     1543.0x
-  JuliaBackend (Tsit5)                 35.1      265.8x
-  JuliaBackend (Vern7)                 37.9      246.7x
-  JuliaBackend+startup                 7119  (cold subprocess)
+  Backend                                warm ms    vs scipy
+  ----------------------------------- ----------  ----------
+  ScipyBackend (RK45)                     9282.8  (baseline)
+  JAXBackend (Dopri5)                        6.0     1539.8x
+  JuliaBackend subprocess (Tsit5)           35.7      260.2x
+  JuliaBackend subprocess (Vern7)           38.0      244.3x
+    +subprocess cold start                  7160  ms (subprocess)
+  JuliaServerBackend (Tsit5)                33.8      274.5x
+    +server cold start                      5347  ms (server)
 ======================================================================
