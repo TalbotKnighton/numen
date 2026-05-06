@@ -1,0 +1,528 @@
+"""Scaffold templates for numen new and numen init commands."""
+from __future__ import annotations
+
+
+EXAMPLES: dict[str, dict] = {
+    "oscillator": {
+        "description": "Minimal 1D damped harmonic oscillator — best starting point.",
+        "concepts":    ["IntegratedField", "ParameterField", "ScipyBackend", "SnapshotCollector"],
+        "domain":      "mechanical",
+    },
+    "coupled_spring": {
+        "description": "Three masses coupled by two springs — multi-entity topology.",
+        "concepts":    ["EntityGroup", "entity_groups", "multi-entity System", "energy conservation"],
+        "domain":      "mechanical",
+    },
+    "fluid_poppet": {
+        "description": "Pneumatic 4-CV network + spring-mass poppet check valve.",
+        "concepts":    ["isentropic orifice flow", "smooth contact", "JAXBackend", "JuliaBackend"],
+        "domain":      "fluid/mechanical",
+    },
+}
+
+
+TEMPLATES: dict[str, dict[str, str]] = {
+    "mechanical": {
+        "components.py": '''\
+from typing import Annotated, Literal
+from numen.spec.component import Component
+from numen.fields import IntegratedField, ParameterField
+
+
+class BodyComponent(Component):
+    """Rigid body with 1D position/velocity state."""
+    kind:     Literal["body"] = "body"
+    position: Annotated[float, IntegratedField()] = 0.0   # m
+    velocity: Annotated[float, IntegratedField()] = 0.0   # m/s
+    mass:     Annotated[float, ParameterField()]  = 1.0   # kg
+
+
+class SpringComponent(Component):
+    """Linear spring — topology declared in SpringSystem.entity_groups."""
+    kind:        Literal["spring"] = "spring"
+    stiffness:   Annotated[float, ParameterField()] = 100.0  # N/m
+    rest_length: Annotated[float, ParameterField()] = 1.0    # m
+    damping:     Annotated[float, ParameterField()] = 1.0    # N·s/m
+''',
+        "dynamics.py": '''\
+from typing import ClassVar, Literal
+import jax.numpy as jnp
+from numen.compiler.flatten import CompiledSpec, CompiledSystem
+from numen.fields import EntityGroup
+from numen.spec.system import System, DynamicsFn
+from components import BodyComponent, SpringComponent
+
+
+def kinematics_dynamics(dx, x, p, t, spec, system):
+    """ẋ = v for all BodyComponent entities."""
+    for (eid,) in system.entity_groups:
+        c  = spec.view(eid, BodyComponent, x, p)
+        dc = spec.dx_view(eid, BodyComponent, dx)
+        dc.position += c.velocity
+
+
+class KinematicsSystem(System):
+    component_types: ClassVar[tuple[type, ...]] = (BodyComponent,)
+    python_fn:       ClassVar[DynamicsFn]       = staticmethod(kinematics_dynamics)
+    kind:            Literal["kinematics"]      = "kinematics"
+    dynamics_fn:     str = "{{MODEL_NAME}}Dynamics.kinematics_dynamics!"
+
+
+def spring_dynamics(dx, x, p, t, spec, system):
+    """Spring-damper force between body_a and body_b via a spring entity.
+    Entity group: [body_a, spring, body_b]
+    """
+    for id_a, id_s, id_b in system.entity_groups:
+        a = spec.view(id_a, BodyComponent,   x, p)
+        b = spec.view(id_b, BodyComponent,   x, p)
+        s = spec.view(id_s, SpringComponent, x, p)
+        da = spec.dx_view(id_a, BodyComponent, dx)
+        db = spec.dx_view(id_b, BodyComponent, dx)
+
+        stretch  = (b.position - a.position) - s.rest_length
+        rel_vel  = b.velocity  - a.velocity
+        force    = s.stiffness * stretch + s.damping * rel_vel
+
+        da.velocity +=  force / a.mass
+        db.velocity += -force / b.mass
+
+
+class SpringSystem(System):
+    component_types: ClassVar[tuple[type, ...]] = ()
+    entity_slots:    ClassVar[EntityGroup]      = EntityGroup(
+        BodyComponent, SpringComponent, BodyComponent
+    )
+    python_fn:  ClassVar[DynamicsFn] = staticmethod(spring_dynamics)
+    kind:       Literal["spring"]   = "spring"
+    dynamics_fn: str = "{{MODEL_NAME}}Dynamics.spring_dynamics!"
+''',
+        "dynamics.jl": '''\
+module {{MODEL_NAME}}Dynamics
+
+import Main: CompiledSpec, CompiledSystemSpec, state_idx, param_idx
+
+
+function kinematics_dynamics!(
+    dx::Vector{Float64}, x::Vector{Float64}, p::Vector{Float64},
+    t::Float64, spec::CompiledSpec, sys::CompiledSystemSpec,
+)
+    for id_body in sys.entity_ids
+        i_pos = state_idx(spec, id_body * ".position")
+        i_vel = state_idx(spec, id_body * ".velocity")
+        dx[i_pos] += x[i_vel]
+    end
+end
+
+
+function spring_dynamics!(
+    dx::Vector{Float64}, x::Vector{Float64}, p::Vector{Float64},
+    t::Float64, spec::CompiledSpec, sys::CompiledSystemSpec,
+)
+    gs = sys.group_size  # 3
+    for i in 1:gs:length(sys.entity_ids)
+        id_a = sys.entity_ids[i]
+        id_s = sys.entity_ids[i + 1]
+        id_b = sys.entity_ids[i + 2]
+
+        pos_a = x[state_idx(spec, id_a * ".position")]
+        pos_b = x[state_idx(spec, id_b * ".position")]
+        vel_a = x[state_idx(spec, id_a * ".velocity")]
+        vel_b = x[state_idx(spec, id_b * ".velocity")]
+        mass_a     = p[param_idx(spec, id_a * ".mass")]
+        mass_b     = p[param_idx(spec, id_b * ".mass")]
+        stiffness  = p[param_idx(spec, id_s * ".stiffness")]
+        rest_len   = p[param_idx(spec, id_s * ".rest_length")]
+        damping    = p[param_idx(spec, id_s * ".damping")]
+
+        stretch = (pos_b - pos_a) - rest_len
+        rel_vel = vel_b - vel_a
+        force   = stiffness * stretch + damping * rel_vel
+
+        dx[state_idx(spec, id_a * ".velocity")] +=  force / mass_a
+        dx[state_idx(spec, id_b * ".velocity")] += -force / mass_b
+    end
+end
+
+
+end  # module {{MODEL_NAME}}Dynamics
+''',
+        "world.py": '''\
+from typing import Annotated, Union
+from pydantic import Field
+from numen.spec.world import GenericWorld
+from components import BodyComponent, SpringComponent
+from dynamics import KinematicsSystem, SpringSystem
+
+AnyComponent = Annotated[Union[BodyComponent, SpringComponent], Field(discriminator="kind")]
+AnySystem    = Annotated[Union[KinematicsSystem, SpringSystem],  Field(discriminator="kind")]
+World        = GenericWorld[AnyComponent, AnySystem, None]
+
+
+def make_world() -> World:
+    """Two bodies connected by a spring-damper.  body_b starts displaced by 0.5 m."""
+    return World(
+        components={
+            "body_a": BodyComponent(position=0.0, velocity=0.0, mass=1.0),
+            "spring": SpringComponent(stiffness=100.0, rest_length=1.0, damping=1.0),
+            "body_b": BodyComponent(position=1.5, velocity=0.0, mass=1.0),
+        },
+        systems={
+            "kinematics": KinematicsSystem(),
+            "spring":     SpringSystem(entity_groups=[["body_a", "spring", "body_b"]]),
+        },
+    )
+''',
+        "run.py": '''\
+import os, sys
+sys.path.insert(0, os.path.dirname(__file__))
+
+import numpy as np
+import matplotlib.pyplot as plt
+
+from numen.compiler.flatten import compile_spec
+from numen.bridge.scipy_backend import ScipyBackend
+from numen.reconstruction.collector import SnapshotCollector
+from world import make_world
+
+
+def run():
+    world  = make_world()
+    spec   = compile_spec(world)
+
+    print("State fields:", list(spec.state_index_map.keys()))
+    print("Param fields:", list(spec.param_index_map.keys()))
+
+    tspan  = (0.0, 10.0)
+    result = ScipyBackend(rtol=1e-8, atol=1e-10).solve(spec, tspan)
+    print(f"Solved: {len(result.t)} steps over {result.t[-1]:.1f} s")
+
+    collector = SnapshotCollector(world, spec, result)
+    t, pos_a = collector.field_series("body_a", "position")
+    _, pos_b  = collector.field_series("body_b", "position")
+
+    fig, ax = plt.subplots(figsize=(10, 4))
+    ax.plot(t, pos_a, label="body_a")
+    ax.plot(t, pos_b, label="body_b")
+    ax.set_xlabel("Time (s)")
+    ax.set_ylabel("Position (m)")
+    ax.set_title("Spring-Damper System")
+    ax.legend()
+    ax.grid(True, alpha=0.3)
+    plt.tight_layout()
+    out = os.path.join(os.path.dirname(__file__), "result.png")
+    plt.savefig(out, dpi=150)
+    print(f"Plot saved to {out}")
+    plt.show()
+
+
+if __name__ == "__main__":
+    run()
+''',
+    },
+    "fluid": {
+        "components.py": '''\
+from typing import Annotated, Literal
+from numen.spec.component import Component
+from numen.fields import IntegratedField, ParameterField
+
+
+class ControlVolumeComponent(Component):
+    """Isothermal ideal-gas control volume.  dP/dt = (R·T/V)·ṁ_net"""
+    kind:        Literal["control_volume"] = "control_volume"
+    pressure:    Annotated[float, IntegratedField()] = 101_325.0   # Pa
+    volume:      Annotated[float, ParameterField()]  = 1e-3        # m³
+    temperature: Annotated[float, ParameterField()]  = 293.15      # K
+    R_specific:  Annotated[float, ParameterField()]  = 287.058     # J/(kg·K)  — air
+
+
+class OrificeComponent(Component):
+    """Fixed-area isentropic orifice."""
+    kind:  Literal["orifice"] = "orifice"
+    Cd:    Annotated[float, ParameterField()] = 0.7
+    area:  Annotated[float, ParameterField()] = 1e-5   # m²
+    gamma: Annotated[float, ParameterField()] = 1.4
+''',
+        "dynamics.py": '''\
+from typing import ClassVar, Literal
+import jax.numpy as jnp
+from numen.compiler.flatten import CompiledSpec, CompiledSystem
+from numen.fields import EntityGroup
+from numen.spec.system import System, DynamicsFn
+from components import ControlVolumeComponent, OrificeComponent
+
+
+def _orifice_mdot(P_up, P_dn, T_up, R, Cd, A, gamma):
+    """Isentropic compressible mass flow (kg/s, always >= 0).  JAX-compatible."""
+    safe_P_up = jnp.maximum(P_up, 1e-300)
+    beta      = jnp.maximum(0.0, P_dn) / safe_P_up
+    beta_crit = (2.0 / (gamma + 1.0)) ** (gamma / (gamma - 1.0))
+    choke_exp     = (gamma + 1.0) / (2.0 * (gamma - 1.0))
+    mdot_choked   = Cd * A * P_up * jnp.sqrt(gamma / (R * T_up)) * (2.0/(gamma+1.0))**choke_exp
+    arg           = beta**(2.0/gamma) - beta**((gamma+1.0)/gamma)
+    mdot_unchoked = Cd * A * P_up * jnp.sqrt(jnp.maximum(0.0, 2*gamma/((gamma-1)*R*T_up)*arg))
+    mdot = jnp.where(beta <= beta_crit, mdot_choked, mdot_unchoked)
+    return jnp.where((P_up <= 0.0) | (A <= 0.0), 0.0, mdot)
+
+
+def orifice_flow_dynamics(dx, x, p, t, spec, system):
+    """Compressible orifice flow between two control volumes.
+    Entity group: [cv_a, orifice, cv_b] — flow direction determined by pressure.
+    """
+    for id_a, id_o, id_b in system.entity_groups:
+        cv_a    = spec.view(id_a, ControlVolumeComponent, x, p)
+        orifice = spec.view(id_o, OrificeComponent,       x, p)
+        cv_b    = spec.view(id_b, ControlVolumeComponent, x, p)
+
+        P_a, P_b = cv_a.pressure, cv_b.pressure
+        a_is_up  = P_a >= P_b
+        P_up = jnp.where(a_is_up, P_a, P_b)
+        P_dn = jnp.where(a_is_up, P_b, P_a)
+        T_up = jnp.where(a_is_up, cv_a.temperature, cv_b.temperature)
+        R_up = jnp.where(a_is_up, cv_a.R_specific,  cv_b.R_specific)
+        sign = jnp.where(a_is_up, 1.0, -1.0)
+
+        mdot = sign * _orifice_mdot(P_up, P_dn, T_up, R_up,
+                                    orifice.Cd, orifice.area, orifice.gamma)
+
+        da = spec.dx_view(id_a, ControlVolumeComponent, dx)
+        db = spec.dx_view(id_b, ControlVolumeComponent, dx)
+        da.pressure += -(cv_a.R_specific * cv_a.temperature / cv_a.volume) * mdot
+        db.pressure +=  (cv_b.R_specific * cv_b.temperature / cv_b.volume) * mdot
+
+
+class OrificeFlowSystem(System):
+    component_types: ClassVar[tuple[type, ...]] = ()
+    entity_slots:    ClassVar[EntityGroup]      = EntityGroup(
+        ControlVolumeComponent, OrificeComponent, ControlVolumeComponent
+    )
+    python_fn:  ClassVar[DynamicsFn] = staticmethod(orifice_flow_dynamics)
+    kind:       Literal["orifice_flow"] = "orifice_flow"
+    dynamics_fn: str = "{{MODEL_NAME}}Dynamics.orifice_flow_dynamics!"
+''',
+        "dynamics.jl": '''\
+module {{MODEL_NAME}}Dynamics
+
+import Main: CompiledSpec, CompiledSystemSpec, state_idx, param_idx
+
+
+function orifice_mdot(
+    P_up::Float64, P_dn::Float64, T_up::Float64,
+    R::Float64, Cd::Float64, A::Float64, gamma::Float64,
+)::Float64
+    (P_up <= 0.0 || A <= 0.0) && return 0.0
+    beta      = max(0.0, P_dn) / P_up
+    beta_crit = (2.0 / (gamma + 1.0))^(gamma / (gamma - 1.0))
+    if beta <= beta_crit
+        choke_exp = (gamma + 1.0) / (2.0 * (gamma - 1.0))
+        return Cd * A * P_up * sqrt(gamma / (R * T_up)) * (2.0/(gamma+1.0))^choke_exp
+    else
+        arg = beta^(2.0/gamma) - beta^((gamma+1.0)/gamma)
+        return Cd * A * P_up * sqrt(max(0.0, 2.0*gamma/((gamma-1.0)*R*T_up)*arg))
+    end
+end
+
+
+function orifice_flow_dynamics!(
+    dx::Vector{Float64}, x::Vector{Float64}, p::Vector{Float64},
+    t::Float64, spec::CompiledSpec, sys::CompiledSystemSpec,
+)
+    gs = sys.group_size
+    for i in 1:gs:length(sys.entity_ids)
+        id_a = sys.entity_ids[i]
+        id_o = sys.entity_ids[i + 1]
+        id_b = sys.entity_ids[i + 2]
+
+        P_a = x[state_idx(spec, id_a * ".pressure")]
+        P_b = x[state_idx(spec, id_b * ".pressure")]
+        T_a = p[param_idx(spec, id_a * ".temperature")]
+        T_b = p[param_idx(spec, id_b * ".temperature")]
+        R_a = p[param_idx(spec, id_a * ".R_specific")]
+        R_b = p[param_idx(spec, id_b * ".R_specific")]
+        V_a = p[param_idx(spec, id_a * ".volume")]
+        V_b = p[param_idx(spec, id_b * ".volume")]
+        Cd  = p[param_idx(spec, id_o * ".Cd")]
+        A   = p[param_idx(spec, id_o * ".area")]
+        gam = p[param_idx(spec, id_o * ".gamma")]
+
+        if P_a >= P_b
+            mdot = orifice_mdot(P_a, P_b, T_a, R_a, Cd, A, gam)
+        else
+            mdot = -orifice_mdot(P_b, P_a, T_b, R_b, Cd, A, gam)
+        end
+
+        dx[state_idx(spec, id_a * ".pressure")] += -(R_a * T_a / V_a) * mdot
+        dx[state_idx(spec, id_b * ".pressure")] +=  (R_b * T_b / V_b) * mdot
+    end
+end
+
+
+end  # module {{MODEL_NAME}}Dynamics
+''',
+        "world.py": '''\
+from typing import Annotated, Union
+from pydantic import Field
+from numen.spec.world import GenericWorld
+from components import ControlVolumeComponent, OrificeComponent
+from dynamics import OrificeFlowSystem
+
+AnyComponent = Annotated[Union[ControlVolumeComponent, OrificeComponent], Field(discriminator="kind")]
+AnySystem    = Annotated[Union[OrificeFlowSystem], Field(discriminator="kind")]
+World        = GenericWorld[AnyComponent, AnySystem, None]
+
+P_HIGH = 3e5   # Pa — 3 bar
+P_LOW  = 1e5   # Pa — 1 bar  (ambient)
+T      = 293.15  # K
+
+
+def make_world() -> World:
+    """Two tanks connected by an orifice.  Inlet at 3 bar, outlet at 1 bar."""
+    return World(
+        components={
+            "inlet":  ControlVolumeComponent(pressure=P_HIGH, volume=1e-2, temperature=T),
+            "orifice": OrificeComponent(Cd=0.7, area=1e-5, gamma=1.4),
+            "outlet": ControlVolumeComponent(pressure=P_LOW,  volume=1e-2, temperature=T),
+        },
+        systems={
+            "flow": OrificeFlowSystem(entity_groups=[["inlet", "orifice", "outlet"]]),
+        },
+    )
+''',
+        "run.py": '''\
+import os, sys
+sys.path.insert(0, os.path.dirname(__file__))
+
+import numpy as np
+import matplotlib.pyplot as plt
+
+from numen.compiler.flatten import compile_spec
+from numen.bridge.scipy_backend import ScipyBackend
+from numen.reconstruction.collector import SnapshotCollector
+from world import make_world
+
+
+def run():
+    world  = make_world()
+    spec   = compile_spec(world)
+
+    print("State fields:", list(spec.state_index_map.keys()))
+
+    tspan  = (0.0, 1.0)
+    result = ScipyBackend(rtol=1e-8, atol=1e-10).solve(spec, tspan)
+    print(f"Solved: {len(result.t)} steps over {result.t[-1]:.2f} s")
+
+    collector = SnapshotCollector(world, spec, result)
+    t, P_in  = collector.field_series("inlet",  "pressure")
+    _, P_out  = collector.field_series("outlet", "pressure")
+
+    fig, ax = plt.subplots(figsize=(10, 4))
+    ax.plot(t, P_in  / 1e5, label="inlet (bar)")
+    ax.plot(t, P_out / 1e5, label="outlet (bar)")
+    ax.set_xlabel("Time (s)")
+    ax.set_ylabel("Pressure (bar)")
+    ax.set_title("Two-Tank Orifice Flow")
+    ax.legend()
+    ax.grid(True, alpha=0.3)
+    plt.tight_layout()
+    out = os.path.join(os.path.dirname(__file__), "result.png")
+    plt.savefig(out, dpi=150)
+    print(f"Plot saved to {out}")
+    plt.show()
+
+
+if __name__ == "__main__":
+    run()
+''',
+    },
+}
+
+# Generic (blank) template — same structure but minimal content
+TEMPLATES["generic"] = {
+    "components.py": '''\
+from typing import Annotated, Literal
+from numen.spec.component import Component
+from numen.fields import IntegratedField, ParameterField
+
+
+class MyComponent(Component):
+    kind:  Literal["my"] = "my"
+    # TODO: add IntegratedField (state) and ParameterField (params)
+    state: Annotated[float, IntegratedField()] = 0.0
+''',
+    "dynamics.py": '''\
+from typing import ClassVar, Literal
+import jax.numpy as jnp                    # always jnp, never np, inside dynamics
+from numen.compiler.flatten import CompiledSpec, CompiledSystem
+from numen.spec.system import System, DynamicsFn
+from components import MyComponent
+
+
+def my_dynamics(dx, x, p, t, spec, system):
+    for (eid,) in system.entity_groups:
+        c  = spec.view(eid, MyComponent, x, p)
+        dc = spec.dx_view(eid, MyComponent, dx)
+        # TODO: dc.state += ...
+
+
+class MySystem(System):
+    component_types: ClassVar[tuple[type, ...]] = (MyComponent,)
+    python_fn:       ClassVar[DynamicsFn]       = staticmethod(my_dynamics)
+    kind:            Literal["my_system"]       = "my_system"
+    dynamics_fn:     str = "{{MODEL_NAME}}Dynamics.my_dynamics!"
+''',
+    "dynamics.jl": '''\
+module {{MODEL_NAME}}Dynamics
+
+import Main: CompiledSpec, CompiledSystemSpec, state_idx, param_idx
+
+
+function my_dynamics!(
+    dx::Vector{Float64}, x::Vector{Float64}, p::Vector{Float64},
+    t::Float64, spec::CompiledSpec, sys::CompiledSystemSpec,
+)
+    for id_e in sys.entity_ids
+        i_state = state_idx(spec, id_e * ".state")
+        # TODO: dx[i_state] += ...
+    end
+end
+
+
+end  # module {{MODEL_NAME}}Dynamics
+''',
+    "world.py": '''\
+from typing import Annotated, Union
+from pydantic import Field
+from numen.spec.world import GenericWorld
+from components import MyComponent
+from dynamics import MySystem
+
+AnyComponent = Annotated[Union[MyComponent], Field(discriminator="kind")]
+AnySystem    = Annotated[Union[MySystem],    Field(discriminator="kind")]
+World        = GenericWorld[AnyComponent, AnySystem, None]
+
+
+def make_world() -> World:
+    return World(
+        components={"entity": MyComponent()},
+        systems={"system": MySystem()},
+    )
+''',
+    "run.py": '''\
+import os, sys
+sys.path.insert(0, os.path.dirname(__file__))
+
+from numen.compiler.flatten import compile_spec
+from numen.bridge.scipy_backend import ScipyBackend
+from world import make_world
+
+
+def run():
+    world  = make_world()
+    spec   = compile_spec(world)
+    result = ScipyBackend(rtol=1e-8, atol=1e-10).solve(spec, tspan=(0.0, 1.0))
+    print(f"Solved: {len(result.t)} steps")
+
+
+if __name__ == "__main__":
+    run()
+''',
+}

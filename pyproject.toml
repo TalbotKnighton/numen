@@ -21,6 +21,7 @@ dependencies = [
     "jax[cpu]>=0.10.0",
     "diffrax>=0.7.2",
     "tqdm>=4.67.3",
+    "typer[all]>=0.25.1",
 ]
 
 [project.optional-dependencies]
