@@ -104,14 +104,57 @@ F_stop = k_stop * pen + c_stop * jnp.maximum(0,-vel) * alpha
 
 ## Backends
 
-| Backend | Speed | Use when |
+| Backend | Warm speed | Use when |
 |---|---|---|
 | `ScipyBackend(rtol, atol)` | baseline | development, debugging |
-| `JAXBackend(solver="Dopri5", max_steps=100_000)` | ~1500× faster | repeated solves, Monte Carlo |
-| `JuliaBackend(julia_file="dynamics.jl", rtol, atol)` | ~600× faster | long production runs |
+| `JAXBackend(solver="Dopri5", max_steps=100_000)` | ~1500× faster | repeated solves, Monte Carlo, differentiable |
+| `JuliaBackend(julia_file="dynamics.jl", method, rtol, atol)` | ~300–600× faster | long runs, stiff systems, one-off solves |
+| `JuliaServerBackend(julia_file, method, rtol, atol)` | ~300–600× faster | parameter sweeps — pays JIT cost once |
 
 JAX requires `jnp.*` dynamics (see rules above).
-Julia requires a `.jl` file that mirrors the Python dynamics (see below).
+Julia backends require a `.jl` file that mirrors the Python dynamics (see below).
+
+For stiff problems (multiple timescales, high-frequency oscillations), use an
+implicit Julia solver: `method="Rodas5P"` or `method="FBDF"`.  These take far
+larger steps than explicit methods (Tsit5, Vern7) on stiff systems.
+
+---
+
+## Parameter sweeps — JuliaServerBackend
+
+`JuliaBackend` spawns a fresh Julia process per call (~6–12 s startup + JIT).
+`JuliaServerBackend` keeps the process alive so every solve after the first is
+a warm call (no recompilation).
+
+```python
+from numen.bridge.server_backend import JuliaServerBackend
+
+# Start once — pays boot + JIT on first .solve() call
+with JuliaServerBackend(
+    julia_file="dynamics.jl",
+    method="Rodas5P",   # implicit solver — best for stiff problems
+    rtol=1e-6,
+    atol=1e-8,
+) as server:
+    for params in parameter_grid:
+        world  = make_world(params)          # rebuild with new parameters
+        spec   = compile_spec(world)
+        result = server.solve(spec, tspan=(0.0, 3600.0))
+        # process result...
+```
+
+The server is safe to reuse with different specs and tspans.
+Use it as a plain object (not a context manager) if the lifetime spans
+multiple functions — just call `server.close()` when done.
+
+```python
+server = JuliaServerBackend(julia_file="dynamics.jl", eager=True)
+# ... later ...
+server.close()
+```
+
+`eager=True` starts the Julia process immediately (at construction) rather
+than on the first `solve()` call, so startup happens at a predictable point.
 
 ---
 
@@ -169,7 +212,14 @@ end
 end  # module MyDynamics
 ```
 
-Pass to the backend: `JuliaBackend(julia_file="dynamics.jl", rtol=1e-8, atol=1e-10)`
+Pass to the subprocess backend:
+`JuliaBackend(julia_file="dynamics.jl", method="Tsit5", rtol=1e-8, atol=1e-10)`
+
+Pass to the persistent server backend (parameter sweeps):
+`JuliaServerBackend(julia_file="dynamics.jl", method="Rodas5P", rtol=1e-6, atol=1e-8)`
+
+Available solvers: `Tsit5` (default, fast explicit), `Vern7` (higher-order explicit),
+`Rodas5P` (stiff, implicit — best for multi-timescale problems), `FBDF` (stiff, implicit).
 
 ---
 
