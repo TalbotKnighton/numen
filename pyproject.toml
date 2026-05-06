@@ -20,6 +20,7 @@ dependencies = [
     "six>=1.17.0",
     "jax[cpu]>=0.10.0",
     "diffrax>=0.7.2",
+    "tqdm>=4.67.3",
 ]
 
 [project.optional-dependencies]

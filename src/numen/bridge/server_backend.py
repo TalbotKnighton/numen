@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import json
+import queue
 import subprocess
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import Sequence
+from typing import Callable, Sequence
 
 import numpy as np
 
@@ -16,7 +18,7 @@ _JULIA_PKG_DIR = Path(__file__).parent.parent.parent.parent / "julia"
 _SERVER_JL = _JULIA_PKG_DIR / "src" / "server.jl"
 
 _READY_SIGNAL = "NUMEN_SERVER_READY"
-_STARTUP_TIMEOUT = 120.0   # seconds to wait for Julia to boot + load packages
+_STARTUP_TIMEOUT = 120.0
 
 
 class JuliaServerBackend:
@@ -59,7 +61,7 @@ class JuliaServerBackend:
         self.atol = atol
         self._proc: subprocess.Popen | None = None
         self._lock = threading.Lock()
-        self.startup_ms: float | None = None   # set after first successful start
+        self.startup_ms: float | None = None
 
         if eager:
             self._ensure_started()
@@ -72,11 +74,16 @@ class JuliaServerBackend:
         self,
         compiled_spec: CompiledSpec,
         tspan: tuple[float, float],
+        progress: bool = False,
     ) -> SolveResult:
         """Send one solve request to the running Julia server.
 
-        Starts the server automatically on the first call.  If the server
-        process has died unexpectedly it is restarted (paying JIT cost again).
+        Args:
+            compiled_spec: Compiled simulation spec.
+            tspan:         (t0, tf) integration interval.
+            progress:      If True, show an elapsed-time spinner while solving.
+                           Requires tqdm (``pip install tqdm``); silently skipped
+                           if not installed.
         """
         with self._lock:
             self._ensure_started()
@@ -85,7 +92,10 @@ class JuliaServerBackend:
             try:
                 self._proc.stdin.write(line.encode() + b"\n")
                 self._proc.stdin.flush()
-                response_line = self._proc.stdout.readline()
+                if progress:
+                    response_line = _read_with_spinner(self._proc.stdout, label="julia")
+                else:
+                    response_line = self._proc.stdout.readline()
             except (BrokenPipeError, OSError) as exc:
                 raise RuntimeError("Julia server process died unexpectedly.") from exc
 
@@ -131,15 +141,10 @@ class JuliaServerBackend:
     # ------------------------------------------------------------------
 
     def _ensure_started(self) -> None:
-        """Start the server if not running.  Must be called under self._lock."""
         if self.is_running:
             return
 
-        cmd = [
-            "julia",
-            f"--project={_JULIA_PKG_DIR}",
-            str(_SERVER_JL),
-        ]
+        cmd = ["julia", f"--project={_JULIA_PKG_DIR}", str(_SERVER_JL)]
         if self._julia_file:
             cmd.append(self._julia_file)
 
@@ -151,8 +156,6 @@ class JuliaServerBackend:
             stderr=subprocess.PIPE,
         )
 
-        # Read stderr in a background thread so readline() never blocks the
-        # main thread.  Set ready_event when NUMEN_SERVER_READY is seen.
         ready_event = threading.Event()
         stderr_lines: list[str] = []
 
@@ -163,9 +166,7 @@ class JuliaServerBackend:
                 if decoded == _READY_SIGNAL:
                     ready_event.set()
 
-        threading.Thread(
-            target=_read_stderr, daemon=True, name="julia-server-stderr"
-        ).start()
+        threading.Thread(target=_read_stderr, daemon=True, name="julia-server-stderr").start()
 
         if not ready_event.wait(timeout=_STARTUP_TIMEOUT):
             proc.kill()
@@ -179,11 +180,7 @@ class JuliaServerBackend:
         self._proc = proc
         self.startup_ms = (time.perf_counter() - t0) * 1000
 
-    def _build_payload(
-        self,
-        compiled_spec: CompiledSpec,
-        tspan: tuple[float, float],
-    ) -> dict:
+    def _build_payload(self, compiled_spec: CompiledSpec, tspan: tuple[float, float]) -> dict:
         missing = [s.dynamics_fn for s in compiled_spec.systems if not s.dynamics_fn]
         if missing:
             raise ValueError(
@@ -196,3 +193,165 @@ class JuliaServerBackend:
             "rtol":   self.rtol,
             "atol":   self.atol,
         }
+
+
+# ---------------------------------------------------------------------------
+# JuliaServerPool — N parallel servers for parameter sweeps
+# ---------------------------------------------------------------------------
+
+class JuliaServerPool:
+    """Pool of N persistent Julia servers for parallel parameter sweeps.
+
+    Each server runs in its own Julia process.  ``solve`` acquires an idle
+    server from an internal queue (blocking if all are busy).  ``map``
+    distributes an iterable of tasks across the pool using threads.
+
+    Args:
+        n_workers:  Number of parallel Julia server processes.
+        julia_file: Path to the .jl dynamics file (same for all workers).
+        method:     Julia solver name (e.g. ``"Rodas5P"``).
+        rtol:       Relative tolerance.
+        atol:       Absolute tolerance.
+
+    Example — parallel parameter sweep::
+
+        params = [{"spring_k": k} for k in np.linspace(100, 1000, 50)]
+
+        with JuliaServerPool(n_workers=4, julia_file="dynamics.jl", method="Rodas5P") as pool:
+            results = pool.map(
+                lambda server, p: server.solve(compile_spec(make_world(p)), tspan),
+                params,
+                progress=True,
+            )
+    """
+
+    def __init__(
+        self,
+        n_workers: int,
+        julia_file: str | None = None,
+        method: str = "Tsit5",
+        rtol: float = 1e-6,
+        atol: float = 1e-8,
+    ) -> None:
+        self._n = n_workers
+        self._servers = [
+            JuliaServerBackend(julia_file=julia_file, method=method, rtol=rtol, atol=atol, eager=True)
+            for _ in range(n_workers)
+        ]
+        # Queue acts as a semaphore — each server token is available when idle
+        self._q: queue.Queue[JuliaServerBackend] = queue.Queue()
+        for s in self._servers:
+            self._q.put(s)
+
+    def solve(
+        self,
+        compiled_spec: CompiledSpec,
+        tspan: tuple[float, float],
+    ) -> SolveResult:
+        """Acquire an idle server, solve, release.  Blocks if all servers busy."""
+        server = self._q.get()
+        try:
+            return server.solve(compiled_spec, tspan)
+        finally:
+            self._q.put(server)
+
+    def map(
+        self,
+        fn: Callable[["JuliaServerBackend", object], object],
+        items: Sequence,
+        *,
+        progress: bool = False,
+    ) -> list:
+        """Apply ``fn(server, item)`` for every item, in parallel across workers.
+
+        Results are returned in the same order as ``items``.
+
+        Args:
+            fn:       Callable taking ``(JuliaServerBackend, item)`` and returning
+                      a result.  Called on a pooled server; do not call
+                      ``server.close()`` inside ``fn``.
+            items:    Iterable of inputs.
+            progress: Show a tqdm progress bar over completed tasks.
+
+        Example::
+
+            results = pool.map(
+                lambda server, p: server.solve(compile_spec(make_world(p)), (0, T)),
+                param_list,
+                progress=True,
+            )
+        """
+        items = list(items)
+        n = len(items)
+        results: list = [None] * n
+
+        def _worker(idx: int, item) -> None:
+            server = self._q.get()
+            try:
+                results[idx] = fn(server, item)
+            finally:
+                self._q.put(server)
+
+        with ThreadPoolExecutor(max_workers=self._n) as executor:
+            futures = [executor.submit(_worker, i, item) for i, item in enumerate(items)]
+            if progress:
+                try:
+                    from tqdm.auto import tqdm
+                    for _ in tqdm(as_completed(futures), total=n, desc="julia pool"):
+                        pass
+                except ImportError:
+                    for f in futures:
+                        f.result()
+            else:
+                for f in futures:
+                    f.result()
+
+        return results
+
+    def close(self) -> None:
+        """Shut down all server processes."""
+        for s in self._servers:
+            s.close()
+
+    def __enter__(self) -> "JuliaServerPool":
+        return self
+
+    def __exit__(self, *_) -> None:
+        self.close()
+
+    @property
+    def n_workers(self) -> int:
+        return self._n
+
+
+# ---------------------------------------------------------------------------
+# Shared helpers
+# ---------------------------------------------------------------------------
+
+def _read_with_spinner(stdout, label: str = "") -> bytes:
+    """Read one line from stdout while showing an elapsed-time spinner."""
+    try:
+        from tqdm.auto import tqdm
+        pbar = tqdm(bar_format=f"{label} {{elapsed}}", desc="", total=0, dynamic_ncols=True)
+    except ImportError:
+        pbar = None
+
+    result: list[bytes] = []
+    done = threading.Event()
+
+    def _read():
+        result.append(stdout.readline())
+        done.set()
+
+    reader = threading.Thread(target=_read, daemon=True)
+    reader.start()
+
+    while not done.wait(timeout=0.1):
+        if pbar is not None:
+            pbar.update(0)   # triggers elapsed refresh
+
+    if pbar is not None:
+        pbar.close()
+
+    reader.join()
+    return result[0] if result else b""

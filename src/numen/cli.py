@@ -114,47 +114,88 @@ F_stop = k_stop * pen + c_stop * jnp.maximum(0,-vel) * alpha
 JAX requires `jnp.*` dynamics (see rules above).
 Julia backends require a `.jl` file that mirrors the Python dynamics (see below).
 
-For stiff problems (multiple timescales, high-frequency oscillations), use an
-implicit Julia solver: `method="Rodas5P"` or `method="FBDF"`.  These take far
-larger steps than explicit methods (Tsit5, Vern7) on stiff systems.
+For stiff problems (multiple timescales, high-frequency oscillations):
+- **Julia**: use `method="Rodas5P"` or `method="FBDF"` — Rosenbrock/BDF implicit
+  solvers take far larger steps than explicit methods (Tsit5, Vern7)
+- **JAX**: try `solver="Kvaerno5"` (implicit SDIRK) before giving up on JAX;
+  if the problem is highly stiff, Rodas5P in Julia will outperform anything JAX can do
+
+If JAX hits `max_steps`, install `equinox` (`pip install equinox`) for clearer
+error messages, then either increase `max_steps` or switch to an implicit solver.
 
 ---
 
-## Parameter sweeps — JuliaServerBackend
+## Parameter sweeps — JuliaServerBackend and JuliaServerPool
 
 `JuliaBackend` spawns a fresh Julia process per call (~6–12 s startup + JIT).
-`JuliaServerBackend` keeps the process alive so every solve after the first is
-a warm call (no recompilation).
+`JuliaServerBackend` keeps one process alive — pay JIT once, warm-solve forever.
+`JuliaServerPool` runs N servers in parallel for multi-core sweeps.
+
+### Single server (sequential sweep)
 
 ```python
 from numen.bridge.server_backend import JuliaServerBackend
 
-# Start once — pays boot + JIT on first .solve() call
 with JuliaServerBackend(
     julia_file="dynamics.jl",
     method="Rodas5P",   # implicit solver — best for stiff problems
     rtol=1e-6,
     atol=1e-8,
+    eager=True,         # start Julia immediately, not on first solve
 ) as server:
+    results = []
     for params in parameter_grid:
-        world  = make_world(params)          # rebuild with new parameters
-        spec   = compile_spec(world)
+        spec   = compile_spec(make_world(params))
         result = server.solve(spec, tspan=(0.0, 3600.0))
-        # process result...
+        results.append(result)
 ```
 
-The server is safe to reuse with different specs and tspans.
-Use it as a plain object (not a context manager) if the lifetime spans
-multiple functions — just call `server.close()` when done.
+### Parallel pool (multi-core sweep)
 
 ```python
-server = JuliaServerBackend(julia_file="dynamics.jl", eager=True)
-# ... later ...
-server.close()
+from numen.bridge.server_backend import JuliaServerPool
+import numpy as np
+
+params = [{{"spring_k": k}} for k in np.linspace(100, 1000, 50)]
+
+with JuliaServerPool(
+    n_workers=4,                  # 4 Julia processes running simultaneously
+    julia_file="dynamics.jl",
+    method="Rodas5P",
+    rtol=1e-6,
+    atol=1e-8,
+) as pool:
+    results = pool.map(
+        lambda server, p: server.solve(compile_spec(make_world(p)), (0.0, 3600.0)),
+        params,
+        progress=True,            # tqdm bar over completed tasks
+    )
 ```
 
-`eager=True` starts the Julia process immediately (at construction) rather
-than on the first `solve()` call, so startup happens at a predictable point.
+`pool.map` distributes tasks across all workers and returns results in the
+same order as the input list.  Each worker is a full Julia process with
+compiled dynamics — no JIT overhead after the first solve per worker.
+
+You can also call `pool.solve(spec, tspan)` directly to acquire an idle
+worker (blocking if all are busy) without using `map`.
+
+### Progress bars
+
+`ScipyBackend` supports a real integration-progress bar (tracks `t`):
+
+```python
+result = ScipyBackend().solve(spec, tspan, progress=True)
+```
+
+`JuliaServerBackend` and `JAXBackend` show an elapsed-time spinner:
+
+```python
+result = server.solve(spec, tspan, progress=True)
+result = jax_backend.solve(spec, tspan, progress=True)
+```
+
+All progress display requires `tqdm` (`pip install tqdm`) and is silently
+skipped if tqdm is not installed.  `progress=False` is the default.
 
 ---
 
