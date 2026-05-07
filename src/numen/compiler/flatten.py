@@ -159,15 +159,35 @@ class CompiledSystem(Generic[GroupT]):
 
 
 @dataclass
+class CompiledCallback:
+    """A compiled controller callback — one entry per world.callbacks item."""
+    name:      str                  # world key
+    dt:        float                # controller period (s)
+    julia_fn:  str                  # "Module.fn!" resolved in Julia scope
+    params:    dict[str, float]     # passed to both python_fn and Julia callback
+    python_fn: Any = field(default=None, repr=False)  # not serialized
+
+
+@dataclass
 class CompiledSpec:
-    state_size:       int
-    param_size:       int
-    state_index_map:  dict[str, tuple[int, int]]   # "entity.field" → (start, end) into x
-    param_index_map:  dict[str, tuple[int, int]]   # "entity.field" → (start, end) into p
-    discrete_dts:     list[float]
-    x0:               list[float]
-    p:                list[float]
-    systems:          list[CompiledSystem] = field(default_factory=list)
+    state_size:         int
+    param_size:         int
+    state_index_map:    dict[str, tuple[int, int]]   # "entity.field" → (start, end) into x
+    param_index_map:    dict[str, tuple[int, int]]   # "entity.field" → (start, end) into p
+    discrete_dts:       list[float]
+    x0:                 list[float]
+    p:                  list[float]
+    differential_mask:  list[float]      = field(default_factory=list)
+    # 1.0 for IntegratedField/DiscreteField slots, 0.0 for ContinuousField(algebraic=True).
+    # Always length == state_size.  All-ones ↔ pure ODE (no DAE structure).
+    # Julia passes Diagonal(differential_mask) as mass_matrix to ODEFunction.
+    # See docs/architecture.md — "The differential_mask convention".
+    systems:            list[CompiledSystem]   = field(default_factory=list)
+    compiled_callbacks: list[CompiledCallback] = field(default_factory=list)
+    required_features:  frozenset[str]         = field(default_factory=frozenset)
+    # Features: "vector_fields", "discrete_fields", "continuous_fields",
+    #           "control_callbacks", "dae_constraints"
+    # Populated by compile_spec(); checked by each backend before solving.
 
     def view(
         self,
@@ -206,16 +226,21 @@ class CompiledSpec:
 
     def to_dict(self) -> dict[str, Any]:
         return {
-            "state_size":      self.state_size,
-            "param_size":      self.param_size,
-            "state_index_map": {k: list(v) for k, v in self.state_index_map.items()},
-            "param_index_map": {k: list(v) for k, v in self.param_index_map.items()},
-            "discrete_dts":    self.discrete_dts,
-            "x0":              self.x0,
-            "p":               self.p,
+            "state_size":        self.state_size,
+            "param_size":        self.param_size,
+            "state_index_map":   {k: list(v) for k, v in self.state_index_map.items()},
+            "param_index_map":   {k: list(v) for k, v in self.param_index_map.items()},
+            "discrete_dts":      self.discrete_dts,
+            "x0":                self.x0,
+            "p":                 self.p,
+            "differential_mask": self.differential_mask,
             "systems": [
                 {"dynamics_fn": s.dynamics_fn, "entity_ids": s.entity_ids, "group_size": s.group_size}
                 for s in self.systems
+            ],
+            "callbacks": [
+                {"name": c.name, "dt": c.dt, "julia_fn": c.julia_fn, "params": c.params}
+                for c in self.compiled_callbacks
             ],
         }
 
@@ -264,15 +289,20 @@ def compile_spec(world: Any) -> CompiledSpec:
     param_cursor = 0
     state_index_map: dict[str, tuple[int, int]] = {}
     param_index_map: dict[str, tuple[int, int]] = {}
-    x0: list[float] = []
-    p:  list[float] = []
+    x0:               list[float] = []
+    p:                list[float] = []
+    differential_mask: list[float] = []
     discrete_dts: set[float] = set()
+    features: set[str] = set()
 
     for entity_id, component in world.components.items():
         for field_name, meta, value in _get_numen_fields(component):
             key = f"{entity_id}.{field_name}"
             size = meta.size
             values = [value] if size == 1 else list(value)
+
+            if size > 1:
+                features.add("vector_fields")
 
             if isinstance(meta, ParameterField):
                 param_index_map[key] = (param_cursor, param_cursor + size)
@@ -282,8 +312,21 @@ def compile_spec(world: Any) -> CompiledSpec:
                 state_index_map[key] = (state_cursor, state_cursor + size)
                 x0.extend(values)
                 state_cursor += size
-                if isinstance(meta, DiscreteField) and meta.dt > 0:
-                    discrete_dts.add(meta.dt)
+                if isinstance(meta, DiscreteField):
+                    features.add("discrete_fields")
+                    if meta.dt > 0:
+                        discrete_dts.add(meta.dt)
+                    differential_mask.extend([1.0] * size)
+                elif isinstance(meta, ContinuousField):
+                    if getattr(meta, "algebraic", False):
+                        features.add("dae_constraints")
+                        differential_mask.extend([0.0] * size)
+                    else:
+                        features.add("continuous_fields")
+                        differential_mask.extend([1.0] * size)
+                else:
+                    # IntegratedField
+                    differential_mask.extend([1.0] * size)
 
     systems = []
     for sys_model in (world.systems or {}).values():
@@ -349,6 +392,26 @@ def compile_spec(world: Any) -> CompiledSpec:
             python_fn=python_fn,
         ))
 
+    # --- Callbacks ---
+    compiled_callbacks: list[CompiledCallback] = []
+    for cb_name, cb_model in (world.callbacks or {}).items():
+        if cb_model is None:
+            continue
+        if not cb_model.dt or cb_model.dt <= 0:
+            raise ValueError(
+                f"Callback '{cb_name}': dt must be > 0, got {cb_model.dt!r}"
+            )
+        python_fn = type(cb_model).python_fn
+        compiled_callbacks.append(CompiledCallback(
+            name=cb_name,
+            dt=cb_model.dt,
+            julia_fn=cb_model.julia_fn,
+            params=dict(cb_model.params),
+            python_fn=python_fn,
+        ))
+    if compiled_callbacks:
+        features.add("control_callbacks")
+
     return CompiledSpec(
         state_size=state_cursor,
         param_size=param_cursor,
@@ -357,5 +420,8 @@ def compile_spec(world: Any) -> CompiledSpec:
         discrete_dts=sorted(discrete_dts),
         x0=x0,
         p=p,
+        differential_mask=differential_mask,
         systems=systems,
+        compiled_callbacks=compiled_callbacks,
+        required_features=frozenset(features),
     )

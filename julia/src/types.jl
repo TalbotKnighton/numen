@@ -8,6 +8,15 @@ end
 
 StructTypes.StructType(::Type{CompiledSystemSpec}) = StructTypes.Struct()
 
+struct CompiledCallbackSpec
+    name::String
+    dt::Float64
+    julia_fn::String
+    params::Dict{String, Float64}
+end
+
+StructTypes.StructType(::Type{CompiledCallbackSpec}) = StructTypes.Struct()
+
 struct CompiledSpec
     state_size::Int
     param_size::Int
@@ -16,7 +25,9 @@ struct CompiledSpec
     discrete_dts::Vector{Float64}
     x0::Vector{Float64}
     p::Vector{Float64}
+    differential_mask::Vector{Float64}           # 1.0 = integrated slot, 0.0 = algebraic slot
     systems::Vector{CompiledSystemSpec}
+    callbacks::Vector{CompiledCallbackSpec}
 end
 
 StructTypes.StructType(::Type{CompiledSpec}) = StructTypes.Struct()

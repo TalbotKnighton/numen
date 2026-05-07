@@ -38,8 +38,20 @@ class IntegratedField:
 
 @dataclass(frozen=True)
 class ContinuousField:
-    """Algebraic or output variable; computed from state, not integrated."""
-    size: int = 1
+    """Algebraic or output variable; computed from state each RHS call.
+
+    algebraic=False (default): output variable — dynamics fn writes a derived
+        quantity (force, power, flow rate).  differential_mask = 1.  All backends.
+
+    algebraic=True: algebraic constraint — dynamics fn writes a residual g(x)=0.
+        differential_mask = 0 for these slots.  Julia-only (Rodas5P / FBDF / IDA).
+        An implicit solver is required; numen raises an error if an explicit
+        Julia solver is selected with algebraic constraints present.
+
+    See docs/architecture.md — "The differential_mask convention".
+    """
+    size:      int  = 1
+    algebraic: bool = False
 
 
 @dataclass(frozen=True)

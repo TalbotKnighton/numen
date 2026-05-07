@@ -1,26 +1,46 @@
 """
     solve(payload_json::String) -> SolveResult
 
-Entry point called from Python via juliacall. Receives a JSON-encoded SolvePayload,
-builds and solves the ODE system, returns a SolveResult.
+Entry point called from Python via runner.jl or server.jl.  Receives a
+JSON-encoded SolvePayload, builds and solves the ODE/DAE system, returns a
+SolveResult.
 """
 function solve(payload_json::String)::SolveResult
     payload   = JSON3.read(payload_json, SolvePayload)
     spec      = payload.spec
     tspan     = (payload.tspan[1], payload.tspan[2])
+    method    = payload.method
+
+    check_dae_solver(method, spec)
+
     dynamics! = build_dynamics(spec)
     tstops    = build_tstops(spec.discrete_dts, tspan)
+    cb_set    = build_callbacks(spec)
 
-    prob   = ODEProblem(dynamics!, copy(spec.x0), tspan, copy(spec.p))
-    solver = getfield(OrdinaryDiffEq, Symbol(payload.method))()
-    sol    = OrdinaryDiffEq.solve(
-        prob,
-        solver,
+    has_algebraic = any(m -> m == 0.0, spec.differential_mask)
+
+    if has_algebraic
+        # Mass-matrix DAE path — pass Diagonal(differential_mask) to ODEFunction.
+        # Algebraic slots have mask=0 (no time derivative); the dynamics fn writes
+        # a constraint residual g(x)=0 for those slots.
+        M      = Diagonal(spec.differential_mask)
+        ode_fn = ODEFunction(dynamics!, mass_matrix = M)
+    else
+        ode_fn = ODEFunction(dynamics!)
+    end
+
+    prob   = ODEProblem(ode_fn, copy(spec.x0), tspan, copy(spec.p))
+    solver = getfield(OrdinaryDiffEq, Symbol(method))()
+
+    kw = (
         tstops  = tstops,
         saveat  = tstops,
         abstol  = payload.atol,
         reltol  = payload.rtol,
     )
+    sol = cb_set !== nothing ?
+        OrdinaryDiffEq.solve(prob, solver; kw..., callback = cb_set) :
+        OrdinaryDiffEq.solve(prob, solver; kw...)
 
     x_matrix = hcat(sol.u...)
     return SolveResult(sol.t, x_matrix)
@@ -38,10 +58,7 @@ is already loaded in ``Main`` (via ``include`` before calling ``solve``).
 """
 function build_dynamics(spec::CompiledSpec)
     fns_and_specs = map(spec.systems) do sys_spec
-        parts = split(sys_spec.dynamics_fn, ".")
-        mod   = length(parts) > 1 ? getfield(Main, Symbol(parts[1])) : Main
-        fn    = getfield(mod, Symbol(parts[end]))
-        (fn, sys_spec)
+        (_resolve_fn(sys_spec.dynamics_fn), sys_spec)
     end
 
     function dynamics!(dx, x, p, t)

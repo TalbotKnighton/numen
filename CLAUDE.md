@@ -58,6 +58,35 @@ Rules:
 - Default values are the initial conditions / parameter values when unspecified
 - Multiple `IntegratedField`s on one component are fine (e.g. position + velocity)
 
+#### Field types at a glance
+
+| Field | Vector in | When updated | Backed? |
+|---|---|---|---|
+| `IntegratedField()` | state `x` | Every ODE step (solver integrates) | ✓ all backends |
+| `ParameterField()` | param `p` | Never (constant for the solve) | ✓ all backends |
+| `ContinuousField()` | state `x` | Every RHS call (dynamics fn writes) | ✓ (output/algebraic slot) |
+| `DiscreteField(dt)` | state `x` | Forces solver tstops at multiples of `dt` | ✓ tstops; controller callback pending |
+
+#### Vector / array fields — `size=N`
+
+Any field can hold a contiguous array by setting `size=N`. The compiler packs it
+as `N` consecutive slots in `x` (or `p`). **This works today across all backends.**
+
+```python
+class VibeComponent(Component):
+    kind:        Literal["vibe"] = "vibe"
+    # N=8 frequency/amplitude/phase bins — packed into p[start:start+8]
+    frequencies: Annotated[list[float], ParameterField(size=8)] = [0.0] * 8
+    amplitudes:  Annotated[list[float], ParameterField(size=8)] = [0.0] * 8
+    phases:      Annotated[list[float], ParameterField(size=8)] = [0.0] * 8
+```
+
+- In dynamics: `spec.view(eid, VibeComponent, x, p).frequencies` returns a numpy/JAX slice.
+- In Julia: `p[param_idx(spec, id * ".frequencies") : param_idx(spec, id * ".frequencies") + 7]`
+  or use `param_slice` helper (returns a `UnitRange{Int}`).
+- Size is inferred at `compile_spec()` time from the field annotation — no need to
+  specify it twice; just make sure the default value has the right length.
+
 ### 2 — Define dynamics functions
 
 ```python
@@ -243,6 +272,41 @@ you batch multiple solves via `reps` parameter.
 
 ---
 
+## Backend feature compatibility
+
+Each backend declares `supported_features`. `compile_spec()` sets `required_features`
+on the `CompiledSpec` based on the field types present. Every `solve()` call checks
+compatibility **before starting** and raises `NumenFeatureError` with an actionable
+message if the backend can't handle the spec.
+
+| Feature flag | Scipy | JAX | JuliaBackend | JuliaServerBackend |
+|---|:---:|:---:|:---:|:---:|
+| `vector_fields` (size > 1) | ✓ | ✓ | ✓ | ✓ |
+| `discrete_fields` (DiscreteField) | ✓ | ✓ | ✓ | ✓ |
+| `continuous_fields` (ContinuousField) | ✓ | ✓ | ✓ | ✓ |
+| `control_callbacks` (future) | — | — | — | — |
+
+Adding a new feature to a backend: add the string to that backend's `supported_features`
+class var in `bridge/*.py`. Removing support: remove it — affected models will fail early
+with a clear message instead of a cryptic solver crash.
+
+### Logging
+
+Enable numen's structured logging to see diagnostics, timings, and Julia output:
+
+```python
+from numen.logging import configure_logging
+import logging
+configure_logging(level=logging.DEBUG)   # everything
+configure_logging(level=logging.INFO)    # solve start/finish only
+```
+
+Logger hierarchy: `numen.backend.scipy`, `numen.backend.jax`, `numen.backend.julia`,
+`numen.backend.julia_server`. Julia stderr lines are routed to `numen.backend.julia*`
+at DEBUG level in real time (not just on failure).
+
+---
+
 ## Writing Julia dynamics
 
 For the Julia backend, each Python `System` has a corresponding Julia function.
@@ -344,6 +408,89 @@ examples/
 
 ---
 
+## Controller callbacks
+
+Callbacks fire at a fixed period `dt` and can read and write state.
+
+```python
+# dynamics.py
+def pid_controller(t, x, p, spec):
+    """scipy-side: returns {field_key: new_value}."""
+    err = x[spec.state_idx("sensor.angle")] - p[spec.param_idx("ctrl.setpoint")]
+    return {"actuator.force": p[spec.param_idx("ctrl.kp")] * err}
+
+class PIDCallback(Callback):
+    kind:      Literal["pid"] = "pid"
+    dt:        float = 0.01            # fires every 10 ms
+    julia_fn:  str   = "MyDyn.pid!"   # resolved from already-loaded Julia scope
+    params:    dict[str, float] = {"kp": 1.0, "setpoint": 0.5}
+    python_fn: ClassVar = staticmethod(pid_controller)
+```
+
+```python
+# world.py
+from numen.spec.callback import Callback
+...
+World = GenericWorld[AnyComponent, AnySystem, Annotated[PIDCallback, Field(discriminator="kind")]]
+world = World(
+    components={...},
+    systems={...},
+    callbacks={"ctrl": PIDCallback(dt=0.01, params={"kp": 2.0, "setpoint": 0.0})},
+)
+```
+
+**Julia callback** (in `dynamics.jl`):
+```julia
+function pid!(integrator, spec, params)
+    i_force  = state_idx(spec, "actuator.force")
+    i_angle  = state_idx(spec, "sensor.angle")
+    err = integrator.u[i_angle] - params["setpoint"]
+    integrator.u[i_force] = params["kp"] * err
+end
+```
+
+**Backend behaviour:**
+- **Scipy** — segment-solve: stops at each `dt`, runs `python_fn`, restarts. Zero simulation-time jitter.
+- **JAX** — `NumenFeatureError("control_callbacks")` — JIT cannot call Python mid-solve.
+- **Julia** — `PeriodicCallback` fires inside the integrator at `t0+dt, t0+2dt, …`.
+
+Non-commensurate rates (e.g., 100 Hz + 75 Hz) are handled by merging all fire times into one timeline. Tstops within 1 µs are collapsed so both callbacks fire together.
+
+---
+
+## DAE — algebraic constraints (`ContinuousField(algebraic=True)`)
+
+For hard constraints with no time derivative (pressure equality, joint constraints):
+
+```python
+class CoupledVolume(Component):
+    kind:       Literal["cv"] = "cv"
+    pressure:   Annotated[float, IntegratedField()] = 1e5
+    # Algebraic constraint — dynamics fn writes residual g(x)=0
+    p_balance:  Annotated[float, ContinuousField(algebraic=True)] = 0.0
+```
+
+The dynamics function writes a **residual** (not a derivative) for algebraic slots:
+```python
+def balance_dynamics(dx, x, p, t, spec, system):
+    for id_a, id_b in system.entity_groups:
+        a  = spec.view(id_a, CoupledVolume, x, p)
+        b  = spec.view(id_b, CoupledVolume, x, p)
+        da = spec.dx_view(id_a, CoupledVolume, dx)
+        da.p_balance += a.pressure - b.pressure   # residual = 0 enforces P_a = P_b
+```
+
+**Requirements:**
+- Julia-only: scipy and JAX raise `NumenFeatureError("dae_constraints")`.
+- **Must use an implicit solver**: `method="Rodas5P"` (recommended) or `"FBDF"` for very stiff systems. Passing an explicit solver (Tsit5, Dopri5, Vern7) raises a Julia error before solving.
+
+**Why `differential_mask` is always 0/1:**
+Physical capacitances (mass, heat capacity, fluid volume) are always divided out
+inside the dynamics function — never placed in the mask. The mask is structural
+only: 1 = this slot has a time derivative, 0 = algebraic. See `docs/architecture.md`.
+
+---
+
 ## SnapshotCollector — accessing results
 
 ```python
@@ -364,7 +511,7 @@ print(ball.position, ball.velocity)
 
 ## Quick-start checklist for a new model
 
-- [ ] One `components.py` — define `Component` subclasses, choose `IntegratedField` vs `ParameterField`
+- [ ] One `components.py` — define `Component` subclasses; use `IntegratedField`, `ParameterField`, or `size=N` for vectors
 - [ ] One `dynamics.py` — write dynamics functions using `jnp.*`, define `System` classes
 - [ ] One `world.py` — define `World` type alias, write `make_world()` factory
 - [ ] One `run.py` — call `compile_spec`, choose backend, post-process with `SnapshotCollector`

@@ -1,24 +1,42 @@
 from __future__ import annotations
 
 import json
+import logging
 import queue
 import subprocess
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import Callable, Sequence
+from typing import Callable, ClassVar, Sequence
 
 import numpy as np
 
 from numen.compiler.flatten import CompiledSpec
 from numen.bridge.runtime import SolveResult
+from numen.errors import check_backend_features, check_julia_fns
+
+_log = logging.getLogger("numen.backend.julia_server")
 
 _JULIA_PKG_DIR = Path(__file__).parent.parent.parent.parent / "julia"
 _SERVER_JL = _JULIA_PKG_DIR / "src" / "server.jl"
 
 _READY_SIGNAL = "NUMEN_SERVER_READY"
 _STARTUP_TIMEOUT = 120.0
+
+
+def _ensure_julia_env() -> None:
+    """Run Pkg.instantiate() the first time, when Manifest.toml is absent."""
+    if (_JULIA_PKG_DIR / "Manifest.toml").exists():
+        return
+    if not (_JULIA_PKG_DIR / "Project.toml").exists():
+        return
+    print("First-time Julia server setup: installing dependencies (this may take a few minutes)...",
+          flush=True)
+    subprocess.run(
+        ["julia", f"--project={_JULIA_PKG_DIR}", "-e", "using Pkg; Pkg.instantiate()"],
+        check=True,
+    )
 
 
 class JuliaServerBackend:
@@ -46,6 +64,14 @@ class JuliaServerBackend:
                 spec   = compile_spec(make_world(params))
                 result = server.solve(spec, tspan=(0.0, 3600.0))
     """
+
+    supported_features: ClassVar[frozenset[str]] = frozenset({
+        "vector_fields",
+        "discrete_fields",
+        "continuous_fields",
+        "control_callbacks",
+        "dae_constraints",
+    })
 
     def __init__(
         self,
@@ -85,6 +111,15 @@ class JuliaServerBackend:
                            Requires tqdm (``pip install tqdm``); silently skipped
                            if not installed.
         """
+        check_backend_features(compiled_spec, "JuliaServerBackend", self.supported_features)
+
+        _log.debug(
+            "solve: state_size=%d param_size=%d tspan=%s method=%s rtol=%g atol=%g",
+            compiled_spec.state_size, compiled_spec.param_size,
+            tspan, self.method, self.rtol, self.atol,
+        )
+
+        t0_wall = time.perf_counter()
         with self._lock:
             self._ensure_started()
             payload = self._build_payload(compiled_spec, tspan)
@@ -102,10 +137,13 @@ class JuliaServerBackend:
         if not response_line:
             raise RuntimeError("Julia server closed stdout without responding.")
 
+        elapsed_ms = (time.perf_counter() - t0_wall) * 1000
         data = json.loads(response_line)
         if "error" in data:
+            _log.error("Julia server error after %.0f ms: %s", elapsed_ms, data["error"][:200])
             raise RuntimeError(f"Julia server error:\n{data['error']}")
 
+        _log.debug("solve done in %.1f ms", elapsed_ms)
         t = np.array(data["t"])
         x = np.array(data["x"])
         return SolveResult(t=t, x=x)
@@ -144,6 +182,8 @@ class JuliaServerBackend:
         if self.is_running:
             return
 
+        _ensure_julia_env()
+
         cmd = ["julia", f"--project={_JULIA_PKG_DIR}", str(_SERVER_JL)]
         if self._julia_file:
             cmd.append(self._julia_file)
@@ -165,6 +205,8 @@ class JuliaServerBackend:
                 stderr_lines.append(decoded)
                 if decoded == _READY_SIGNAL:
                     ready_event.set()
+                elif decoded.strip():
+                    _log.debug("[julia] %s", decoded)
 
         threading.Thread(target=_read_stderr, daemon=True, name="julia-server-stderr").start()
 
@@ -181,11 +223,7 @@ class JuliaServerBackend:
         self.startup_ms = (time.perf_counter() - t0) * 1000
 
     def _build_payload(self, compiled_spec: CompiledSpec, tspan: tuple[float, float]) -> dict:
-        missing = [s.dynamics_fn for s in compiled_spec.systems if not s.dynamics_fn]
-        if missing:
-            raise ValueError(
-                f"Systems with empty dynamics_fn (required for JuliaServerBackend): {missing}"
-            )
+        check_julia_fns(compiled_spec, "JuliaServerBackend")
         return {
             "spec":   compiled_spec.to_dict(),
             "tspan":  list(tspan),

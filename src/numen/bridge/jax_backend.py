@@ -1,10 +1,16 @@
 from __future__ import annotations
 
+import logging
+import time
+from typing import Any, Callable, ClassVar
+
 import numpy as np
-from typing import Any, Callable
 
 from numen.compiler.flatten import CompiledSpec, DxBuffer
 from numen.bridge.runtime import SolveResult
+from numen.errors import check_backend_features, check_python_fns
+
+_log = logging.getLogger("numen.backend.jax")
 
 # Stiff solvers available in diffrax (in addition to explicit Dopri5 / Tsit5):
 #   Kvaerno3, Kvaerno4, Kvaerno5  — SDIRK methods, good for mildly-to-moderately stiff
@@ -72,6 +78,12 @@ class JAXBackend:
                                          ``"Kvaerno5"``, ``"ImplicitEuler"``
     """
 
+    supported_features: ClassVar[frozenset[str]] = frozenset({
+        "vector_fields",
+        "discrete_fields",
+        "continuous_fields",
+    })
+
     def __init__(
         self,
         rtol: float = 1e-6,
@@ -136,25 +148,29 @@ class JAXBackend:
     ) -> SolveResult:
         import jax.numpy as jnp
 
-        missing = [s.dynamics_fn for s in compiled_spec.systems if s.python_fn is None]
-        if missing:
-            raise ValueError(
-                f"Systems missing python_fn (required for JAXBackend): {missing}\n"
-                f"Declare 'python_fn: ClassVar[DynamicsFn] = staticmethod(your_fn)' on the System class."
-            )
+        check_backend_features(compiled_spec, "JAXBackend", self.supported_features)
+        check_python_fns(compiled_spec, "JAXBackend")
+
+        _log.debug(
+            "solve: state_size=%d param_size=%d tspan=%s solver=%s rtol=%g atol=%g max_steps=%d",
+            compiled_spec.state_size, compiled_spec.param_size,
+            tspan, self.solver, self.rtol, self.atol, self.max_steps,
+        )
 
         key = (id(compiled_spec), tspan)
         is_first_call = key not in self._cache
         if is_first_call:
+            _log.debug("JIT compiling for spec id=%d tspan=%s", id(compiled_spec), tspan)
             self._cache[key] = self._build_run_fn(compiled_spec, tspan)
 
         run = self._cache[key]
         x0  = jnp.array(compiled_spec.x0)
 
         label = "JAX (JIT compiling...)" if is_first_call else "JAX"
+        t0_wall = time.perf_counter()
+
         if progress:
             from numen.bridge.server_backend import _read_with_spinner as _spinner
-            # JAX is a blocking call — run it in a thread so we can spin
             import threading
             _result = [None]
             _exc    = [None]
@@ -165,7 +181,6 @@ class JAXBackend:
                     _exc[0] = e
             t = threading.Thread(target=_run, daemon=True)
             t.start()
-            # Show spinner by polling
             try:
                 from tqdm.auto import tqdm
                 pbar = tqdm(bar_format=f"{label} {{elapsed}}", total=0, dynamic_ncols=True)
@@ -185,6 +200,9 @@ class JAXBackend:
                 sol = run(x0)
             except Exception as e:
                 _reraise_jax_error(e, self.max_steps, self.solver)
+
+        elapsed_ms = (time.perf_counter() - t0_wall) * 1000
+        _log.debug("solve done in %.1f ms%s", elapsed_ms, " (includes JIT)" if is_first_call else "")
 
         t_out = np.array(sol.ts)
         x_out = np.array(sol.ys).T   # (n_saves, state_size) → (state_size, n_saves)

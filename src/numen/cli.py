@@ -184,6 +184,22 @@ def check() -> None:
             julia_ver = str(e)[:80]
     if julia_ok:
         _ok(f"[bold]Julia[/bold]   {julia_ver}")
+        from numen.bridge.server_backend import _JULIA_PKG_DIR
+        manifest = _JULIA_PKG_DIR / "Manifest.toml"
+        if not manifest.exists() and (_JULIA_PKG_DIR / "Project.toml").exists():
+            _warn("[bold]Julia packages[/bold]   not installed — running Pkg.instantiate() now...")
+            with console.status("[dim]installing Julia packages...[/dim]", spinner="dots"):
+                try:
+                    subprocess.run(
+                        ["julia", f"--project={_JULIA_PKG_DIR}", "-e", "using Pkg; Pkg.instantiate()"],
+                        check=True, capture_output=True, timeout=300,
+                    )
+                    _ok("[bold]Julia packages[/bold]   installed successfully")
+                except Exception as e:
+                    _warn(f"[bold]Julia packages[/bold]   install failed: {str(e)[:80]}")
+                    _warn(f"  Run manually: [bold]julia --project={_JULIA_PKG_DIR} -e 'using Pkg; Pkg.instantiate()'[/bold]")
+        elif manifest.exists():
+            _ok("[bold]Julia packages[/bold]   installed")
     else:
         _warn(f"[bold]Julia[/bold]   {julia_ver}  [dim](install from julialang.org)[/dim]")
 
@@ -467,6 +483,98 @@ world  = World(components={{"e": MyComponent()}}, systems={{"s": MySystem()}})
 spec   = compile_spec(world)
 result = ScipyBackend(rtol=1e-8, atol=1e-10).solve(spec, tspan=(0.0, 1.0))
 ```
+
+---
+
+## Field types
+
+| Field | Where | Updated | Backed |
+|---|---|---|---|
+| `IntegratedField()` | state `x` | Every ODE step | ✓ all backends |
+| `ParameterField()` | param `p` | Never (constant) | ✓ all backends |
+| `ContinuousField()` | state `x` | Every RHS call (fn writes) | ✓ output/algebraic slot |
+| `DiscreteField(dt)` | state `x` | Forces tstops at multiples of `dt` | ✓ tstops; controller callback pending |
+
+### Vector / array fields (`size=N`)
+
+Any field can hold an array by setting `size=N` — all backends support this today:
+
+```python
+class VibeComponent(Component):
+    kind:        Literal["vibe"] = "vibe"
+    frequencies: Annotated[list[float], ParameterField(size=8)] = [0.0] * 8
+    amplitudes:  Annotated[list[float], ParameterField(size=8)] = [0.0] * 8
+    phases:      Annotated[list[float], ParameterField(size=8)] = [0.0] * 8
+```
+
+In dynamics, `spec.view(eid, VibeComponent, x, p).frequencies` returns a slice.
+In Julia, index with `param_idx(spec, id * ".frequencies")` as the start of the slice.
+
+---
+
+## Backend compatibility
+
+`compile_spec()` sets `spec.required_features` based on which field types are present.
+Every `backend.solve()` checks this **before starting** and raises `NumenFeatureError`
+with an actionable message if the backend can't handle the spec.
+
+### Logging
+
+```python
+from numen.logging import configure_logging
+import logging
+configure_logging(level=logging.DEBUG)   # see all diagnostics + Julia output
+```
+
+Julia stderr is routed to `numen.backend.julia*` loggers in real time.
+
+---
+
+## Controller callbacks
+
+Callbacks fire at a fixed period and can write to `DiscreteField` state.
+
+```python
+from numen.spec.callback import Callback
+
+def my_ctrl(t, x, p, spec):
+    return {{"actuator.force": -1.0 * x[spec.state_idx("sensor.angle")]}}
+
+class MyCallback(Callback):
+    kind:      Literal["my"] = "my"
+    dt:        float = 0.01
+    julia_fn:  str   = "MyDyn.my_ctrl!"
+    params:    dict[str, float] = {{"kp": 1.0}}
+    python_fn: ClassVar = staticmethod(my_ctrl)
+```
+
+Wire into world: `callbacks={{"ctrl": MyCallback()}}` in `GenericWorld`.
+
+**Scipy** — segment-solve, zero jitter.  **JAX** — unsupported (`NumenFeatureError`).
+**Julia** — `PeriodicCallback` inside the integrator.
+
+Julia signature: `function my_ctrl!(integrator, spec, params)` — write via `integrator.u[i]`.
+
+---
+
+## DAE — algebraic constraints
+
+`ContinuousField(algebraic=True)` marks a slot with no time derivative.
+The dynamics fn writes a residual `g(x) = 0`; the solver enforces the manifold.
+
+```python
+# Component
+constraint: Annotated[float, ContinuousField(algebraic=True)] = 0.0
+
+# Dynamics fn writes residual (not derivative):
+da.constraint += a.pressure - b.pressure   # enforces P_a = P_b
+```
+
+**Julia-only** (scipy/JAX raise `NumenFeatureError("dae_constraints")`).
+**Requires an implicit solver**: `method="Rodas5P"` or `"FBDF"`.
+
+Physical values (mass, heat capacity, etc.) are always divided out in the dynamics fn —
+the `differential_mask` is structural 0/1 only. See `docs/architecture.md`.
 
 ---
 

@@ -1,15 +1,20 @@
 from __future__ import annotations
 
 import json
+import logging
 import subprocess
 import tempfile
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import ClassVar
 
 import numpy as np
 
 from numen.compiler.flatten import CompiledSpec
+from numen.errors import check_backend_features, check_julia_fns
+
+_log = logging.getLogger("numen.backend.julia")
 
 _JULIA_PKG_DIR = Path(__file__).parent.parent.parent.parent / "julia"
 _RUNNER_JL = _JULIA_PKG_DIR / "src" / "runner.jl"
@@ -64,6 +69,14 @@ class JuliaBackend:
               f"warm {result.warm_ms:.0f} ms")
     """
 
+    supported_features: ClassVar[frozenset[str]] = frozenset({
+        "vector_fields",
+        "discrete_fields",
+        "continuous_fields",
+        "control_callbacks",
+        "dae_constraints",
+    })
+
     def __init__(
         self,
         julia_file: str | None = None,
@@ -91,12 +104,14 @@ class JuliaBackend:
                            reps=1 → single solve (no warm timing).
                            reps>1 → first solve is JIT, rest are warm.
         """
-        missing = [s.dynamics_fn for s in compiled_spec.systems if not s.dynamics_fn]
-        if missing:
-            raise ValueError(
-                f"Systems with empty dynamics_fn (required for JuliaBackend): {missing}\n"
-                f"Set 'dynamics_fn: str = \"Module.function_name!\"' on each System class."
-            )
+        check_backend_features(compiled_spec, "JuliaBackend", self.supported_features)
+        check_julia_fns(compiled_spec, "JuliaBackend")
+
+        _log.debug(
+            "solve: state_size=%d param_size=%d tspan=%s method=%s rtol=%g atol=%g reps=%d",
+            compiled_spec.state_size, compiled_spec.param_size,
+            tspan, self.method, self.rtol, self.atol, reps,
+        )
 
         payload = {
             "spec":   compiled_spec.to_dict(),
@@ -127,7 +142,19 @@ class JuliaBackend:
             proc = subprocess.run(cmd, capture_output=True, text=True)
             wall_ms = (time.perf_counter() - t0) * 1000
 
+            # Always route Julia output to logger, not just on failure
+            for line in proc.stderr.splitlines():
+                if line.strip():
+                    _log.debug("[julia stderr] %s", line)
+            for line in proc.stdout.splitlines():
+                if line.strip():
+                    _log.debug("[julia stdout] %s", line)
+
             if proc.returncode != 0:
+                _log.error(
+                    "Julia subprocess failed (exit %d) after %.0f ms",
+                    proc.returncode, wall_ms,
+                )
                 raise RuntimeError(
                     f"Julia subprocess failed (exit {proc.returncode}):\n"
                     f"STDOUT:\n{proc.stdout}\nSTDERR:\n{proc.stderr}"
@@ -138,6 +165,7 @@ class JuliaBackend:
             payload_path.unlink(missing_ok=True)
             result_path.unlink(missing_ok=True)
 
+        _log.debug("solve done in %.0f ms wall time", wall_ms)
         t = np.array(data["t"])
         x = np.array(data["x"])   # shape (state_size, n_steps) — runner.jl serializes row-wise
         result = SolveResult(t=t, x=x, timings_ms=data.get("timings_ms", []))
