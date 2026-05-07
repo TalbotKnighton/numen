@@ -229,12 +229,12 @@ def init(
         model_name = model.replace("-", "_").replace(" ", "_").title().replace("_", "")
         tmpl = TEMPLATES.get(domain, TEMPLATES["generic"])
         for filename, content in tmpl.items():
-            (model_path / filename).write_text(content.replace("{{MODEL_NAME}}", model_name))
+            (model_path / filename).write_text(content.replace("{{MODEL_NAME}}", model_name), encoding="utf-8")
         model_dirs = f"├── {model}/        ({domain} model)\n"
 
     project_name = target.name
     claude_content = _INIT_CLAUDE_MD.format(project_name=project_name, model_dirs=model_dirs)
-    claude_md.write_text(claude_content)
+    claude_md.write_text(claude_content, encoding="utf-8")
 
     console.print(_logo_panel())
     _header("Project Initialized")
@@ -277,7 +277,7 @@ def new(
     model_name = name.replace("-", "_").replace(" ", "_").title().replace("_", "")
     tmpl = TEMPLATES[domain]
     for filename, content in tmpl.items():
-        (outdir / filename).write_text(content.replace("{{MODEL_NAME}}", model_name))
+        (outdir / filename).write_text(content.replace("{{MODEL_NAME}}", model_name), encoding="utf-8")
 
     _header(f"Scaffolded: {name}  [{domain}]")
     _file("components.py", "Component classes (IntegratedField, ParameterField)")
