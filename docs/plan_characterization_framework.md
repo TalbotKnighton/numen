@@ -1,5 +1,11 @@
 # Characterization Framework — Design Plan
 
+> **Living document.** As design decisions are refined during implementation, update
+> this file immediately so it stays the single source of truth. When a phase is
+> complete, the relevant sections graduate into `DESIGN.md` (architecture reference)
+> and `CLAUDE.md` (model-authoring guide for future sessions). Do not let the plan
+> drift from the code.
+
 ---
 
 ## North Star
@@ -277,6 +283,28 @@ framework should respect that.
 This also constrains the test framework to valid experiments. Injecting an arbitrary
 force into an arbitrary derivative would often be physically meaningless.
 
+### Bond graph grounding
+
+The `targets` mechanism maps directly onto **effort source** excitation in bond graph
+theory: impose a known effort (force, pressure, voltage, heat flux) and let the system
+determine the conjugate flow response. This is the correct excitation type for FRF
+measurement in every physical domain:
+
+| Domain | Effort source | `targets` derivative of | Natural output to measure |
+|---|---|---|---|
+| Mechanical | Force [N] | velocity | velocity (mobility FRF) or position (receptance) |
+| Thermal | Heat flux [W/m²] | temperature | temperature |
+| Fluid | Pressure [Pa] | flow state | flow rate |
+| Electrical | Voltage [V] | current/charge state | current |
+
+The injection mechanism is identical across all domains — the `targets` field just
+names the right integrated state. Bond graph theory validates this abstraction and
+tells us *why* it generalises.
+
+**Flow source** excitation (`port_type="flow"` — impose velocity, measure force) is
+a valid alternative measurement mode. It is less common for FRF campaigns but should
+be supported in the schema from the start so the field is available when needed.
+
 ### Usage
 
 ```python
@@ -289,9 +317,18 @@ class NLOscillatorComponent(Component):
     omega:    Annotated[float, ParameterField()]  = 1.0
     c0:       Annotated[float, ParameterField()]  = 0.1
     c1:       Annotated[float, ParameterField()]  = 1.0
-    # Declares this as a force input port that adds to d(velocity)/dt
-    force:    Annotated[float, ExcitationPort(targets="velocity")] = 0.0
+    # Effort-source port: adds F(t) to d(velocity)/dt
+    force:    Annotated[float, ExcitationPort(
+                  targets   = "velocity",
+                  port_type = "effort",   # "effort" | "flow"
+                  units     = "N",        # SI units string — used for axis labels
+              )] = 0.0
 ```
+
+`port_type` and `units` are metadata only — they do not affect the injection
+mechanism. They enable the framework to auto-label plot axes and name the FRF
+correctly (effort-in / effort-out = impedance; flow-out / effort-in = mobility)
+without knowing the physics domain.
 
 `ExcitationPort(targets="velocity")` means: "the value of `force` is added to
 `d(velocity)/dt` by the framework's ExcitationSystem."
@@ -317,7 +354,9 @@ force port on each mass:
 ```python
 class MassComponent(Component):
     ...
-    force: Annotated[float, ExcitationPort(targets="velocity")] = 0.0
+    force: Annotated[float, ExcitationPort(
+               targets="velocity", port_type="effort", units="N"
+           )] = 0.0
 ```
 
 The test schema specifies which entity's port to drive: `entity: mass_1, port: force`.
