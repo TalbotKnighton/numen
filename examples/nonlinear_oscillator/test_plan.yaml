@@ -99,6 +99,27 @@ tests:
     settle_periods: 15    # intentionally short for demo speed; use ~315 for full accuracy
     measure_periods: 5
 
+  # ── 5. Bode at multiple DC offsets (excitation parameter sweep) ───────────
+  # Outer loop: sweep excitation.dc_offset from 0 → 1.0 (6 operating points).
+  # Inner test: stepped-sine FRF (baseline_frf) at each offset.
+  # Result: ParameterFamilyResult containing 6 FRFResults, coloured by DC offset
+  # in the parameter_family panel.  This directly shows how nonlinearity shifts
+  # the resonance peak and changes damping as the equilibrium moves away from 0.
+  - name: frf_vs_dc
+    type: parameter_sweep
+    sweep_param: excitation.dc_offset   # maps to _exc_osc_force.dc in param_index_map
+    values: [0.0, 0.1, 0.3, 0.5, 0.8, 1.0]
+    sub_test: baseline_frf
+
+  # ── 6. Chirp survey at multiple DC offsets ────────────────────────────────
+  # Same outer loop, inner test is the chirp survey — much faster than stepped
+  # sine, useful for a quick overview of how the resonance peak shifts with DC.
+  - name: chirp_vs_dc
+    type: parameter_sweep
+    sweep_param: excitation.dc_offset
+    values: [0.0, 0.3, 0.6, 1.0]
+    sub_test: chirp_survey
+
 # ── Plot configuration ───────────────────────────────────────────────────────
 #
 # Controls what numen characterize -p (or the default both-in-one run) renders.
@@ -147,3 +168,19 @@ plots:
       enabled: true
       title: "DC Sweep"
       test: dc_bias_sweep
+
+    # FRF family: Bode curves at 6 DC offsets, coloured by excitation.dc_offset.
+    # Nonlinearity is visible as a peak shift + broadening at higher DC offsets.
+    - type: parameter_family
+      enabled: true
+      title: "FRF vs DC Offset"
+      test: frf_vs_dc
+      show_phase: false   # short settle → unreliable phase; magnitude tells the story
+      db: true
+
+    # Chirp family: fast overview — 4 DC offsets overlaid, coloured by offset.
+    - type: parameter_family
+      enabled: true
+      title: "Chirp Survey vs DC Offset"
+      test: chirp_vs_dc
+      db: true

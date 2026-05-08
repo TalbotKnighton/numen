@@ -130,6 +130,8 @@ def run_doe_sweep(
     test: DOESweepSpec,
     exc_spec: Any,
     sub_test_runner: Callable[[Any], Any],
+    entity_id: str | None = None,
+    port_name: str | None = None,
 ) -> DOESweepResult:
     """Run a sub-test at each DOE design point.
 
@@ -157,7 +159,7 @@ def run_doe_sweep(
     for i, combo in enumerate(combinations):
         spec_v = exc_spec
         for key, val in combo.items():
-            spec_v = _set_model_param(spec_v, key, val)
+            spec_v = _set_model_param(spec_v, key, val, entity_id, port_name)
 
         sub = sub_test_runner(spec_v)
         result_obj.sub_results.append(sub)

@@ -11,19 +11,63 @@ from numen.characterization.schema import ParameterSweepSpec
 _log = logging.getLogger("numen.characterization.tests.param_sweep")
 
 
-def _set_model_param(spec: Any, key: str, value: float) -> Any:
-    """Return a new spec with one ParameterField value updated.
+_EXC_PARAM_MAP = {
+    "dc_offset":  "dc",
+    "amplitude":  "amp",
+    "frequency":  "freq",
+}
 
-    key is a dot-separated path, e.g. "osc.c1".  Raises KeyError if the key
-    is not in param_index_map (wrong name, or it's a state field).
+
+def _resolve_param_key(
+    key: str,
+    entity_id: str | None = None,
+    port_name: str | None = None,
+) -> str:
+    """Translate a user-facing parameter path to the internal param_index_map key.
+
+    User-facing paths:
+        ``excitation.dc_offset``  →  ``_exc_{entity_id}_{port_name}.dc``
+        ``excitation.amplitude``  →  ``_exc_{entity_id}_{port_name}.amp``
+        ``excitation.frequency``  →  ``_exc_{entity_id}_{port_name}.freq``
+        ``osc.c1``                →  ``osc.c1``  (unchanged — model parameter)
     """
-    if key not in spec.param_index_map:
+    if key.startswith("excitation."):
+        if entity_id is None or port_name is None:
+            raise ValueError(
+                f"excitation.* parameter '{key}' requires entity_id and port_name "
+                "to be provided to the sweep runner."
+            )
+        sub = key[len("excitation."):]
+        if sub not in _EXC_PARAM_MAP:
+            raise KeyError(
+                f"Unknown excitation parameter '{sub}'. "
+                f"Supported: {list(_EXC_PARAM_MAP)}"
+            )
+        return f"_exc_{entity_id}_{port_name}.{_EXC_PARAM_MAP[sub]}"
+    return key
+
+
+def _set_model_param(
+    spec: Any,
+    key: str,
+    value: float,
+    entity_id: str | None = None,
+    port_name: str | None = None,
+) -> Any:
+    """Return a new spec with one parameter value updated.
+
+    ``key`` may be a model ParameterField path (``"osc.c1"``) or an excitation
+    parameter path (``"excitation.dc_offset"``).  The latter requires
+    ``entity_id`` and ``port_name`` to resolve the internal key.
+    """
+    resolved = _resolve_param_key(key, entity_id, port_name)
+    if resolved not in spec.param_index_map:
         raise KeyError(
-            f"Parameter '{key}' not in param_index_map. "
-            f"Available: {sorted(spec.param_index_map)}"
+            f"Parameter '{key}' (resolved: '{resolved}') not in param_index_map. "
+            f"Model params: {[k for k in spec.param_index_map if not k.startswith('_exc_')]}"
         )
     new_p = list(spec.p)
-    idx   = spec.param_index_map[key][0]
+    idx   = spec.param_index_map[resolved][0]
     new_p[idx] = value
     return replace(spec, p=new_p)
 
@@ -32,6 +76,8 @@ def run_parameter_sweep(
     test: ParameterSweepSpec,
     exc_spec: Any,
     sub_test_runner: Callable[[Any], Any],
+    entity_id: str | None = None,
+    port_name: str | None = None,
 ) -> ParameterFamilyResult:
     """Run a sub-test for each value of a model ParameterField.
 
@@ -53,7 +99,7 @@ def run_parameter_sweep(
     )
 
     for val in test.values:
-        spec_v = _set_model_param(exc_spec, test.sweep_param, val)
+        spec_v = _set_model_param(exc_spec, test.sweep_param, val, entity_id, port_name)
         sub    = sub_test_runner(spec_v)
         result_obj.sub_results.append(sub)
         _log.debug("%s=%s  sub-result: %s", test.sweep_param, val, type(sub).__name__)

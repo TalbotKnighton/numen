@@ -46,6 +46,8 @@ def run_parameter_grid(
     test: ParameterGridSpec,
     exc_spec: Any,
     sub_test_runner: Callable[[Any], Any],
+    entity_id: str | None = None,
+    port_name: str | None = None,
 ) -> ParameterGridResult:
     """Run a sub-test at each point of a parameter grid.
 
@@ -74,7 +76,7 @@ def run_parameter_grid(
     for i, combo in enumerate(combinations):
         spec_v = exc_spec
         for key, val in combo.items():
-            spec_v = _set_model_param(spec_v, key, val)
+            spec_v = _set_model_param(spec_v, key, val, entity_id, port_name)
 
         sub = sub_test_runner(spec_v)
         result_obj.sub_results.append(sub)

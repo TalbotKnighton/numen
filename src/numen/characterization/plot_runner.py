@@ -228,8 +228,11 @@ def _render_dc_sweep(fig, subplot_spec, spec, results_by_name):
 
 
 def _render_parameter_family(fig, subplot_spec, spec, results_by_name):
-    from numen.characterization.results import ParameterFamilyResult
+    from numen.characterization.results import (
+        ParameterFamilyResult, FRFResult, ChirpResult, AmplitudeSweepResult,
+    )
     import matplotlib.gridspec as gridspec
+    import matplotlib.pyplot as plt
     from matplotlib.cm import ScalarMappable
     from matplotlib.colors import Normalize
 
@@ -240,45 +243,84 @@ def _render_parameter_family(fig, subplot_spec, spec, results_by_name):
                 ha="center", va="center", color="gray")
         return
 
-    inner  = gridspec.GridSpecFromSubplotSpec(2, 1, subplot_spec=subplot_spec, hspace=0.08)
-    ax_mag = fig.add_subplot(inner[0])
-    ax_ph  = fig.add_subplot(inner[1], sharex=ax_mag) if spec.show_phase else None
-
-    from numen.characterization.results import FRFResult
-    frfs = [r for r in result.sub_results if isinstance(r, FRFResult)]
-    vals = result.param_values[:len(frfs)]
-    if not frfs:
-        ax_mag.text(0.5, 0.5, "No FRF sub-results", transform=ax_mag.transAxes,
-                    ha="center", va="center", color="gray")
+    subs = result.sub_results
+    vals = result.param_values[:len(subs)]
+    if not subs:
+        ax = fig.add_subplot(subplot_spec)
+        ax.text(0.5, 0.5, "No sub-results", transform=ax.transAxes,
+                ha="center", va="center", color="gray")
         return
 
-    import matplotlib.pyplot as plt
     norm = Normalize(vmin=min(vals), vmax=max(vals))
     cmap = plt.get_cmap("viridis")
 
-    for frf, val in zip(frfs, vals):
-        color = cmap(norm(val))
-        mag   = 20 * np.log10(np.maximum(frf.magnitudes, 1e-12)) if spec.db else frf.magnitudes
-        ax_mag.semilogx(frf.frequencies, mag, lw=1.5, color=color)
+    # ── FRF family: Bode curves coloured by parameter ──────────────────────
+    if isinstance(subs[0], FRFResult):
+        inner  = gridspec.GridSpecFromSubplotSpec(2, 1, subplot_spec=subplot_spec, hspace=0.08)
+        ax_mag = fig.add_subplot(inner[0])
+        ax_ph  = fig.add_subplot(inner[1], sharex=ax_mag) if spec.show_phase else None
+
+        for frf, val in zip(subs, vals):
+            color = cmap(norm(val))
+            mag   = 20 * np.log10(np.maximum(frf.magnitudes, 1e-12)) if spec.db else frf.magnitudes
+            ax_mag.semilogx(frf.frequencies, mag, lw=1.5, color=color)
+            if ax_ph is not None:
+                ax_ph.semilogx(frf.frequencies, _unwrap_deg(frf.phases_deg), lw=1.5, color=color)
+
+        sm = ScalarMappable(cmap=cmap, norm=norm)
+        sm.set_array([])
+        axes = [ax_mag, ax_ph] if ax_ph else [ax_mag]
+        fig.colorbar(sm, ax=axes, label=result.sweep_param, fraction=0.03, pad=0.04)
+
+        ax_mag.set_ylabel("|H(f)| [dB]" if spec.db else "|H(f)|")
+        ax_mag.grid(True, which="both", alpha=0.3)
         if ax_ph is not None:
-            ax_ph.semilogx(frf.frequencies, _unwrap_deg(frf.phases_deg), lw=1.5, color=color)
+            plt.setp(ax_mag.get_xticklabels(), visible=False)
+            ax_ph.set_xlabel("Frequency [Hz]")
+            ax_ph.set_ylabel("Phase [deg]")
+            ax_ph.set_ylim(-200, 20)
+            ax_ph.grid(True, which="both", alpha=0.3)
+        else:
+            ax_mag.set_xlabel("Frequency [Hz]")
+        ax_mag.set_title(spec.title or f"FRF Family — {result.sweep_param}", fontsize=10)
 
-    sm = ScalarMappable(cmap=cmap, norm=norm)
-    sm.set_array([])
-    axes = [ax_mag, ax_ph] if ax_ph else [ax_mag]
-    fig.colorbar(sm, ax=axes, label=result.sweep_param, fraction=0.03, pad=0.04)
+    # ── Chirp family: magnitude FRFs coloured by parameter ─────────────────
+    elif isinstance(subs[0], ChirpResult):
+        ax = fig.add_subplot(subplot_spec)
+        for chirp, val in zip(subs, vals):
+            color = cmap(norm(val))
+            mag   = 20 * np.log10(np.maximum(chirp.H_mag, 1e-12)) if spec.db else chirp.H_mag
+            ax.semilogx(chirp.frequencies, mag, lw=1.5, alpha=0.8, color=color)
 
-    ax_mag.set_ylabel("|H(f)| [dB]" if spec.db else "|H(f)|")
-    ax_mag.grid(True, which="both", alpha=0.3)
-    if ax_ph is not None:
-        plt.setp(ax_mag.get_xticklabels(), visible=False)
-        ax_ph.set_xlabel("Frequency [Hz]")
-        ax_ph.set_ylabel("Phase [deg]")
-        ax_ph.set_ylim(-200, 20)
-        ax_ph.grid(True, which="both", alpha=0.3)
+        sm = ScalarMappable(cmap=cmap, norm=norm)
+        sm.set_array([])
+        fig.colorbar(sm, ax=ax, label=result.sweep_param, fraction=0.05, pad=0.04)
+        ax.set_xlabel("Frequency [Hz]")
+        ax.set_ylabel("|H(f)| [dB]" if spec.db else "|H(f)|")
+        ax.grid(True, which="both", alpha=0.3)
+        ax.set_title(spec.title or f"Chirp Family — {result.sweep_param}", fontsize=10)
+
+    # ── Amplitude sweep family: |H| vs drive amplitude coloured by parameter
+    elif isinstance(subs[0], AmplitudeSweepResult):
+        ax = fig.add_subplot(subplot_spec)
+        for amp_result, val in zip(subs, vals):
+            color = cmap(norm(val))
+            ax.semilogx(amp_result.drive_amplitudes, amp_result.H_magnitudes,
+                        lw=1.5, color=color)
+
+        sm = ScalarMappable(cmap=cmap, norm=norm)
+        sm.set_array([])
+        fig.colorbar(sm, ax=ax, label=result.sweep_param, fraction=0.05, pad=0.04)
+        ref_freq = subs[0].frequency if subs else "?"
+        ax.set_xlabel("Drive amplitude")
+        ax.set_ylabel(f"|H| at f={ref_freq} Hz")
+        ax.grid(True, which="both", alpha=0.3)
+        ax.set_title(spec.title or f"Amplitude Family — {result.sweep_param}", fontsize=10)
+
     else:
-        ax_mag.set_xlabel("Frequency [Hz]")
-    ax_mag.set_title(spec.title or f"Parameter Family — {spec.test}", fontsize=10)
+        ax = fig.add_subplot(subplot_spec)
+        ax.text(0.5, 0.5, f"Unsupported sub-result type:\n{type(subs[0]).__name__}",
+                transform=ax.transAxes, ha="center", va="center", color="gray", fontsize=9)
 
 
 def _render_doe_scatter(fig, subplot_spec, spec, results_by_name):
