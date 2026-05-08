@@ -18,6 +18,11 @@ EXAMPLES: dict[str, dict] = {
         "concepts":    ["isentropic orifice flow", "smooth contact", "JAXBackend", "JuliaBackend"],
         "domain":      "fluid/mechanical",
     },
+    "nonlinear_oscillator": {
+        "description": "Nonlinear Duffing-type oscillator with ExcitationPort characterization campaign.",
+        "concepts":    ["ExcitationPort", "characterization", "FRF", "amplitude sweep", "chirp"],
+        "domain":      "mechanical",
+    },
 }
 
 

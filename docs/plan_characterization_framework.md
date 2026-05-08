@@ -750,6 +750,13 @@ gp = GaussianProcessRegressor().fit(df[["c0", "c1"]], df["Q"])
 - [x] `numen characterize test_plan.yaml` CLI command — pretty table, progress spinner, optional `--output results.json`, `--verbose` for DEBUG logging
 - [x] `pyproject.toml`: `characterization = ["pyDOE3", "SALib", "pandas", "pyyaml"]` optional extra
 - [x] `plots.plot_amplitude_sweep()` and `plots.plot_chirp_frf()` added
+- [x] `examples/nonlinear_oscillator/test_plan.yaml` — complete 4-test campaign (chirp, FRF, amplitude sweep, DC sweep); settle-period guidance in comments
+- [x] `examples/nonlinear_oscillator/characterize_plot.py` — 6-panel summary plot (Bode stepped+chirp overlay, chirp time series, amplitude sweep, DC sweep gain+phase)
+- [x] `src/numen/init_data/CHARACTERIZATION.md` — package data guide: ExcitationPort setup, YAML schema, all 7 test types, settle-period rules, chirp vs stepped-sine table, loading results, full example reference
+- [x] `src/numen/init_data/CLAUDE.md` — package data template for `numen init` (replaced Python string constant); includes {project_name} placeholder and project slots (models table, analysis notes, known issues)
+- [x] `src/numen/cli.py` — `numen init` now copies both CLAUDE.md and CHARACTERIZATION.md from package data via `_write_init_data()`; dead `_INIT_CLAUDE_MD` string constant removed
+- [x] `README.md` — characterization section, `[characterization]` install instructions, `numen characterize` in CLI reference, `nonlinear_oscillator` in examples table
+- [x] `src/numen/_scaffold.py` — `nonlinear_oscillator` added to EXAMPLES registry
 - [ ] SALib integration for Sobol sensitivity indices on DOE results (Phase 4)
 
 ### Phase 4 — Nonlinearity Characterization (future)

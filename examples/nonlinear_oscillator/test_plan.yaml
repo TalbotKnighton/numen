@@ -1,0 +1,97 @@
+# Characterization test plan for the nonlinear oscillator
+#
+#   ẍ + (c₀ + c₁·x²)ẋ + ω²x = F(t)
+#
+# Natural frequency: ω = 2π rad/s → f₀ = 1.0 Hz
+# Damping: c₀ = 0.1 (linear baseline), c₁ = 2.0 (position-dependent)
+#
+# The position-dependent term makes this system look linear when the probe
+# amplitude is small (c(x) ≈ c₀ near x=0), but the amplitude sweep and
+# DC sweep reveal the nonlinearity at larger amplitudes or offsets.
+#
+# Run:   uv run numen characterize test_plan.yaml --output results.json
+
+version: "1.0"
+
+backend:
+  type: scipy
+  rtol: 1.0e-8
+  atol: 1.0e-9
+
+model:
+  module: world           # world.py lives in the same directory as this YAML
+  factory: make_world
+  factory_kwargs:
+    x0: 0.0              # start at rest (let forcing build up the response)
+    v0: 0.0
+    omega: 6.283185307   # 2π rad/s → f₀ = 1.0 Hz
+    c0: 0.1
+    c1: 2.0
+
+excitation:
+  entity: osc
+  port: force            # ExcitationPort field on NLOscillatorComponent
+  output_state: position # state we measure
+
+tests:
+
+  # ── 1. Quick chirp survey ──────────────────────────────────────────────────
+  # One solve covers the whole band — use this first to locate resonance.
+  - name: chirp_survey
+    type: continuous_chirp
+    f_start: 0.2
+    f_end: 3.0
+    duration: 60.0
+    amplitude: 0.05
+    dc_offset: 0.0
+    chirp_type: log
+
+  # ── 2. Baseline FRF (stepped sine, small amplitude) ───────────────────────
+  # Steady-state Bode plot in the linear regime (small probe → c(x) ≈ c₀).
+  #
+  # Settle-period note: this oscillator has Q ≈ 63 at f₀ = 1 Hz.
+  # For an accurate measurement use settle_periods ≈ 5·Q ≈ 315.
+  # Here we use 8 for demo speed — the peak will be slightly underestimated.
+  # Use at least settle_periods=100 for publication-quality Bode plots.
+  - name: baseline_frf
+    type: discrete_frequency_sweep
+    frequencies:
+      spacing: log
+      f_start: 0.3
+      f_end: 2.5
+      n_points: 20
+    amplitude: 0.01
+    dc_offset: 0.0
+    settle_periods: 8     # intentionally short for demo speed; use ~315 for full accuracy
+    measure_periods: 4
+
+  # ── 3. Amplitude sweep at resonance ───────────────────────────────────────
+  # Fixed f = 1.0 Hz, increasing amplitude — nonlinearity signature.
+  # A linear system would show flat |H|; we expect |H| to drop at high amps
+  # because c₁·x² term increases effective damping.
+  #
+  # Settle-period note: same Q ≈ 63 caveat applies — 8 is intentionally short.
+  - name: amplitude_sweep_resonance
+    type: amplitude_sweep
+    frequency: 1.0
+    amplitudes: [0.005, 0.01, 0.05, 0.1, 0.3, 0.5, 1.0]
+    dc_offset: 0.0
+    settle_periods: 8     # intentionally short for demo speed
+    measure_periods: 4
+
+  # ── 4. DC operating-point sweep ───────────────────────────────────────────
+  # Shift the equilibrium with a constant force bias; measure small-signal FRF
+  # at each operating point.  At high DC offset, x ≠ 0 on average, so c₁·x²
+  # raises the effective damping → |H| decreases and phase changes.
+  #
+  # Settle-period note: for a high-Q system near resonance, insufficient settle
+  # causes beat-frequency leakage between the probe and the residual transient
+  # ringing at f₀.  With Q ≈ 63 you need settle_periods ≈ 5·Q ≈ 315.
+  # The 15 used here is for demo speed; increase to ≥ 315 for clean DC sweeps.
+  - name: dc_bias_sweep
+    type: dc_operating_point_sweep
+    dc_values: [0.0, 0.1, 0.3, 0.5, 0.8, 1.0]
+    probe_frequency: 1.0
+    probe_amplitude: 0.005
+    settle_periods: 15    # intentionally short for demo speed; use ~315 for full accuracy
+    measure_periods: 5

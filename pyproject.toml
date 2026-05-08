@@ -22,6 +22,7 @@ dependencies = [
     "diffrax>=0.7.2",
     "tqdm>=4.67.3",
     "typer[all]>=0.25.1",
+    "pyyaml>=6.0.3",
 ]
 
 [project.optional-dependencies]
@@ -37,7 +38,6 @@ characterization = [
     "pyDOE3",
     "SALib",
     "pandas",
-    "pyyaml",
 ]
 
 [project.scripts]

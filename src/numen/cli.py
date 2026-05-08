@@ -6,8 +6,34 @@ import subprocess
 import sys
 import textwrap
 import traceback
+from importlib.resources import files as _pkg_files
 from pathlib import Path
 from typing import Optional
+
+
+def _read_init_data(filename: str) -> str:
+    """Return the text content of a file from numen/init_data/."""
+    return (_pkg_files("numen") / "init_data" / filename).read_text(encoding="utf-8")
+
+
+def _write_init_data(
+    filename: str,
+    dest: Path,
+    substitutions: dict[str, str] | None = None,
+    force: bool = False,
+) -> bool:
+    """Copy an init_data file to dest, applying substitutions.
+
+    Returns True if the file was written, False if it was skipped (already exists).
+    """
+    if dest.exists() and not force:
+        return False
+    content = _read_init_data(filename)
+    if substitutions:
+        for k, v in substitutions.items():
+            content = content.replace("{" + k + "}", v)
+    dest.write_text(content, encoding="utf-8")
+    return True
 
 import typer
 from rich import box
@@ -227,12 +253,13 @@ def init(
     target = Path(directory).resolve() if directory else Path.cwd()
     target.mkdir(parents=True, exist_ok=True)
 
-    claude_md = target / "CLAUDE.md"
+    claude_md    = target / "CLAUDE.md"
+    char_md      = target / "CHARACTERIZATION.md"
+
     if claude_md.exists() and not force:
         console.print(f"  [bold #f59e0b]⚠[/]  CLAUDE.md already exists. Use [bold]--force[/bold] to overwrite.")
         raise typer.Exit(code=1)
 
-    model_dirs = ""
     model_path = None
     if model:
         if domain not in TEMPLATES:
@@ -247,11 +274,11 @@ def init(
         tmpl = TEMPLATES.get(domain, TEMPLATES["generic"])
         for filename, content in tmpl.items():
             (model_path / filename).write_text(content.replace("{{MODEL_NAME}}", model_name), encoding="utf-8")
-        model_dirs = f"├── {model}/        ({domain} model)\n"
 
     project_name = target.name
-    claude_content = _INIT_CLAUDE_MD.format(project_name=project_name, model_dirs=model_dirs)
-    claude_md.write_text(claude_content, encoding="utf-8")
+    _write_init_data("CLAUDE.md", claude_md,
+                     substitutions={"project_name": project_name}, force=force)
+    _write_init_data("CHARACTERIZATION.md", char_md, force=force)
 
     console.print(_logo_panel())
     _header("Project Initialized")
@@ -259,7 +286,8 @@ def init(
     console.print(f"  [bold]Location:[/bold] {target}")
     console.print()
     console.print("  [dim]Created:[/dim]")
-    _file("CLAUDE.md", "AI assistant context — loaded automatically by Claude Code")
+    _file("CLAUDE.md",            "AI assistant context — loaded automatically by Claude Code")
+    _file("CHARACTERIZATION.md",  "Complete characterization framework guide")
     if model_path:
         _file(f"{model}/", f"{domain} model scaffold")
     console.print()
@@ -386,14 +414,20 @@ def characterize(
         from numen.logging import configure_logging
         configure_logging(level=_logging.DEBUG)
 
-    plan_path = _Path(plan)
+    plan_path = _Path(plan).resolve()
     if not plan_path.exists():
         console.print(f"  [bold #ef4444]✗[/]  Plan file not found: {plan_path}")
         raise typer.Exit(code=1)
 
+    # Add the plan file's directory to sys.path so that model modules that use
+    # bare relative imports (from components import ...) can be found.
+    plan_dir = str(plan_path.parent)
+    if plan_dir not in sys.path:
+        sys.path.insert(0, plan_dir)
+
     console.print(_logo_panel())
     _header(f"Characterize  ·  {plan_path.name}")
-    console.print(f"  [dim]Plan:[/dim]  {plan_path.resolve()}")
+    console.print(f"  [dim]Plan:[/dim]  {plan_path}")
     console.print()
 
     # Load and validate the plan
@@ -518,362 +552,6 @@ def info() -> None:
         [dim]DESIGN.md[/dim]               architecture decisions and open questions""")))
 
     console.print()
-
-
-# ─── _INIT_CLAUDE_MD ──────────────────────────────────────────────────────────
-
-_INIT_CLAUDE_MD = '''\
-# {project_name} — Numen Physics Simulation Project
-
-This project uses the **Numen** framework (`pip install numen`) for
-engineering dynamics simulation.  Models are defined in Python and
-solved by scipy, JAX, or Julia backends.
-
-Run `numen check` to verify your installation, then `numen info` for a
-quick reference.
-
----
-
-## Core pattern
-
-```python
-# 1. Components — data (state + parameters)
-from numen.spec.component import Component
-from numen.fields import IntegratedField, ParameterField
-from typing import Annotated, Literal
-
-class MyComponent(Component):
-    kind:     Literal["my"] = "my"
-    position: Annotated[float, IntegratedField()] = 0.0   # state (integrated)
-    mass:     Annotated[float, ParameterField()]  = 1.0   # param (constant)
-
-# 2. Systems — stateless dynamics functions
-import jax.numpy as jnp   # always jnp, never np, inside dynamics
-from numen.spec.system import System, DynamicsFn
-from typing import ClassVar
-
-def my_dynamics(dx, x, p, t, spec, system):
-    for (eid,) in system.entity_groups:
-        c  = spec.view(eid, MyComponent, x, p)     # read
-        dc = spec.dx_view(eid, MyComponent, dx)    # write
-        dc.position += c.velocity                  # accumulate with +=
-
-class MySystem(System):
-    component_types: ClassVar[tuple[type, ...]] = (MyComponent,)
-    python_fn:       ClassVar[DynamicsFn]       = staticmethod(my_dynamics)
-    kind:            Literal["my_sys"]          = "my_sys"
-    dynamics_fn:     str = "MyDynamics.my_dynamics!"   # Julia function name
-
-# 3. Assemble world + solve
-from numen.spec.world import GenericWorld
-from numen.compiler.flatten import compile_spec
-from numen.bridge.scipy_backend import ScipyBackend
-
-World  = GenericWorld[MyComponent, MySystem, None]
-world  = World(components={{"e": MyComponent()}}, systems={{"s": MySystem()}})
-spec   = compile_spec(world)
-result = ScipyBackend(rtol=1e-8, atol=1e-10).solve(spec, tspan=(0.0, 1.0))
-```
-
----
-
-## Field types
-
-| Field | Where | Updated | Backed |
-|---|---|---|---|
-| `IntegratedField()` | state `x` | Every ODE step | ✓ all backends |
-| `ParameterField()` | param `p` | Never (constant) | ✓ all backends |
-| `ContinuousField()` | state `x` | Every RHS call (fn writes) | ✓ output/algebraic slot |
-| `DiscreteField(dt)` | state `x` | Forces tstops at multiples of `dt` | ✓ tstops; controller callback pending |
-
-### Vector / array fields (`size=N`)
-
-Any field can hold an array by setting `size=N` — all backends support this today:
-
-```python
-class VibeComponent(Component):
-    kind:        Literal["vibe"] = "vibe"
-    frequencies: Annotated[list[float], ParameterField(size=8)] = [0.0] * 8
-    amplitudes:  Annotated[list[float], ParameterField(size=8)] = [0.0] * 8
-    phases:      Annotated[list[float], ParameterField(size=8)] = [0.0] * 8
-```
-
-In dynamics, `spec.view(eid, VibeComponent, x, p).frequencies` returns a slice.
-In Julia, index with `param_idx(spec, id * ".frequencies")` as the start of the slice.
-
----
-
-## Backend compatibility
-
-`compile_spec()` sets `spec.required_features` based on which field types are present.
-Every `backend.solve()` checks this **before starting** and raises `NumenFeatureError`
-with an actionable message if the backend can't handle the spec.
-
-### Logging
-
-```python
-from numen.logging import configure_logging
-import logging
-configure_logging(level=logging.DEBUG)   # see all diagnostics + Julia output
-```
-
-Julia stderr is routed to `numen.backend.julia*` loggers in real time.
-
----
-
-## Controller callbacks
-
-Callbacks fire at a fixed period and can write to `DiscreteField` state.
-
-```python
-from numen.spec.callback import Callback
-
-def my_ctrl(t, x, p, spec):
-    return {{"actuator.force": -1.0 * x[spec.state_idx("sensor.angle")]}}
-
-class MyCallback(Callback):
-    kind:      Literal["my"] = "my"
-    dt:        float = 0.01
-    julia_fn:  str   = "MyDyn.my_ctrl!"
-    params:    dict[str, float] = {{"kp": 1.0}}
-    python_fn: ClassVar = staticmethod(my_ctrl)
-```
-
-Wire into world: `callbacks={{"ctrl": MyCallback()}}` in `GenericWorld`.
-
-**Scipy** — segment-solve, zero jitter.  **JAX** — unsupported (`NumenFeatureError`).
-**Julia** — `PeriodicCallback` inside the integrator.
-
-Julia signature: `function my_ctrl!(integrator, spec, params)` — write via `integrator.u[i]`.
-
----
-
-## DAE — algebraic constraints
-
-`ContinuousField(algebraic=True)` marks a slot with no time derivative.
-The dynamics fn writes a residual `g(x) = 0`; the solver enforces the manifold.
-
-```python
-# Component
-constraint: Annotated[float, ContinuousField(algebraic=True)] = 0.0
-
-# Dynamics fn writes residual (not derivative):
-da.constraint += a.pressure - b.pressure   # enforces P_a = P_b
-```
-
-**Julia-only** (scipy/JAX raise `NumenFeatureError("dae_constraints")`).
-**Requires an implicit solver**: `method="Rodas5P"` or `"FBDF"`.
-
-Physical values (mass, heat capacity, etc.) are always divided out in the dynamics fn —
-the `differential_mask` is structural 0/1 only. See `docs/architecture.md`.
-
----
-
-## JAX rules  ⚠️
-
-Inside any dynamics function, always use `jnp.*` — never `np.*`.
-Never use `if`/`else` on state values; use `jnp.where(cond, a, b)`.
-Guard both branches of every `jnp.where` against NaN/Inf.
-Use solver `Dopri5` (not `Tsit5`) when absolute tolerance is tight.
-
-## Smooth contact  ⚠️
-
-Hard-stop forces (`max(0,-pos)`) cause catastrophic step rejection.
-Use a C1-smooth 1 µm ramp instead:
-
-```python
-_D = 1e-6   # 1 µm
-def _soft_pen(x):
-    return jnp.where(x <= 0, 0.0, jnp.where(x >= _D, x - 0.5*_D, 0.5*x*x/_D))
-
-pen   = _soft_pen(-pos)                            # penetration at closed stop
-alpha = jnp.clip(-pos / _D, 0.0, 1.0)             # contact activation (0→1)
-F_stop = k_stop * pen + c_stop * jnp.maximum(0,-vel) * alpha
-```
-
----
-
-## Backends
-
-| Backend | Warm speed | Use when |
-|---|---|---|
-| `ScipyBackend(rtol, atol)` | baseline | development, debugging |
-| `JAXBackend(solver="Dopri5", max_steps=100_000)` | ~1500× faster | repeated solves, Monte Carlo, differentiable |
-| `JuliaBackend(julia_file="dynamics.jl", method, rtol, atol)` | ~300–600× faster | long runs, stiff systems, one-off solves |
-| `JuliaServerBackend(julia_file, method, rtol, atol)` | ~300–600× faster | parameter sweeps — pays JIT cost once |
-
-JAX requires `jnp.*` dynamics (see rules above).
-Julia backends require a `.jl` file that mirrors the Python dynamics (see below).
-
-For stiff problems (multiple timescales, high-frequency oscillations):
-- **Julia**: use `method="Rodas5P"` or `method="FBDF"` — Rosenbrock/BDF implicit
-  solvers take far larger steps than explicit methods (Tsit5, Vern7)
-- **JAX**: try `solver="Kvaerno5"` (implicit SDIRK) before giving up on JAX;
-  if the problem is highly stiff, Rodas5P in Julia will outperform anything JAX can do
-
-If JAX hits `max_steps`, install `equinox` (`pip install equinox`) for clearer
-error messages, then either increase `max_steps` or switch to an implicit solver.
-
----
-
-## Parameter sweeps — JuliaServerBackend and JuliaServerPool
-
-`JuliaBackend` spawns a fresh Julia process per call (~6–12 s startup + JIT).
-`JuliaServerBackend` keeps one process alive — pay JIT once, warm-solve forever.
-`JuliaServerPool` runs N servers in parallel for multi-core sweeps.
-
-### Single server (sequential sweep)
-
-```python
-from numen.bridge.server_backend import JuliaServerBackend
-
-with JuliaServerBackend(
-    julia_file="dynamics.jl",
-    method="Rodas5P",   # implicit solver — best for stiff problems
-    rtol=1e-6,
-    atol=1e-8,
-    eager=True,         # start Julia immediately, not on first solve
-) as server:
-    results = []
-    for params in parameter_grid:
-        spec   = compile_spec(make_world(params))
-        result = server.solve(spec, tspan=(0.0, 3600.0))
-        results.append(result)
-```
-
-### Parallel pool (multi-core sweep)
-
-```python
-from numen.bridge.server_backend import JuliaServerPool
-import numpy as np
-
-params = [{{"spring_k": k}} for k in np.linspace(100, 1000, 50)]
-
-with JuliaServerPool(
-    n_workers=4,                  # 4 Julia processes running simultaneously
-    julia_file="dynamics.jl",
-    method="Rodas5P",
-    rtol=1e-6,
-    atol=1e-8,
-) as pool:
-    results = pool.map(
-        lambda server, p: server.solve(compile_spec(make_world(p)), (0.0, 3600.0)),
-        params,
-        progress=True,            # tqdm bar over completed tasks
-    )
-```
-
-`pool.map` distributes tasks across all workers and returns results in the
-same order as the input list.  Each worker is a full Julia process with
-compiled dynamics — no JIT overhead after the first solve per worker.
-
-You can also call `pool.solve(spec, tspan)` directly to acquire an idle
-worker (blocking if all are busy) without using `map`.
-
-### Progress bars
-
-`ScipyBackend` supports a real integration-progress bar (tracks `t`):
-
-```python
-result = ScipyBackend().solve(spec, tspan, progress=True)
-```
-
-`JuliaServerBackend` and `JAXBackend` show an elapsed-time spinner:
-
-```python
-result = server.solve(spec, tspan, progress=True)
-result = jax_backend.solve(spec, tspan, progress=True)
-```
-
-All progress display requires `tqdm` (`pip install tqdm`) and is silently
-skipped if tqdm is not installed.  `progress=False` is the default.
-
----
-
-## Multi-entity topology
-
-When a system couples multiple entity types (spring between two masses,
-orifice between two control volumes), declare slots in `entity_slots`
-and provide the connections at instantiation:
-
-```python
-from numen.fields import EntityGroup
-
-class SpringSystem(System):
-    entity_slots: ClassVar[EntityGroup] = EntityGroup(
-        MassComponent, SpringComponent, MassComponent   # group_size = 3
-    )
-    ...
-
-SpringSystem(entity_groups=[["m1", "spring", "m2"], ["m2", "spring2", "m3"]])
-```
-
----
-
-## Accessing results
-
-```python
-from numen.reconstruction.collector import SnapshotCollector
-
-collector = SnapshotCollector(world, spec, result)
-
-# Time series for one field
-t, pos = collector.field_series("entity_id", "position")
-
-# Typed snapshot at a specific time
-snap  = collector.at(t=1.5)
-state = snap.components["entity_id"]   # read .position, .velocity, etc.
-```
-
----
-
-## Writing Julia dynamics
-
-```julia
-# dynamics.jl
-module MyDynamics
-import Main: CompiledSpec, CompiledSystemSpec, state_idx, param_idx
-
-function my_dynamics!(dx, x, p, t, spec, sys)
-    for id_e in sys.entity_ids
-        i = state_idx(spec, id_e * ".position")
-        dx[i] += x[state_idx(spec, id_e * ".velocity")]
-    end
-end
-
-end  # module MyDynamics
-```
-
-Pass to the subprocess backend:
-`JuliaBackend(julia_file="dynamics.jl", method="Tsit5", rtol=1e-8, atol=1e-10)`
-
-Pass to the persistent server backend (parameter sweeps):
-`JuliaServerBackend(julia_file="dynamics.jl", method="Rodas5P", rtol=1e-6, atol=1e-8)`
-
-Available solvers: `Tsit5` (default, fast explicit), `Vern7` (higher-order explicit),
-`Rodas5P` (stiff, implicit — best for multi-timescale problems), `FBDF` (stiff, implicit).
-
----
-
-## Project layout
-
-```
-{project_name}/
-{model_dirs}\\
-├── CLAUDE.md          this file
-└── (add more models with: numen new <name> --domain mechanical|fluid|generic)
-```
-
----
-
-## CLI reference
-
-```bash
-numen check                          # verify scipy + JAX + Julia
-numen new <name> --domain <domain>   # scaffold a model (mechanical / fluid / generic)
-numen info                           # framework cheat-sheet
-```
-'''
 
 
 # ─── Entry point ──────────────────────────────────────────────────────────────
