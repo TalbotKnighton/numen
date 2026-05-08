@@ -202,10 +202,11 @@ def _render_amplitude_sweep(fig, subplot_spec, spec, results_by_name):
 def _render_dc_sweep(fig, subplot_spec, spec, results_by_name):
     from numen.characterization.results import DCSweptFRFResult
     import matplotlib.gridspec as gridspec
+    import matplotlib.pyplot as plt
 
-    inner  = gridspec.GridSpecFromSubplotSpec(1, 2, subplot_spec=subplot_spec, wspace=0.4)
+    inner  = gridspec.GridSpecFromSubplotSpec(2, 1, subplot_spec=subplot_spec, hspace=0.08)
     ax_mag = fig.add_subplot(inner[0])
-    ax_ph  = fig.add_subplot(inner[1])
+    ax_ph  = fig.add_subplot(inner[1], sharex=ax_mag)
 
     result = results_by_name.get(spec.test)
     if result is not None and isinstance(result, DCSweptFRFResult):
@@ -215,14 +216,15 @@ def _render_dc_sweep(fig, subplot_spec, spec, results_by_name):
         ax_mag.plot(dc, mag, "o-", lw=2, ms=6, color="tab:purple")
         ax_ph.plot(dc, ph, "s-", lw=2, ms=6, color="tab:red")
         ax_mag.set_ylabel(f"|H| at f={result.probe_frequency:.2f} Hz")
-        ax_ph.set_ylabel("Phase [deg]")
+    else:
+        ax_mag.set_ylabel("|H|")
 
-    ax_mag.set_xlabel("DC offset")
+    plt.setp(ax_mag.get_xticklabels(), visible=False)
     ax_ph.set_xlabel("DC offset")
+    ax_ph.set_ylabel("Phase [deg]")
     ax_mag.grid(True, alpha=0.3)
     ax_ph.grid(True, alpha=0.3)
-    title = spec.title or f"DC Sweep — {spec.test}"
-    ax_mag.set_title(title, fontsize=10)
+    ax_mag.set_title(spec.title or f"DC Sweep — {spec.test}", fontsize=10)
 
 
 def _render_parameter_family(fig, subplot_spec, spec, results_by_name):
