@@ -33,6 +33,12 @@ examples = [
     "matplotlib>=3.10.9",
     "scipy>=1.17.1",
 ]
+characterization = [
+    "pyDOE3",
+    "SALib",
+    "pandas",
+    "pyyaml",
+]
 
 [project.scripts]
 numen = "numen.cli:main"

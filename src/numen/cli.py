@@ -106,12 +106,13 @@ def callback(ctx: typer.Context) -> None:
         t = Table(box=box.SIMPLE, show_header=False, padding=(0, 2))
         t.add_column(style="bold #06b6d4", no_wrap=True)
         t.add_column(style="dim")
-        t.add_row("check",  "Verify scipy, JAX, and Julia backends")
-        t.add_row("init",   "Bootstrap a new project with CLAUDE.md")
-        t.add_row("new",    "Scaffold a model directory")
-        t.add_row("list",   "Show built-in examples")
-        t.add_row("run",    "Run a built-in example")
-        t.add_row("info",   "Quick-reference cheat sheet")
+        t.add_row("check",        "Verify scipy, JAX, and Julia backends")
+        t.add_row("characterize", "Run a YAML/JSON characterization test plan")
+        t.add_row("init",         "Bootstrap a new project with CLAUDE.md")
+        t.add_row("new",          "Scaffold a model directory")
+        t.add_row("list",         "Show built-in examples")
+        t.add_row("run",          "Run a built-in example")
+        t.add_row("info",         "Quick-reference cheat sheet")
         console.print(t)
         console.print()
         console.print(f"  [dim]Run [bold]numen <command> --help[/bold] for details.[/dim]")
@@ -359,6 +360,96 @@ def run(
     console.print()
     if proc.returncode != 0:
         raise typer.Exit(code=proc.returncode)
+
+
+@app.command()
+def characterize(
+    plan: str = typer.Argument(..., help="Path to YAML or JSON test plan"),
+    output: Optional[str] = typer.Option(
+        None, "--output", "-o", help="Save results to JSON file",
+    ),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Enable DEBUG logging"),
+) -> None:
+    """Run a characterization test plan against a Numen model.
+
+    The plan is a YAML or JSON file describing the backend, model, excitation,
+    and a list of tests (frequency sweeps, DC sweeps, amplitude sweeps, etc.).
+
+    Example::
+
+        uv run numen characterize test_plan.yaml --output results.json
+    """
+    import logging as _logging
+    from pathlib import Path as _Path
+
+    if verbose:
+        from numen.logging import configure_logging
+        configure_logging(level=_logging.DEBUG)
+
+    plan_path = _Path(plan)
+    if not plan_path.exists():
+        console.print(f"  [bold #ef4444]✗[/]  Plan file not found: {plan_path}")
+        raise typer.Exit(code=1)
+
+    console.print(_logo_panel())
+    _header(f"Characterize  ·  {plan_path.name}")
+    console.print(f"  [dim]Plan:[/dim]  {plan_path.resolve()}")
+    console.print()
+
+    # Load and validate the plan
+    with console.status("[dim]Loading test plan...[/dim]", spinner="dots"):
+        try:
+            from numen.characterization.schema import CharacterizationConfig
+            if plan_path.suffix in (".yaml", ".yml"):
+                config = CharacterizationConfig.from_yaml(plan_path)
+            else:
+                config = CharacterizationConfig.from_json(plan_path)
+        except Exception as e:
+            _fail(f"Failed to load plan: {e}")
+            raise typer.Exit(code=1)
+
+    n_tests = len(config.tests)
+    _ok(f"Plan validated  ({n_tests} test{'s' if n_tests != 1 else ''})")
+    console.print()
+
+    # Print test table
+    t = Table(box=box.SIMPLE, show_header=True, padding=(0, 2))
+    t.add_column("#", style="dim", no_wrap=True, min_width=3)
+    t.add_column("Name", style="bold #06b6d4", no_wrap=True)
+    t.add_column("Type", style="dim")
+    for i, test in enumerate(config.tests, 1):
+        t.add_row(str(i), test.name, test.type)
+    console.print(t)
+    console.print()
+
+    # Run the campaign
+    with console.status("[dim]Running campaign...[/dim]", spinner="dots"):
+        try:
+            from numen.characterization.runner import CharacterizationRunner
+            runner  = CharacterizationRunner.from_config(config)
+            results = runner.run()
+        except Exception as e:
+            _fail(f"Campaign failed: {e}")
+            if verbose:
+                console.print_exception()
+            raise typer.Exit(code=1)
+
+    _ok(f"Campaign complete  ({len(results)} tests)")
+
+    # Optionally save
+    if output:
+        out_path = _Path(output)
+        results.save(out_path)
+        _ok(f"Results saved → {out_path.resolve()}")
+
+    console.print()
+    console.print(Rule(style="dim #7c3aed"))
+    console.print()
+    console.print(
+        "  Load results in Python: "
+        "[bold]from numen.characterization.results import CampaignResults[/bold]"
+    )
+    console.print()
 
 
 @app.command()

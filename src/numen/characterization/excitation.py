@@ -124,6 +124,125 @@ def inject_excitation(
     )
 
 
+def inject_chirp_excitation(
+    spec: CompiledSpec,
+    entity_id: str,
+    port_name: str,
+    target_field: str,
+    amp: float = 1.0,
+    f_start: float = 1.0,
+    f_end: float = 10.0,
+    duration: float = 10.0,
+    dc: float = 0.0,
+    chirp_type: str = "log",
+) -> CompiledSpec:
+    """Return a new CompiledSpec with a frequency-swept (chirp) forcing system added.
+
+    Injects F(t) = amp·sin(φ(t)) + dc into d(target_field)/dt, where φ(t) is the
+    chirp phase accumulated from f_start to f_end over [0, duration].
+
+    Parameters are stored in the param vector under the synthetic key
+    ``_chirp_{entity_id}_{port_name}.{amp, f_start, f_end, duration, dc}``.
+
+    Args:
+        chirp_type: "log" (geometric sweep) or "linear" (constant rate sweep).
+    """
+    exc_eid    = f"_chirp_{entity_id}_{port_name}"
+    target_key = f"{entity_id}.{target_field}"
+
+    if target_key not in spec.state_index_map:
+        available = [k for k in spec.state_index_map if k.startswith(entity_id + ".")]
+        raise KeyError(
+            f"inject_chirp_excitation: '{target_key}' not found in state_index_map. "
+            f"Available fields for '{entity_id}': {available}"
+        )
+
+    new_param_map = dict(spec.param_index_map)
+    new_p         = list(spec.p)
+    for name, val in [("amp", amp), ("f_start", f_start), ("f_end", f_end),
+                      ("duration", duration), ("dc", dc)]:
+        key   = f"{exc_eid}.{name}"
+        start = len(new_p)
+        new_param_map[key] = (start, start + 1)
+        new_p.append(val)
+
+    _exc_eid    = exc_eid
+    _target_key = target_key
+
+    if chirp_type == "log":
+        def _chirp_dynamics(dx, x, p, t, spec_inner, system):
+            amp_i  = spec_inner.param_idx(f"{_exc_eid}.amp")
+            fs_i   = spec_inner.param_idx(f"{_exc_eid}.f_start")
+            fe_i   = spec_inner.param_idx(f"{_exc_eid}.f_end")
+            dur_i  = spec_inner.param_idx(f"{_exc_eid}.duration")
+            dc_i   = spec_inner.param_idx(f"{_exc_eid}.dc")
+            f_s = p[fs_i]; f_e = p[fe_i]; dur = p[dur_i]
+            k     = jnp.log(f_e / f_s)
+            phase = 2.0 * jnp.pi * f_s * dur / k * (jnp.exp(k * t / dur) - 1.0)
+            F     = p[amp_i] * jnp.sin(phase) + p[dc_i]
+            tgt_i = spec_inner.state_idx(_target_key)
+            dx[tgt_i] = dx[tgt_i] + F
+    else:  # linear
+        def _chirp_dynamics(dx, x, p, t, spec_inner, system):
+            amp_i  = spec_inner.param_idx(f"{_exc_eid}.amp")
+            fs_i   = spec_inner.param_idx(f"{_exc_eid}.f_start")
+            fe_i   = spec_inner.param_idx(f"{_exc_eid}.f_end")
+            dur_i  = spec_inner.param_idx(f"{_exc_eid}.duration")
+            dc_i   = spec_inner.param_idx(f"{_exc_eid}.dc")
+            f_s = p[fs_i]; f_e = p[fe_i]; dur = p[dur_i]
+            phase = 2.0 * jnp.pi * (f_s * t + (f_e - f_s) * t**2 / (2.0 * dur))
+            F     = p[amp_i] * jnp.sin(phase) + p[dc_i]
+            tgt_i = spec_inner.state_idx(_target_key)
+            dx[tgt_i] = dx[tgt_i] + F
+
+    chirp_system = CompiledSystem(
+        dynamics_fn   = "NumenCharacterization.chirp_dynamics!",
+        entity_ids    = [exc_eid],
+        group_size    = 1,
+        entity_groups = ((exc_eid,),),
+        python_fn     = _chirp_dynamics,
+    )
+
+    return replace(
+        spec,
+        param_size      = len(new_p),
+        param_index_map = new_param_map,
+        p               = new_p,
+        systems         = spec.systems + [chirp_system],
+    )
+
+
+def set_chirp_params(
+    spec: CompiledSpec,
+    entity_id: str,
+    port_name: str,
+    amp: float | None = None,
+    f_start: float | None = None,
+    f_end: float | None = None,
+    duration: float | None = None,
+    dc: float | None = None,
+) -> CompiledSpec:
+    """Return a new spec with updated chirp excitation parameters.
+
+    The chirp system must already have been injected via inject_chirp_excitation().
+    """
+    exc_eid = f"_chirp_{entity_id}_{port_name}"
+    new_p   = list(spec.p)
+    for name, val in [("amp", amp), ("f_start", f_start), ("f_end", f_end),
+                      ("duration", duration), ("dc", dc)]:
+        if val is None:
+            continue
+        key = f"{exc_eid}.{name}"
+        if key not in spec.param_index_map:
+            raise KeyError(
+                f"set_chirp_params: '{key}' not in param_index_map. "
+                f"Did you call inject_chirp_excitation() first?"
+            )
+        idx = spec.param_index_map[key][0]
+        new_p[idx] = val
+    return replace(spec, p=new_p)
+
+
 def set_excitation_params(
     spec: CompiledSpec,
     entity_id: str,

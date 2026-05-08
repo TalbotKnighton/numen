@@ -740,15 +740,17 @@ gp = GaussianProcessRegressor().fit(df[["c0", "c1"]], df["Q"])
 - [x] Verified: f0=0.960 Hz, Q=5.99, ζ=0.083 for c0=0.5, ω=2π. c1 family correctly
       shows no change at small probe amplitude (nonlinearity invisible at x≈0).
 
-### Phase 3 — Extended Tests & DOE
+### Phase 3 — Extended Tests & DOE ✓ complete
 
-- [ ] `AmplitudeSweep` runner
-- [ ] `ContinuousChirpSweep` runner (chirp signal generation + STFT analysis)
-- [ ] `ParameterGrid` runner (full/paired factorial over explicit value lists)
-- [ ] `DOESweep` runner using `scipy.stats.qmc` (LHS, Sobol) and `pyDOE3` (CCD, BBD)
-- [ ] `results.to_dataframe()` — flatten scalar outputs to pandas DataFrame
-- [ ] SALib integration for Sobol sensitivity indices on DOE results
-- [ ] YAML test plan loader + CLI: `uv run numen characterize test_plan.yaml`
+- [x] `AmplitudeSweep` runner (`tests/amplitude_sweep.py`) — fixed-frequency amplitude scan; H_magnitudes flat for linear, amplitude-dependent for nonlinear
+- [x] `ContinuousChirpSweep` runner (`tests/chirp_sweep.py`) + chirp injection (`excitation.inject_chirp_excitation`) — log/linear chirp; FRF extracted via FFT cross-spectrum H(f)=S_xy/S_xx; `analysis.chirp_phase()` and `analysis.analyze_chirp_frf()` helpers
+- [x] `ParameterGrid` runner (`tests/param_grid.py`) — full_factorial (Cartesian product) and pairs (zip) modes over explicit value lists
+- [x] `DOESweep` runner (`tests/doe_sweep.py`) — `latin_hypercube`, `sobol`, `halton` via `scipy.stats.qmc`; `central_composite`, `box_behnken` via `pyDOE3` (optional); `full_factorial` grid built-in
+- [x] `results.to_dataframe()` — long-format DataFrame with param columns + scalar metrics; handles FRF, AmplitudeSweep, DCSwept, Chirp, Family, Grid, DOE results recursively
+- [x] `numen characterize test_plan.yaml` CLI command — pretty table, progress spinner, optional `--output results.json`, `--verbose` for DEBUG logging
+- [x] `pyproject.toml`: `characterization = ["pyDOE3", "SALib", "pandas", "pyyaml"]` optional extra
+- [x] `plots.plot_amplitude_sweep()` and `plots.plot_chirp_frf()` added
+- [ ] SALib integration for Sobol sensitivity indices on DOE results (Phase 4)
 
 ### Phase 4 — Nonlinearity Characterization (future)
 

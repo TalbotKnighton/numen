@@ -134,3 +134,98 @@ def settle_tspan(f: float, settle_periods: int, measure_periods: int) -> tuple[f
     t_settle = settle_periods / f
     t_end    = t_settle + measure_periods / f
     return t_settle, t_end, (0.0, t_end)
+
+
+# ---------------------------------------------------------------------------
+# Chirp FRF extraction
+# ---------------------------------------------------------------------------
+
+def chirp_phase(
+    t: np.ndarray,
+    f_start: float,
+    f_end: float,
+    duration: float,
+    chirp_type: str = "log",
+) -> np.ndarray:
+    """Return the instantaneous phase φ(t) for a chirp signal.
+
+    The chirp signal is amplitude * sin(φ(t)).
+
+    Args:
+        t:          Time array.
+        f_start:    Start frequency [Hz].
+        f_end:      End frequency [Hz].
+        duration:   Total chirp duration [s].
+        chirp_type: "log" (geometric rate) or "linear" (constant rate).
+
+    Returns:
+        Phase array φ(t) in radians.
+    """
+    if chirp_type == "log":
+        k     = np.log(f_end / f_start)
+        phase = 2.0 * np.pi * f_start * duration / k * (np.exp(k * t / duration) - 1.0)
+    else:
+        phase = 2.0 * np.pi * (f_start * t + (f_end - f_start) * t**2 / (2.0 * duration))
+    return phase
+
+
+def analyze_chirp_frf(
+    t: np.ndarray,
+    output: np.ndarray,
+    f_start: float,
+    f_end: float,
+    duration: float,
+    amplitude: float,
+    chirp_type: str = "log",
+    margin: float = 0.1,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Extract FRF from a chirp-forced simulation via the cross-spectrum method.
+
+    Reconstructs the known input signal from the chirp parameters, then
+    estimates H(f) = S_xy(f) / S_xx(f) via FFT.
+
+    Args:
+        t:          Time array from the solve.
+        output:     Output state time series (same length as t).
+        f_start:    Chirp start frequency [Hz].
+        f_end:      Chirp end frequency [Hz].
+        duration:   Chirp duration [s] (used for phase reconstruction).
+        amplitude:  Chirp amplitude.
+        chirp_type: "log" or "linear".
+        margin:     Fractional guard band — frequencies below f_start*(1-margin)
+                    or above f_end*(1+margin) are excluded from the result.
+
+    Returns:
+        (frequencies, H_magnitudes, H_phases_deg) — trimmed to the swept band.
+    """
+    if len(t) < 4:
+        empty = np.empty(0)
+        return empty, empty, empty
+
+    # Reconstruct the known input signal at the solve's time points
+    phase        = chirp_phase(t, f_start, f_end, duration, chirp_type)
+    input_signal = amplitude * np.sin(phase)
+
+    # Uniform grid for FFT (resample if needed — solve output may be adaptive)
+    n      = len(t)
+    t_span = t[-1] - t[0]
+    if t_span <= 0.0:
+        empty = np.empty(0)
+        return empty, empty, empty
+
+    dt    = t_span / (n - 1)
+    freqs = np.fft.rfftfreq(n, dt)
+
+    # Cross-spectrum estimate: H(f) = S_xy(f) / S_xx(f)
+    X   = np.fft.rfft(input_signal)
+    Y   = np.fft.rfft(output)
+    Sxx = np.real(X * np.conj(X))
+    Sxy = np.conj(X) * Y
+    H   = Sxy / (Sxx + 1e-300)
+
+    # Trim to the swept frequency band
+    f_lo = f_start * (1.0 - margin)
+    f_hi = f_end   * (1.0 + margin)
+    mask = (freqs >= f_lo) & (freqs <= f_hi) & (freqs > 0.0)
+
+    return freqs[mask], np.abs(H)[mask], np.degrees(np.angle(H)[mask])

@@ -8,7 +8,9 @@ import numpy as np
 if TYPE_CHECKING:
     import matplotlib.pyplot as plt
     from numen.characterization.results import (
+        AmplitudeSweepResult,
         CampaignResults,
+        ChirpResult,
         DCSweptFRFResult,
         FRFResult,
         ParameterFamilyResult,
@@ -160,3 +162,86 @@ def plot_dc_sweep(
 
     fig.suptitle(title or result.name, fontsize=12)
     return fig
+
+
+def plot_amplitude_sweep(
+    result: "AmplitudeSweepResult",
+    title: str | None = None,
+    db: bool = False,
+) -> "plt.Figure":
+    """Plot transfer function magnitude and phase vs drive amplitude.
+
+    For a linear system, |H| is flat.  Slopes reveal softening (|H| decreases
+    with amplitude) or hardening (|H| increases) nonlinearities.
+    """
+    import matplotlib.pyplot as mpl_plt
+    import matplotlib.gridspec as gridspec
+
+    fig = mpl_plt.figure(figsize=(10, 6))
+    gs  = gridspec.GridSpec(1, 2, figure=fig, wspace=0.35)
+    ax_mag   = fig.add_subplot(gs[0])
+    ax_phase = fig.add_subplot(gs[1])
+
+    amps = result.drive_amplitudes
+    mag  = 20.0 * np.log10(np.maximum(result.H_magnitudes, 1e-12)) if db else result.H_magnitudes
+
+    ax_mag.plot(amps, mag, "o-", lw=2, ms=6)
+    ax_mag.set_xlabel("Drive amplitude")
+    ylabel = "|H| [dB]" if db else "|H|"
+    ax_mag.set_ylabel(f"{ylabel}  at f={result.frequency:.3g} Hz")
+    ax_mag.set_title("Gain vs amplitude")
+    ax_mag.grid(True, alpha=0.3)
+
+    ax_phase.plot(amps, result.phases_deg, "s-", lw=2, ms=6, color="tab:orange")
+    ax_phase.set_xlabel("Drive amplitude")
+    ax_phase.set_ylabel("Phase [deg]")
+    ax_phase.set_title("Phase vs amplitude")
+    ax_phase.grid(True, alpha=0.3)
+
+    fig.suptitle(title or result.name, fontsize=12)
+    return fig
+
+
+def plot_chirp_frf(
+    result: "ChirpResult",
+    ax_mag: "plt.Axes | None" = None,
+    ax_phase: "plt.Axes | None" = None,
+    label: str | None = None,
+    title: str | None = None,
+    db: bool = True,
+) -> tuple["plt.Figure", "plt.Axes", "plt.Axes"]:
+    """Plot Bode diagram extracted from a chirp result (cross-spectrum FRF).
+
+    Follows the same interface as plot_bode() so chirp and stepped-sine
+    results can be overlaid on the same axes.
+    """
+    import matplotlib.pyplot as mpl_plt
+    import matplotlib.gridspec as gridspec
+
+    if ax_mag is None or ax_phase is None:
+        fig = mpl_plt.figure(figsize=(10, 7))
+        gs  = gridspec.GridSpec(2, 1, figure=fig, hspace=0.05)
+        ax_mag   = fig.add_subplot(gs[0])
+        ax_phase = fig.add_subplot(gs[1], sharex=ax_mag)
+    else:
+        fig = ax_mag.get_figure()
+
+    lbl = label or result.name
+    mag = 20.0 * np.log10(np.maximum(result.H_mag, 1e-12)) if db else result.H_mag
+
+    ax_mag.semilogx(result.frequencies, mag, lw=2, label=lbl, alpha=0.85)
+    ax_phase.semilogx(result.frequencies, result.H_phase_deg, lw=2, label=lbl, alpha=0.85)
+
+    mag_ylabel = "|H(f)| [dB]" if db else "|H(f)|"
+    ax_mag.set_ylabel(mag_ylabel)
+    ax_mag.grid(True, which="both", alpha=0.3)
+    ax_mag.legend(fontsize=9)
+    mpl_plt.setp(ax_mag.get_xticklabels(), visible=False)
+
+    ax_phase.set_xlabel("Frequency [Hz]")
+    ax_phase.set_ylabel("Phase [deg]")
+    ax_phase.grid(True, which="both", alpha=0.3)
+
+    suptitle = title or result.name
+    fig.suptitle(suptitle, fontsize=12)
+    return fig, ax_mag, ax_phase

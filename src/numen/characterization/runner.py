@@ -21,12 +21,16 @@ from pathlib import Path
 from typing import Any, Generator
 
 from numen.characterization.schema import (
+    AmplitudeSweepSpec,
     BackendSpec,
     CharacterizationConfig,
+    ContinuousChirpSpec,
     DCOperatingPointSweepSpec,
     DiscreteFrequencySweepSpec,
+    DOESweepSpec,
     ExcitationSpec,
     ModelSpec,
+    ParameterGridSpec,
     ParameterSweepSpec,
     TestSpec,
 )
@@ -196,13 +200,28 @@ class CharacterizationRunner:
                 test, self._exc_spec, e_id, e_port, out, backend,
             )
 
+        if isinstance(test, AmplitudeSweepSpec):
+            from numen.characterization.tests.amplitude_sweep import run_amplitude_sweep
+            return run_amplitude_sweep(
+                test, self._exc_spec, e_id, e_port, out, backend,
+            )
+
+        if isinstance(test, ContinuousChirpSpec):
+            from numen.characterization.tests.chirp_sweep import run_continuous_chirp
+            return run_continuous_chirp(
+                test, self._exc_spec, e_id, e_port, out, backend,
+            )
+
         if isinstance(test, ParameterSweepSpec):
             return self._run_parameter_sweep(test, backend)
 
-        _log.warning(
-            "Test type '%s' not yet implemented (Phase 3). Skipping '%s'.",
-            test.type, test.name,
-        )
+        if isinstance(test, ParameterGridSpec):
+            return self._run_parameter_grid(test, backend)
+
+        if isinstance(test, DOESweepSpec):
+            return self._run_doe_sweep(test, backend)
+
+        _log.warning("Unknown test type '%s'. Skipping '%s'.", test.type, test.name)
         return None
 
     def _run_parameter_sweep(self, test: ParameterSweepSpec, backend: Any) -> Any:
@@ -238,3 +257,79 @@ class CharacterizationRunner:
             )
 
         return run_parameter_sweep(test, self._exc_spec, _sub_runner)
+
+    def _run_parameter_grid(self, test: ParameterGridSpec, backend: Any) -> Any:
+        from numen.characterization.tests.param_grid import run_parameter_grid
+
+        sub_spec_obj = next(
+            (t for t in self.config.tests if t.name == test.sub_test), None
+        )
+        if sub_spec_obj is None:
+            raise ValueError(
+                f"ParameterGrid '{test.name}': sub_test '{test.sub_test}' not found"
+            )
+
+        exc    = self.config.excitation
+        e_id   = exc.entity
+        e_port = exc.port
+        out    = self._output_key
+
+        def _sub_runner(spec_v: Any) -> Any:
+            if isinstance(sub_spec_obj, DiscreteFrequencySweepSpec):
+                from numen.characterization.tests.freq_sweep import run_discrete_frequency_sweep
+                return run_discrete_frequency_sweep(
+                    sub_spec_obj, spec_v, e_id, e_port, out, backend,
+                )
+            if isinstance(sub_spec_obj, DCOperatingPointSweepSpec):
+                from numen.characterization.tests.dc_sweep import run_dc_operating_point_sweep
+                return run_dc_operating_point_sweep(
+                    sub_spec_obj, spec_v, e_id, e_port, out, backend,
+                )
+            if isinstance(sub_spec_obj, AmplitudeSweepSpec):
+                from numen.characterization.tests.amplitude_sweep import run_amplitude_sweep
+                return run_amplitude_sweep(
+                    sub_spec_obj, spec_v, e_id, e_port, out, backend,
+                )
+            raise NotImplementedError(
+                f"ParameterGrid sub_test type '{sub_spec_obj.type}' not supported"
+            )
+
+        return run_parameter_grid(test, self._exc_spec, _sub_runner)
+
+    def _run_doe_sweep(self, test: DOESweepSpec, backend: Any) -> Any:
+        from numen.characterization.tests.doe_sweep import run_doe_sweep
+
+        sub_spec_obj = next(
+            (t for t in self.config.tests if t.name == test.sub_test), None
+        )
+        if sub_spec_obj is None:
+            raise ValueError(
+                f"DOESweep '{test.name}': sub_test '{test.sub_test}' not found"
+            )
+
+        exc    = self.config.excitation
+        e_id   = exc.entity
+        e_port = exc.port
+        out    = self._output_key
+
+        def _sub_runner(spec_v: Any) -> Any:
+            if isinstance(sub_spec_obj, DiscreteFrequencySweepSpec):
+                from numen.characterization.tests.freq_sweep import run_discrete_frequency_sweep
+                return run_discrete_frequency_sweep(
+                    sub_spec_obj, spec_v, e_id, e_port, out, backend,
+                )
+            if isinstance(sub_spec_obj, DCOperatingPointSweepSpec):
+                from numen.characterization.tests.dc_sweep import run_dc_operating_point_sweep
+                return run_dc_operating_point_sweep(
+                    sub_spec_obj, spec_v, e_id, e_port, out, backend,
+                )
+            if isinstance(sub_spec_obj, AmplitudeSweepSpec):
+                from numen.characterization.tests.amplitude_sweep import run_amplitude_sweep
+                return run_amplitude_sweep(
+                    sub_spec_obj, spec_v, e_id, e_port, out, backend,
+                )
+            raise NotImplementedError(
+                f"DOESweep sub_test type '{sub_spec_obj.type}' not supported"
+            )
+
+        return run_doe_sweep(test, self._exc_spec, _sub_runner)
