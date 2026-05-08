@@ -34,7 +34,11 @@ from numen.characterization.schema import (
     ParameterSweepSpec,
     TestSpec,
 )
-from numen.characterization.excitation import find_excitation_ports, inject_excitation
+from numen.characterization.excitation import (
+    find_excitation_ports,
+    inject_excitation,
+    set_excitation_params,
+)
 from numen.characterization.results import CampaignResults
 from numen.compiler.flatten import compile_spec
 
@@ -193,8 +197,9 @@ class CharacterizationRunner:
 
         if isinstance(test, DiscreteFrequencySweepSpec):
             from numen.characterization.tests.freq_sweep import run_discrete_frequency_sweep
+            exc_s = set_excitation_params(self._exc_spec, e_id, e_port, dc=test.dc_offset)
             return run_discrete_frequency_sweep(
-                test, self._exc_spec, e_id, e_port, out, backend,
+                test, exc_s, e_id, e_port, out, backend,
             )
 
         if isinstance(test, DCOperatingPointSweepSpec):
@@ -205,14 +210,16 @@ class CharacterizationRunner:
 
         if isinstance(test, AmplitudeSweepSpec):
             from numen.characterization.tests.amplitude_sweep import run_amplitude_sweep
+            exc_s = set_excitation_params(self._exc_spec, e_id, e_port, dc=test.dc_offset)
             return run_amplitude_sweep(
-                test, self._exc_spec, e_id, e_port, out, backend,
+                test, exc_s, e_id, e_port, out, backend,
             )
 
         if isinstance(test, ContinuousChirpSpec):
             from numen.characterization.tests.chirp_sweep import run_continuous_chirp
+            exc_s = set_excitation_params(self._exc_spec, e_id, e_port, dc=test.dc_offset)
             return run_continuous_chirp(
-                test, self._exc_spec, e_id, e_port, out, backend,
+                test, exc_s, e_id, e_port, out, backend,
             )
 
         if isinstance(test, ParameterSweepSpec):

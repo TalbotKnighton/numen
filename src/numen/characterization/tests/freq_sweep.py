@@ -64,7 +64,9 @@ def run_discrete_frequency_sweep(
 
         spec_f = set_excitation_params(
             exc_spec, exc_entity_id, exc_port_name,
-            amp=test.amplitude, freq=f, dc=test.dc_offset,
+            amp=test.amplitude, freq=f,
+            # dc is NOT set here — it is already in exc_spec (set by outer sweep
+            # or pre-applied by CharacterizationRunner before this call)
         )
 
         result = backend.solve(spec_f, tspan=tspan)

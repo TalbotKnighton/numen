@@ -55,7 +55,8 @@ def run_amplitude_sweep(
     for i, amp in enumerate(test.amplitudes):
         spec_a = set_excitation_params(
             exc_spec, exc_entity_id, exc_port_name,
-            amp=amp, freq=test.frequency, dc=test.dc_offset,
+            amp=amp, freq=test.frequency,
+            # dc already in exc_spec — set by outer sweep or runner pre-call
         )
         result = backend.solve(spec_a, tspan=tspan)
 

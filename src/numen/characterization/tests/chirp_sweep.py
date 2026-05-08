@@ -50,6 +50,15 @@ def run_continuous_chirp(
     chirp_prefix = f"_exc_{exc_entity_id}_{exc_port_name}"
     target_field  = _find_target_field(exc_spec, exc_entity_id, chirp_prefix)
 
+    # Read effective DC from the sinusoidal excitation parameters already in exc_spec.
+    # This honours whatever the outer sweep set (or what the runner pre-applied for
+    # standalone tests) rather than unconditionally using test.dc_offset.
+    _dc_key = f"{chirp_prefix}.dc"
+    if _dc_key in exc_spec.param_index_map:
+        effective_dc = float(exc_spec.p[exc_spec.param_index_map[_dc_key][0]])
+    else:
+        effective_dc = test.dc_offset
+
     # Inject chirp excitation on top of the existing (zero-amplitude) sinusoidal system
     spec_chirp = inject_chirp_excitation(
         exc_spec,
@@ -60,7 +69,7 @@ def run_continuous_chirp(
         f_start    = test.f_start,
         f_end      = test.f_end,
         duration   = test.duration,
-        dc         = test.dc_offset,
+        dc         = effective_dc,
         chirp_type = test.chirp_type,
     )
 
