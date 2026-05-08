@@ -359,7 +359,47 @@ ParameterField. For example, run `baseline_frf` for `c1 ∈ {0, 0.5, 1, 2, 5}`.
 **Output:** A family of FRFs or other results showing how system character
 depends on a physical parameter. Useful for design sweeps and sensitivity analysis.
 
-### 5. Continuous Chirp Sweep
+### 5. Multi-Parameter Grid
+
+**What it does:** Full (or paired) factorial over explicit value lists for two or
+more parameters. The `full_factorial` mode generates every combination; `pairs`
+only sweeps the diagonal (N points instead of N^k).
+
+```yaml
+- type: parameter_grid
+  params:
+    osc.c0: [0.1, 0.5, 1.0]
+    osc.c1: [0.0, 1.0, 2.0]
+  sub_test: baseline_frf
+  mode: full_factorial          # or pairs
+```
+
+**Output:** Same as a single-parameter sweep but indexed by a multi-dimensional
+parameter tuple. Results are tabulated as `(c₀, c₁, f₀, Q, ...)` rows suitable
+for response surface plotting or surrogate fitting.
+
+### 6. DOE Sweep
+
+**What it does:** Generates a design matrix using a statistical sampling strategy,
+then runs the sub-test at each design point. Suited for exploring a continuous
+parameter space efficiently without specifying explicit value lists.
+
+```yaml
+- type: doe_sweep
+  design: latin_hypercube       # sobol | halton | central_composite | full_factorial
+  n_samples: 50                 # for space-filling designs
+  params:
+    osc.c0: { min: 0.01, max: 2.0, scale: log }
+    osc.c1: { min: 0.0,  max: 5.0, scale: linear }
+  sub_test: baseline_frf
+  outputs: [f0, Q, settling_time]   # scalar summaries to tabulate per design point
+```
+
+The `outputs` list extracts scalar summaries from each sub-test result into a flat
+table `(c₀, c₁, ...) → (f₀, Q, ...)` that can be passed directly to a surrogate
+model or sensitivity analysis.
+
+### 7. Continuous Chirp Sweep
 
 **What it does:** One long solve with a frequency-swept input:
 `F(t) = A · sin(φ(t))` where `φ(t)` is a log or linear chirp phase.
@@ -425,6 +465,56 @@ For a 40-point frequency sweep at ~14 ms/solve, the full campaign takes
 
 ---
 
+## DOE & Parameter Sweep Dependencies
+
+The sampling math and sensitivity analysis are solved problems — we use existing
+packages rather than writing our own. All are either already available (scipy) or
+small, well-maintained libraries added as optional extras.
+
+| Responsibility | Package | How we use it |
+|---|---|---|
+| LHS, Sobol, Halton sampling | `scipy.stats.qmc` | Already a dependency — free |
+| Full/fractional factorial, CCD, Box-Behnken | `pyDOE3` | Classical DOE design matrices |
+| Sobol sensitivity indices | `SALib` | Which parameters drive f₀ and Q most |
+| Response surface / surrogate fitting | `scikit-learn` | GP, RBF after the sweep |
+
+**What we write ourselves** is only the glue layer (~100 lines):
+1. Translate the YAML spec into a call to the appropriate sampler
+2. Iterate design points, call the backend, collect scalar outputs
+3. Return a `pandas.DataFrame` of `(param_1, param_2, ..., f₀, Q, ...)`
+
+The math of generating design matrices and computing sensitivity indices is entirely
+delegated to those packages.
+
+### pyproject.toml optional extras
+
+```toml
+[project.optional-dependencies]
+characterization = [
+    "pyDOE3",
+    "SALib",
+]
+```
+
+Install with: `uv pip install "numen[characterization]"`
+
+### Typical post-sweep workflow
+
+```python
+# 1. Run the DOE sweep → get a DataFrame
+df = results.to_dataframe()   # columns: c0, c1, f0, Q, settling_time
+
+# 2. Sensitivity analysis — which parameter drives Q most?
+from SALib.analyse import sobol
+Si = sobol.analyze(problem, df["Q"].values)
+
+# 3. Surrogate model for fast interpolation
+from sklearn.gaussian_process import GaussianProcessRegressor
+gp = GaussianProcessRegressor().fit(df[["c0", "c1"]], df["Q"])
+```
+
+---
+
 ## Implementation Roadmap
 
 ### Phase 1 — Foundation
@@ -445,10 +535,14 @@ For a 40-point frequency sweep at ~14 ms/solve, the full campaign takes
 - [ ] Bode plot and operating-point waterfall in `plots.py`
 - [ ] Result serialization to JSON
 
-### Phase 3 — Extended Tests
+### Phase 3 — Extended Tests & DOE
 
 - [ ] `AmplitudeSweep` runner
 - [ ] `ContinuousChirpSweep` runner (chirp signal generation + STFT analysis)
+- [ ] `ParameterGrid` runner (full/paired factorial over explicit value lists)
+- [ ] `DOESweep` runner using `scipy.stats.qmc` (LHS, Sobol) and `pyDOE3` (CCD, BBD)
+- [ ] `results.to_dataframe()` — flatten scalar outputs to pandas DataFrame
+- [ ] SALib integration for Sobol sensitivity indices on DOE results
 - [ ] YAML test plan loader + CLI: `uv run numen characterize test_plan.yaml`
 
 ### Phase 4 — Nonlinearity Characterization (future)
