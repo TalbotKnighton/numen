@@ -66,3 +66,37 @@ class ParameterField:
     """Constant parameter; enters parameter vector p, not state vector x."""
     size: int = 1
 
+
+@dataclass(frozen=True)
+class ExcitationPort:
+    """Marks a component field as an injectable excitation input port.
+
+    Compiles like a ParameterField (goes into parameter vector p).  The
+    characterization framework reads the annotation metadata to discover
+    available ports and uses inject_excitation() to add a time-varying
+    forcing system post-compilation.
+
+    Args:
+        targets:   Name of the IntegratedField whose derivative receives F(t).
+                   E.g. "velocity" means F(t) is added to d(velocity)/dt.
+        port_type: Bond graph port type — "effort" (force, pressure, voltage)
+                   or "flow" (velocity, flow rate, current).  Metadata only;
+                   used for axis labels and FRF naming conventions.
+        units:     SI units string for axis labels, e.g. "N", "Pa", "V".
+        size:      Number of scalar values (consistent with other field types).
+
+    Example::
+
+        class MassComponent(Component):
+            velocity: Annotated[float, IntegratedField()] = 0.0
+            force:    Annotated[float, ExcitationPort(
+                          targets   = "velocity",
+                          port_type = "effort",
+                          units     = "N",
+                      )] = 0.0
+    """
+    targets:   str = ""
+    port_type: str = "effort"   # "effort" | "flow"
+    units:     str = ""
+    size:      int = 1
+

@@ -703,14 +703,22 @@ gp = GaussianProcessRegressor().fit(df[["c0", "c1"]], df["Q"])
 
 ## Implementation Roadmap
 
-### Phase 1 — Foundation
+### Phase 1 — Foundation ✓ complete
 
-- [ ] `ExcitationPort` field marker in `src/numen/fields.py`
-- [ ] `ExcitationSystem` in `src/numen/characterization/excitation.py`
-- [ ] Update nonlinear oscillator to declare force port
-- [ ] Pydantic schema: `BackendSpec`, `ModelSpec`, `ExcitationSpec`, all test specs
-      in `src/numen/characterization/schema.py`
-- [ ] `CharacterizationRunner` skeleton with Julia server context manager
+- [x] `ExcitationPort` field marker in `src/numen/fields.py` — compiles as `ParameterField`;
+      carries `targets`, `port_type`, `units` metadata
+- [x] `src/numen/characterization/excitation.py` — `find_excitation_ports()`,
+      `inject_excitation()` (post-compile, pure function via `dataclasses.replace`),
+      `set_excitation_params()` (cheap parameter update for sweep inner loops)
+- [x] `src/numen/compiler/flatten.py` updated — recognises `ExcitationPort` in
+      `_get_numen_fields` and `compile_spec`
+- [x] Nonlinear oscillator `components.py` updated — `force: ExcitationPort(targets="velocity",
+      port_type="effort", units="N")`; dynamics unchanged (framework injects transparently)
+- [x] `src/numen/characterization/schema.py` — full Pydantic schema: `BackendSpec`,
+      `ModelSpec`, `ExcitationSpec`, `FrequencyGridSpec`, `DOEParamSpec`, all 7 test specs,
+      `CharacterizationConfig` with `from_yaml()` / `from_json()` loaders and validators
+- [x] `src/numen/characterization/runner.py` — `CharacterizationRunner` with backend
+      lifecycle context manager, `compiled_spec_for()` helper, Phase 2 dispatch stub
 
 ### Phase 2 — Test Implementations
 

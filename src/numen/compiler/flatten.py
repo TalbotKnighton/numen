@@ -9,7 +9,7 @@ CT     = TypeVar("CT")
 
 import numpy as np
 
-from numen.fields import IntegratedField, ContinuousField, DiscreteField, ParameterField, EntityGroup
+from numen.fields import IntegratedField, ContinuousField, DiscreteField, ParameterField, ExcitationPort, EntityGroup
 
 
 class DxBuffer:
@@ -253,7 +253,7 @@ def _get_numen_fields(component: Any) -> list[tuple[str, Any, Any]]:
             continue
         args = get_args(hint)
         for meta in args[1:]:
-            if isinstance(meta, (IntegratedField, ContinuousField, DiscreteField, ParameterField)):
+            if isinstance(meta, (IntegratedField, ContinuousField, DiscreteField, ParameterField, ExcitationPort)):
                 results.append((name, meta, getattr(component, name, 0.0)))
     return results
 
@@ -304,7 +304,7 @@ def compile_spec(world: Any) -> CompiledSpec:
             if size > 1:
                 features.add("vector_fields")
 
-            if isinstance(meta, ParameterField):
+            if isinstance(meta, (ParameterField, ExcitationPort)):
                 param_index_map[key] = (param_cursor, param_cursor + size)
                 p.extend(values)
                 param_cursor += size
