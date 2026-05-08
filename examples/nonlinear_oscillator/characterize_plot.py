@@ -55,8 +55,7 @@ def main():
         freqs = np.array(r["frequencies"])
         H_db  = 20 * np.log10(np.maximum(r["H_mag"], 1e-12))
         ax_mag.semilogx(freqs, H_db, lw=1.5, alpha=0.7, label="chirp (cross-spectrum)", color="tab:orange")
-        # Chirp phase is noisy (poor SNR for high-Q systems); plot wrapped, not unwrapped
-        ax_phase.semilogx(freqs, np.array(r["H_phase_deg"]), lw=1.0, alpha=0.5, color="tab:orange")
+        # Chirp phase is noise for high-Q systems: bandwidth ≪ FFT resolution → don't plot
 
     ax_mag.set_ylabel("|H(f)| [dB]")
     ax_mag.set_title("Bode — Stepped Sine vs Chirp")
@@ -67,8 +66,12 @@ def main():
     ax_phase.set_xlabel("Frequency [Hz]")
     ax_phase.set_ylabel("Phase [deg]")
     ax_phase.grid(True, which="both", alpha=0.3)
-    # Clamp y-axis so noisy chirp phase doesn't dominate; stepped sine is the reference
     ax_phase.set_ylim(-200, 20)
+    ax_phase.text(
+        0.97, 0.95, "Chirp phase omitted\n(high Q → poor SNR)",
+        transform=ax_phase.transAxes, ha="right", va="top",
+        fontsize=7, color="tab:orange", style="italic",
+    )
 
     # ── 2. Chirp time series ───────────────────────────────────────────────────
     ax_chirp = fig.add_subplot(gs[0, 1])
