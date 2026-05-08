@@ -720,14 +720,25 @@ gp = GaussianProcessRegressor().fit(df[["c0", "c1"]], df["Q"])
 - [x] `src/numen/characterization/runner.py` — `CharacterizationRunner` with backend
       lifecycle context manager, `compiled_spec_for()` helper, Phase 2 dispatch stub
 
-### Phase 2 — Test Implementations
+### Phase 2 — Test Implementations ✓ complete
 
-- [ ] `DiscreteFrequencySweep` runner
-- [ ] Lock-in analysis and Q-factor extraction in `analysis.py`
-- [ ] `DCOperatingPointSweep` runner
-- [ ] `ParameterSweep` wrapper
-- [ ] Bode plot and operating-point waterfall in `plots.py`
-- [ ] Result serialization to JSON
+- [x] `analysis.py` — `lock_in()` (synchronous detection, handles non-integer cycles),
+      `extract_resonance()` (-3 dB bandwidth, linear interpolation, one-sided fallback),
+      `build_frequency_grid()`, `settle_tspan()`. Fixed: `np.trapezoid` (NumPy 2.0).
+- [x] `results.py` — `FRFResult`, `OperatingPointMeasurement`, `DCSweptFRFResult`,
+      `ParameterFamilyResult`, `CampaignResults` with `.save()` JSON serialisation.
+- [x] `tests/freq_sweep.py` — `run_discrete_frequency_sweep()`: per-frequency solve,
+      lock-in extraction, FRF normalised by drive amplitude, f0/Q extracted.
+- [x] `tests/dc_sweep.py` — `run_dc_operating_point_sweep()`: settle under DC-only,
+      probe from settled state via `dataclasses.replace(spec, x0=x_settled)`.
+- [x] `tests/param_sweep.py` — `run_parameter_sweep()`: `_set_model_param()` updates
+      p directly (no world rebuild); sub-runner closure built in CharacterizationRunner.
+- [x] `plots.py` — `plot_bode()` (single FRF, f0/Q annotation), `plot_bode_family()`
+      (parameter-sweep overlay, viridis colourmap), `plot_dc_sweep()`.
+- [x] `runner.py` — full dispatch: `DiscreteFrequencySweep`, `DCOperatingPointSweep`,
+      `ParameterSweep` (with sub-runner closure); Phase 3 types log a warning.
+- [x] Verified: f0=0.960 Hz, Q=5.99, ζ=0.083 for c0=0.5, ω=2π. c1 family correctly
+      shows no change at small probe amplitude (nonlinearity invisible at x≈0).
 
 ### Phase 3 — Extended Tests & DOE
 

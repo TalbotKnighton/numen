@@ -15,49 +15,26 @@ from __future__ import annotations
 import importlib
 import logging
 from contextlib import contextmanager, nullcontext
+from dataclasses import replace
+from functools import partial
 from pathlib import Path
 from typing import Any, Generator
 
 from numen.characterization.schema import (
     BackendSpec,
     CharacterizationConfig,
+    DCOperatingPointSweepSpec,
+    DiscreteFrequencySweepSpec,
     ExcitationSpec,
     ModelSpec,
+    ParameterSweepSpec,
     TestSpec,
 )
 from numen.characterization.excitation import find_excitation_ports, inject_excitation
+from numen.characterization.results import CampaignResults
 from numen.compiler.flatten import compile_spec
 
 _log = logging.getLogger("numen.characterization.runner")
-
-
-# ---------------------------------------------------------------------------
-# Result container (grows in Phase 2 with per-test typed results)
-# ---------------------------------------------------------------------------
-
-class CampaignResults:
-    """Accumulates results across a test campaign.
-
-    In Phase 1 this is a minimal container.  Phase 2 will add per-test typed
-    result objects, a to_dataframe() method, and JSON serialisation.
-    """
-
-    def __init__(self, config: CharacterizationConfig) -> None:
-        self.config = config
-        self._results: list[dict[str, Any]] = []
-
-    def append(self, test_name: str, data: Any) -> None:
-        self._results.append({"test": test_name, "data": data})
-
-    def __len__(self) -> int:
-        return len(self._results)
-
-    def __repr__(self) -> str:
-        return f"CampaignResults({len(self)} tests completed)"
-
-    def save(self, path: str | Path) -> None:
-        """Stub — full serialisation implemented in Phase 2."""
-        raise NotImplementedError("Result serialisation is a Phase 2 feature")
 
 
 # ---------------------------------------------------------------------------
@@ -65,11 +42,6 @@ class CampaignResults:
 # ---------------------------------------------------------------------------
 
 def _open_backend(spec: BackendSpec) -> Any:
-    """Instantiate the correct backend from a BackendSpec.
-
-    Returns the backend object.  For julia_server, the caller is responsible
-    for using it as a context manager (or calling close() when done).
-    """
     if spec.type == "scipy":
         from numen.bridge.scipy_backend import ScipyBackend
         kwargs: dict[str, Any] = {"rtol": spec.rtol, "atol": spec.atol}
@@ -106,13 +78,12 @@ def _backend_context(spec: BackendSpec) -> Generator[Any, None, None]:
     """Context manager that owns the backend lifecycle.
 
     julia_server backends are used as context managers (keeps the subprocess
-    alive).  All other backends are plain objects — nullcontext wraps them so
-    the calling code is identical in both cases.
+    alive).  All other backends are plain objects — nullcontext wraps them.
     """
     backend = _open_backend(spec)
     if spec.type == "julia_server":
         with backend:
-            _log.info("Julia server started (eager=False; starts on first solve)")
+            _log.info("Julia server started")
             yield backend
     else:
         with nullcontext(backend):
@@ -120,41 +91,29 @@ def _backend_context(spec: BackendSpec) -> Generator[Any, None, None]:
 
 
 # ---------------------------------------------------------------------------
-# World / spec construction from config
+# World / spec helpers
 # ---------------------------------------------------------------------------
 
 def _build_world(model_spec: ModelSpec) -> Any:
-    """Import the user's factory module and call make_world (or the named factory)."""
-    module = importlib.import_module(model_spec.module)
+    module  = importlib.import_module(model_spec.module)
     factory = getattr(module, model_spec.factory)
     return factory(**model_spec.factory_kwargs)
 
 
-def _build_excitation_spec(
-    base_spec: Any,
-    world: Any,
-    exc_spec: ExcitationSpec,
-    amp: float,
-    freq: float,
-    dc: float,
-) -> Any:
-    """Inject excitation into a compiled spec, resolving the target_field from the annotation."""
-    ports = find_excitation_ports(world, exc_spec.entity)
-    if exc_spec.port not in ports:
-        available = list(ports.keys())
+def _make_exc_spec(base_spec: Any, world: Any, exc: ExcitationSpec) -> Any:
+    """Inject excitation into a compiled spec with placeholder parameters."""
+    ports = find_excitation_ports(world, exc.entity)
+    if exc.port not in ports:
         raise ValueError(
-            f"Entity '{exc_spec.entity}' has no ExcitationPort named '{exc_spec.port}'. "
-            f"Available ports: {available}"
+            f"Entity '{exc.entity}' has no ExcitationPort '{exc.port}'. "
+            f"Available: {list(ports)}"
         )
-    port = ports[exc_spec.port]
     return inject_excitation(
         base_spec,
-        entity_id    = exc_spec.entity,
-        port_name    = exc_spec.port,
-        target_field = port.targets,
-        amp          = amp,
-        freq         = freq,
-        dc           = dc,
+        entity_id    = exc.entity,
+        port_name    = exc.port,
+        target_field = ports[exc.port].targets,
+        amp=0.0, freq=1.0, dc=0.0,
     )
 
 
@@ -163,20 +122,18 @@ def _build_excitation_spec(
 # ---------------------------------------------------------------------------
 
 class CharacterizationRunner:
-    """Orchestrates a full characterization campaign from a validated config.
-
-    Phase 1: validates config, builds world, opens backend, provides a
-    compile-and-inject helper.  Individual test runners are added in Phase 2.
-    """
+    """Orchestrates a full characterization campaign from a validated config."""
 
     def __init__(self, config: CharacterizationConfig) -> None:
-        self.config = config
-        self._world = _build_world(config.model)
-        self._base_spec = compile_spec(self._world)
+        self.config      = config
+        self._world      = _build_world(config.model)
+        self._base_spec  = compile_spec(self._world)
+        self._exc_spec   = _make_exc_spec(self._base_spec, self._world, config.excitation)
+        self._output_key = f"{config.excitation.entity}.{config.excitation.output_state}"
         _log.info(
-            "Runner ready: %d state fields, %d param fields, %d tests",
-            self._base_spec.state_size,
-            self._base_spec.param_size,
+            "Runner ready: state_size=%d  param_size=%d  tests=%d",
+            self._exc_spec.state_size,
+            self._exc_spec.param_size,
             len(config.tests),
         )
 
@@ -197,12 +154,8 @@ class CharacterizationRunner:
     # --- Public API ---
 
     def run(self) -> CampaignResults:
-        """Execute all tests in the campaign.  Returns collected results.
-
-        Phase 1: iterates tests and logs what would be run.
-        Phase 2: dispatches to concrete test runner implementations.
-        """
-        results = CampaignResults(self.config)
+        """Execute all tests in the campaign.  Returns collected results."""
+        results = CampaignResults(config_version=self.config.version)
         with _backend_context(self.config.backend) as backend:
             for test in self.config.tests:
                 _log.info("Running test '%s' (type=%s)", test.name, test.type)
@@ -212,29 +165,76 @@ class CharacterizationRunner:
         return results
 
     def compiled_spec_for(
-        self,
-        amp: float = 0.0,
-        freq: float = 1.0,
-        dc: float = 0.0,
+        self, amp: float = 0.0, freq: float = 1.0, dc: float = 0.0,
     ) -> Any:
-        """Return a compiled spec with excitation injected at the given parameters.
-
-        Convenience method for interactive / scripted use outside of run().
-        """
-        return _build_excitation_spec(
-            self._base_spec,
-            self._world,
-            self.config.excitation,
+        """Return an exc_spec with excitation set to the given parameters."""
+        from numen.characterization.excitation import set_excitation_params
+        return set_excitation_params(
+            self._exc_spec,
+            self.config.excitation.entity,
+            self.config.excitation.port,
             amp=amp, freq=freq, dc=dc,
         )
 
-    # --- Internal dispatch (Phase 2 fills these in) ---
+    # --- Internal dispatch ---
 
     def _run_test(self, test: TestSpec, backend: Any) -> Any:
-        """Dispatch to the appropriate test runner.  Phase 2 implementation."""
+        exc    = self.config.excitation
+        e_id   = exc.entity
+        e_port = exc.port
+        out    = self._output_key
+
+        if isinstance(test, DiscreteFrequencySweepSpec):
+            from numen.characterization.tests.freq_sweep import run_discrete_frequency_sweep
+            return run_discrete_frequency_sweep(
+                test, self._exc_spec, e_id, e_port, out, backend,
+            )
+
+        if isinstance(test, DCOperatingPointSweepSpec):
+            from numen.characterization.tests.dc_sweep import run_dc_operating_point_sweep
+            return run_dc_operating_point_sweep(
+                test, self._exc_spec, e_id, e_port, out, backend,
+            )
+
+        if isinstance(test, ParameterSweepSpec):
+            return self._run_parameter_sweep(test, backend)
+
         _log.warning(
-            "Test type '%s' is not yet implemented (Phase 2). "
-            "Returning None for test '%s'.",
+            "Test type '%s' not yet implemented (Phase 3). Skipping '%s'.",
             test.type, test.name,
         )
         return None
+
+    def _run_parameter_sweep(self, test: ParameterSweepSpec, backend: Any) -> Any:
+        from numen.characterization.tests.param_sweep import run_parameter_sweep, _set_model_param
+
+        # Look up the sub-test spec by name
+        sub_spec_obj = next(
+            (t for t in self.config.tests if t.name == test.sub_test), None
+        )
+        if sub_spec_obj is None:
+            raise ValueError(
+                f"ParameterSweep '{test.name}': sub_test '{test.sub_test}' not found"
+            )
+
+        exc    = self.config.excitation
+        e_id   = exc.entity
+        e_port = exc.port
+        out    = self._output_key
+
+        def _sub_runner(spec_v: Any) -> Any:
+            if isinstance(sub_spec_obj, DiscreteFrequencySweepSpec):
+                from numen.characterization.tests.freq_sweep import run_discrete_frequency_sweep
+                return run_discrete_frequency_sweep(
+                    sub_spec_obj, spec_v, e_id, e_port, out, backend,
+                )
+            if isinstance(sub_spec_obj, DCOperatingPointSweepSpec):
+                from numen.characterization.tests.dc_sweep import run_dc_operating_point_sweep
+                return run_dc_operating_point_sweep(
+                    sub_spec_obj, spec_v, e_id, e_port, out, backend,
+                )
+            raise NotImplementedError(
+                f"ParameterSweep sub_test type '{sub_spec_obj.type}' not yet supported"
+            )
+
+        return run_parameter_sweep(test, self._exc_spec, _sub_runner)
