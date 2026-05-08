@@ -5,13 +5,17 @@ Numen is an ECS-style (Entity-Component-System) physics simulation framework.
 Models are **defined in Python** using Pydantic components, then solved by
 Python (scipy), JAX (diffrax), or Julia (OrdinaryDiffEq) backends.
 
-The `numen` CLI helps you explore, verify, and scaffold new models:
+The `numen` CLI helps you explore, verify, scaffold, and characterize models:
 
 ```bash
 uv run numen check          # verify all backends work
 uv run numen list           # show built-in examples
 uv run numen new mymodel    # scaffold a new model directory
 uv run numen run oscillator # run a built-in example
+
+uv run numen characterize test_plan.yaml        # run tests + plot
+uv run numen characterize test_plan.yaml -c     # characterize only → results.json
+uv run numen characterize test_plan.yaml -p     # plot only → reads results.json
 ```
 
 ---
@@ -535,6 +539,58 @@ See `DESIGN.md` for the full architectural rationale. Key open questions:
 
 ---
 
+## Characterization framework
+
+The characterization system runs test campaigns from a single YAML file and
+generates plots without any Python scripting.  See `CHARACTERIZATION.md` (in
+every project scaffolded with `numen new`) for the full reference.
+
+### Test types
+
+| Type | What it does |
+|---|---|
+| `discrete_frequency_sweep` | Stepped sine; one solve per freq; lock-in FRF |
+| `continuous_chirp` | Single chirp solve; fast survey |
+| `amplitude_sweep` | Fixed freq, varying amplitude; nonlinearity signature |
+| `dc_operating_point_sweep` | DC bias sweep; small-signal FRF at each point |
+| `parameter_sweep` | Outer loop over one param; inner loop is any test above |
+| `parameter_grid` | Outer grid over multiple params (full_factorial or pairs) |
+| `doe_sweep` | Space-filling / classical DOE over continuous ranges |
+
+### `excitation.*` parameter paths
+
+`parameter_sweep`, `parameter_grid`, and `doe_sweep` can vary excitation inputs
+as the outer dimension — not just model `ParameterField` values:
+
+```yaml
+- name: frf_vs_dc
+  type: parameter_sweep
+  sweep_param: excitation.dc_offset   # also: excitation.amplitude, excitation.frequency
+  values: [0.0, 0.3, 0.6, 1.0]
+  sub_test: baseline_frf              # any other test in the same plan
+```
+
+This is how DC-offset Bode families are generated: outer loop sets equilibrium
+bias, inner loop runs the FRF.  The result is a `ParameterFamilyResult` rendered
+by the `parameter_family` plot panel (curves coloured by sweep parameter).
+
+### Key implementation detail
+
+Inner test runners (`freq_sweep`, `amplitude_sweep`, `chirp_sweep`) do NOT apply
+`dc_offset` themselves.  `CharacterizationRunner._run_test` pre-applies the test's
+own `dc_offset` once before calling the inner runner (standalone path).  The
+sub-runner path passes `spec_v` (outer-sweep DC already set) straight through.
+This is why outer `excitation.*` sweeps work correctly.
+
+### Plot panel types
+
+`bode`, `chirp_timeseries`, `amplitude_sweep`, `dc_sweep`, `parameter_family`,
+`doe_scatter`, `parameter_grid_heatmap`.  All configured in the `plots:` section
+of the same YAML file as the tests.  Use `enabled: false` on any test or panel
+to skip it without deleting it.
+
+---
+
 ## Documentation workflow
 
 Active design work lives in `docs/plan_*.md` files. These are **living documents**:
@@ -550,7 +606,8 @@ Current active plans:
 
 | File | Status | Contents |
 |---|---|---|
-| `docs/plan_characterization_framework.md` | In progress | Characterization test framework: ExcitationPort, test types, DOE, bond graph abstraction, Julia-first architecture |
+| `docs/plan_characterization_framework.md` | Complete | Characterization test framework: ExcitationPort, test types, DOE, bond graph abstraction, Julia-first architecture |
+| `docs/plan_characterization_plots.md` | Complete | YAML-driven plots: `-c`/`-p` CLI, `plots:` schema, all panel types, excitation.* outer-loop sweeps |
 | `docs/plan_symbolic_codegen.md` | Planned | SymPy → Julia auto-codegen to eliminate dual Python/Julia dynamics authoring |
 
 When starting a new session, check `docs/` for active plans before writing any

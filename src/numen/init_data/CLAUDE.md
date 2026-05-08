@@ -6,7 +6,9 @@ Models are defined in Python and solved by scipy, JAX, or Julia backends.
 ```bash
 numen check                   # verify scipy + JAX + Julia
 numen info                    # framework quick-reference
-numen characterize test_plan.yaml --output results.json
+numen characterize test_plan.yaml        # run tests + plot
+numen characterize test_plan.yaml -c     # characterize only
+numen characterize test_plan.yaml -p     # plot only
 ```
 
 ---
@@ -135,15 +137,34 @@ snap   = collector.at(t=1.5)                                # typed snapshot
 
 ## Characterization
 
-See **[CHARACTERIZATION.md](CHARACTERIZATION.md)** for the complete guide:
-ExcitationPort setup, YAML schema, all 7 test types, settle-period rules,
-chirp vs stepped-sine guidance, loading results, plots.
-
-Quick start (once your component has an `ExcitationPort`):
+See **[CHARACTERIZATION.md](CHARACTERIZATION.md)** for the complete guide.
+Quick-start once your component has an `ExcitationPort`:
 
 ```bash
-uv run numen characterize test_plan.yaml --output results.json
+uv run numen characterize test_plan.yaml        # run tests + generate plot
+uv run numen characterize test_plan.yaml -c     # characterize only
+uv run numen characterize test_plan.yaml -p     # re-plot without re-running
 ```
+
+**Test types:** `discrete_frequency_sweep`, `continuous_chirp`, `amplitude_sweep`,
+`dc_operating_point_sweep`, `parameter_sweep`, `parameter_grid`, `doe_sweep`.
+
+**`parameter_sweep` sweep params** — model param OR excitation input:
+
+```yaml
+- name: frf_vs_dc
+  type: parameter_sweep
+  sweep_param: excitation.dc_offset   # or: excitation.amplitude, excitation.frequency
+  values: [0.0, 0.3, 0.6, 1.0]       # or: osc.c1 for a model ParameterField
+  sub_test: baseline_frf              # any other test name in the same plan
+```
+
+**Plot panel types:** `bode`, `chirp_timeseries`, `amplitude_sweep`, `dc_sweep`,
+`parameter_family` (family of curves coloured by sweep param), `doe_scatter`,
+`parameter_grid_heatmap`.
+
+The `plots:` section lives in the same YAML file as the tests — one file controls
+both the campaign and the figure layout.
 
 ---
 
