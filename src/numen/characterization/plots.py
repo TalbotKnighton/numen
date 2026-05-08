@@ -52,8 +52,9 @@ def plot_bode(
     lbl = label or frf.name
     mag = 20.0 * np.log10(np.maximum(frf.magnitudes, 1e-12)) if db else frf.magnitudes
 
+    phases = np.degrees(np.unwrap(np.radians(frf.phases_deg)))
     ax_mag.semilogx(frf.frequencies, mag, lw=2, label=lbl)
-    ax_phase.semilogx(frf.frequencies, frf.phases_deg, lw=2, label=lbl)
+    ax_phase.semilogx(frf.frequencies, phases, lw=2, label=lbl)
 
     # Mark f0 and -3 dB level
     if frf.f0 is not None:
@@ -112,8 +113,9 @@ def plot_bode_family(
         color = cmap(norm(val))
         lbl   = f"{param_label}={val:.3g}"
         mag   = 20.0 * np.log10(np.maximum(frf.magnitudes, 1e-12)) if db else frf.magnitudes
+        phases = np.degrees(np.unwrap(np.radians(frf.phases_deg)))
         ax_mag.semilogx(frf.frequencies, mag, lw=1.5, color=color, label=lbl)
-        ax_phase.semilogx(frf.frequencies, frf.phases_deg, lw=1.5, color=color)
+        ax_phase.semilogx(frf.frequencies, phases, lw=1.5, color=color)
 
     sm = ScalarMappable(cmap=cmap, norm=norm)
     sm.set_array([])
@@ -229,8 +231,9 @@ def plot_chirp_frf(
     lbl = label or result.name
     mag = 20.0 * np.log10(np.maximum(result.H_mag, 1e-12)) if db else result.H_mag
 
+    phases = np.degrees(np.unwrap(np.radians(result.H_phase_deg)))
     ax_mag.semilogx(result.frequencies, mag, lw=2, label=lbl, alpha=0.85)
-    ax_phase.semilogx(result.frequencies, result.H_phase_deg, lw=2, label=lbl, alpha=0.85)
+    ax_phase.semilogx(result.frequencies, phases, lw=2, label=lbl, alpha=0.85)
 
     mag_ylabel = "|H(f)| [dB]" if db else "|H(f)|"
     ax_mag.set_ylabel(mag_ylabel)

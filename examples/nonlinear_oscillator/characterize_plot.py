@@ -33,12 +33,15 @@ def main():
     ax_mag   = fig.add_subplot(gs[0, 0])
     ax_phase = fig.add_subplot(gs[1, 0], sharex=ax_mag)
 
+    def _unwrap_deg(phases):
+        return np.degrees(np.unwrap(np.radians(np.array(phases))))
+
     if "frf" in by_type:
         r = by_type["frf"]
         freqs = np.array(r["frequencies"])
         mags  = 20 * np.log10(np.maximum(r["magnitudes"], 1e-12))
         ax_mag.semilogx(freqs, mags, "o-", lw=2, ms=4, label="stepped sine", color="tab:blue")
-        ax_phase.semilogx(freqs, r["phases_deg"], "o-", lw=2, ms=4, color="tab:blue")
+        ax_phase.semilogx(freqs, _unwrap_deg(r["phases_deg"]), "o-", lw=2, ms=4, color="tab:blue")
         ax_mag.annotate(
             f"f₀={r['f0']:.3f} Hz\nQ={r['Q']:.1f}",
             xy=(r["f0"], max(mags)),
@@ -52,7 +55,8 @@ def main():
         freqs = np.array(r["frequencies"])
         H_db  = 20 * np.log10(np.maximum(r["H_mag"], 1e-12))
         ax_mag.semilogx(freqs, H_db, lw=1.5, alpha=0.7, label="chirp (cross-spectrum)", color="tab:orange")
-        ax_phase.semilogx(freqs, r["H_phase_deg"], lw=1.5, alpha=0.7, color="tab:orange")
+        # Chirp phase is noisy (poor SNR for high-Q systems); plot wrapped, not unwrapped
+        ax_phase.semilogx(freqs, np.array(r["H_phase_deg"]), lw=1.0, alpha=0.5, color="tab:orange")
 
     ax_mag.set_ylabel("|H(f)| [dB]")
     ax_mag.set_title("Bode — Stepped Sine vs Chirp")
@@ -63,6 +67,8 @@ def main():
     ax_phase.set_xlabel("Frequency [Hz]")
     ax_phase.set_ylabel("Phase [deg]")
     ax_phase.grid(True, which="both", alpha=0.3)
+    # Clamp y-axis so noisy chirp phase doesn't dominate; stepped sine is the reference
+    ax_phase.set_ylim(-200, 20)
 
     # ── 2. Chirp time series ───────────────────────────────────────────────────
     ax_chirp = fig.add_subplot(gs[0, 1])
