@@ -403,11 +403,74 @@ Currently `save()` exists but `load()` does not. This is needed for `-p` without
 - [ ] Update `test_plan.yaml` with `output:` + `plots:` sections
 - [ ] Delete `characterize_plot.py`
 
-### Phase 2 — Parameter result panels
-- [ ] `parameter_family` panel renderer
-- [ ] `doe_scatter` panel renderer + `_extract_metric()`
-- [ ] `parameter_grid_heatmap` panel renderer
-- [ ] Update CHARACTERIZATION.md with new YAML schema
+### Phase 2 — Parameter result panels ✓ complete
+- [x] `parameter_family` panel renderer
+- [x] `doe_scatter` panel renderer + `_extract_metric()`
+- [x] `parameter_grid_heatmap` panel renderer
+- [x] Update CHARACTERIZATION.md with new YAML schema
+
+### Phase 3 — Excitation parameter outer-loop ✓ complete
+
+**Goal:** Let `parameter_sweep`, `parameter_grid`, and `doe_sweep` vary excitation
+inputs (DC offset, amplitude, frequency) as the outer dimension over any inner test.
+
+**Problem:** The excitation parameters (`amp`, `freq`, `dc`) live in
+`spec.param_index_map` under internal keys like `_exc_osc_force.dc` — not user-facing
+paths.  A model parameter like `osc.c1` is accessed directly; excitation needs a
+translation layer.
+
+**Solution:** `excitation.*` parameter paths in `param_sweep.py`:
+
+```python
+_EXC_PARAM_MAP = {"dc_offset": "dc", "amplitude": "amp", "frequency": "freq"}
+
+def _resolve_param_key(key, entity_id=None, port_name=None) -> str:
+    if key.startswith("excitation."):
+        sub = key[len("excitation."):]
+        return f"_exc_{entity_id}_{port_name}.{_EXC_PARAM_MAP[sub]}"
+    return key  # plain model param path, unchanged
+```
+
+The `entity_id` and `port_name` come from `CharacterizationRunner` (the excitation
+config) and are threaded down through every sweep runner.
+
+**YAML usage:**
+
+```yaml
+# Outer loop: 6 DC offsets
+# Inner test: baseline_frf (discrete frequency sweep)
+# Result: ParameterFamilyResult with 6 FRFResults
+- name: frf_vs_dc
+  type: parameter_sweep
+  sweep_param: excitation.dc_offset   # translates to _exc_osc_force.dc
+  values: [0.0, 0.1, 0.3, 0.5, 0.8, 1.0]
+  sub_test: baseline_frf
+
+# Same pattern for chirp
+- name: chirp_vs_dc
+  type: parameter_sweep
+  sweep_param: excitation.dc_offset
+  values: [0.0, 0.3, 0.6, 1.0]
+  sub_test: chirp_survey
+```
+
+**`_render_parameter_family` sub-result dispatch:**
+
+| `subs[0]` type | Layout | Description |
+|---|---|---|
+| `FRFResult` | 2×1 stacked Bode | mag + phase (phase optional via `show_phase`) |
+| `ChirpResult` | 1×1 | magnitude-only semilog; chirp phase unreliable |
+| `AmplitudeSweepResult` | 1×1 | |H| vs drive amplitude |
+
+All three are coloured by sweep parameter using viridis with a colorbar.
+
+**Files changed:**
+- `src/numen/characterization/tests/param_sweep.py` — `_EXC_PARAM_MAP`, `_resolve_param_key()`, updated `_set_model_param()` and `run_parameter_sweep()` signatures
+- `src/numen/characterization/tests/param_grid.py` — propagate `entity_id`/`port_name`
+- `src/numen/characterization/tests/doe_sweep.py` — same
+- `src/numen/characterization/runner.py` — `_make_sub_runner()` + `_get_sub_spec()` consolidation
+- `src/numen/characterization/plot_runner.py` — `_render_parameter_family` extended for all 3 sub-result types
+- `examples/nonlinear_oscillator/test_plan.yaml` — `frf_vs_dc` + `chirp_vs_dc` tests + panels
 
 ---
 
