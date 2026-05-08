@@ -1,5 +1,40 @@
 # Characterization Framework — Design Plan
 
+---
+
+## North Star
+
+Build a **domain-agnostic characterization framework** that can run systematic
+test campaigns against any Numen physics model — oscillators, thermal systems,
+fluid networks, diffusion problems, chemical kinetics — without the framework
+itself knowing anything about those domains.
+
+The framework operates at the level of **signals and ports**. It applies waveforms
+(steps, sinusoids, chirps, DOE-sampled inputs) to model input ports and records
+responses from output states. Domain-specific knowledge lives entirely in the model
+and its associated metric extractors; the framework is just the orchestration layer.
+
+Long-term, computation lives in Julia (via the Julia server backend), and Python
+handles schema, orchestration, and visualization only. This keeps the hot path in
+the fastest available solver ecosystem without sacrificing the ergonomics of
+Pydantic-validated declarative test plans.
+
+### What does not exist yet
+
+Nothing in the open-source ecosystem does this. The closest analogues are:
+
+| Tool | Gap |
+|---|---|
+| MATLAB Control Toolbox | Linear systems only, closed ecosystem, Simulink-coupled |
+| ModelingToolkit.jl / SciML | Modeling toolkit, not a characterization framework |
+| DynamicalSystems.jl | Nonlinear analysis only (Lyapunov, attractors), not general characterization |
+| Modelica / OpenModelica | Separate language, not composable with Python/Pydantic |
+| AMESim / GT-Suite | Commercial, locked ecosystem |
+
+This is genuinely novel. Design decisions should be made with that in mind.
+
+---
+
 ## Overview
 
 This document captures the design decisions made for a general-purpose characterization
@@ -83,6 +118,116 @@ bias. Any change you observe is a direct measurement of the nonlinear character.
 | Transfer function magnitude | \|H(f)\| | Output amplitude / input amplitude |
 | Transfer function phase | ∠H(f) | Phase of output relative to input |
 | Effective damping vs bias | c(x_eq) | From DC sweep → FRF peak at each bias |
+
+---
+
+## Domain-Agnostic Design Principle
+
+### The temptation to avoid
+
+As the framework grows to cover thermal, fluid, diffusion, and other domains, the
+temptation is to add domain-specific test types: `oscillator_bode`, `thermal_step`,
+`fluid_pressure_drop`. This leads to a combinatorial explosion of
+`test_type × physics_domain` specializations and a framework that needs to be
+rewritten every time a new domain is added.
+
+### The right abstraction: ports and signals
+
+Every physical domain shares the same port structure, captured by bond graph theory:
+
+| Domain | Effort variable | Flow variable |
+|---|---|---|
+| Mechanical | Force [N] | Velocity [m/s] |
+| Electrical | Voltage [V] | Current [A] |
+| Thermal | Temperature [K] | Heat flux [W/m²] |
+| Fluid | Pressure [Pa] | Volume flow [m³/s] |
+| Chemical | Chemical potential [J/mol] | Molar flux [mol/s] |
+
+Every test type — step, sine sweep, chirp, DOE — is simply applying a waveform to
+an effort or flow port and recording the response at another port. The framework
+never needs to know which domain it is in.
+
+**Domain-specific knowledge lives in exactly two places:**
+
+1. The model itself (components, dynamics, Julia functions)
+2. **Metric extractors** — small functions registered by the model author that know
+   how to compute physically meaningful scalars from a time series
+
+```python
+# metrics.py — written by the model author, not the framework
+METRICS = {
+    "f0":            extract_resonant_frequency,   # oscillator domain
+    "Q":             extract_quality_factor,
+    "settling_time": extract_settling_time,        # universal
+    "overshoot":     extract_overshoot,            # universal
+}
+```
+
+```python
+# A thermal model registers different metrics
+METRICS = {
+    "time_constant":      extract_time_constant,
+    "thermal_resistance": extract_steady_state_gain,
+    "peak_temperature":   extract_peak,
+}
+```
+
+The test plan names which metrics to extract; the framework resolves them against
+the model's registry at runtime. The framework itself is unchanged.
+
+### Port typing on ExcitationPort
+
+`ExcitationPort` should carry physical metadata so the framework can generate
+correct axis labels and perform basic dimensional checks without knowing the domain:
+
+```python
+force: Annotated[float, ExcitationPort(
+    targets  = "velocity",
+    domain   = "mechanical",   # optional, for documentation
+    quantity = "force",        # effort or flow variable name
+    units    = "N",            # SI units string
+)] = 0.0
+```
+
+---
+
+## Julia-First Architecture
+
+### Division of responsibilities
+
+The long-term target is for all computation to live in Julia, with Python handling
+only schema, orchestration, and visualization:
+
+```
+Python                              Julia
+─────────────────────────────────   ────────────────────────────────────
+Schema definition (Pydantic)        Dynamics (OrdinaryDiffEq.jl)
+Test plan parsing (YAML → dict)     Stiff/DAE solvers (Rodas5P, FBDF)
+Test orchestration (runner.py)      Sensitivity (ForwardDiff.jl)
+DOE sampling (scipy / pyDOE3)       Frequency analysis (DSP.jl)
+Sensitivity indices (SALib)         Control analysis (ControlSystems.jl)
+Visualization (matplotlib)          Bifurcation (BifurcationKit.jl)
+Result serialization (JSON)
+```
+
+Metric extraction — currently imagined on the Python side — can migrate to Julia
+using **DSP.jl** and **ControlSystems.jl** as the framework matures. This would
+eliminate a Python round-trip per solve and keep the entire hot path in Julia.
+
+### SciML ecosystem integration (future)
+
+The Julia SciML ecosystem provides building blocks we should plan to integrate:
+
+| Package | Capability |
+|---|---|
+| `ModelingToolkit.jl` | Symbolic model manipulation, automatic Jacobians |
+| `SciMLSensitivity.jl` | Adjoint-based parameter sensitivity (faster than finite diff for large models) |
+| `BifurcationKit.jl` | Bifurcation diagrams, stability analysis |
+| `ControlSystems.jl` | Transfer function extraction, Bode, Nyquist, root locus |
+| `DynamicalSystems.jl` | Lyapunov exponents, attractors, chaos characterization |
+
+None of these require changes to the Python schema — they are Julia-side analysis
+tools that consume the same solve results the current framework already produces.
 
 ---
 
@@ -212,6 +357,7 @@ model:
     omega: 6.283              # 1 Hz natural frequency
     c0: 0.1
     c1: 2.0
+  metrics: examples.nonlinear_oscillator.metrics   # optional METRICS registry
 
 excitation:
   entity: osc
@@ -277,6 +423,7 @@ class ModelSpec(BaseModel):
     module: str
     factory: str
     factory_kwargs: dict[str, Any] = {}
+    metrics: str | None = None   # optional module path to METRICS registry
 
 class ExcitationSpec(BaseModel):
     entity: str
