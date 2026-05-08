@@ -49,6 +49,14 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/numen"]
+exclude = [
+    "src/numen/examples/**/__pycache__",
+    "src/numen/examples/**/*.pyc",
+    "src/numen/examples/**/results.json",
+    "src/numen/examples/**/*.png",
+    "src/numen/examples/**/benchmark_results.txt",
+    "src/numen/examples/**/.!*",
+]
 
 [dependency-groups]
 dev = [

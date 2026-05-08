@@ -355,9 +355,15 @@ def list_examples() -> None:
         t.add_row(name, meta["domain"], meta["description"])
     console.print(t)
     console.print()
-    console.print("  [bold]numen run [dim]<name>[/dim][/bold]    Run with scipy (no plot window)")
-    console.print("  [bold]numen new [dim]<name>[/dim][/bold]    Scaffold a new model")
+    console.print("  [bold]numen run  [dim]<name>[/dim][/bold]          Run with scipy (no plot window)")
+    console.print("  [bold]numen copy [dim]<name> [dest][/dim][/bold]   Copy source files to a local directory")
+    console.print("  [bold]numen new  [dim]<name>[/dim][/bold]          Scaffold a new blank model")
     console.print()
+
+
+def _example_dir(name: str) -> Path:
+    """Return the filesystem path to a bundled example directory."""
+    return Path(str(_pkg_files("numen") / "examples" / name))
 
 
 @app.command()
@@ -369,10 +375,9 @@ def run(
         console.print(f"  [bold #ef4444]✗[/]  Unknown example [bold]{example!r}[/]. Run [bold]numen list[/bold] to see options.")
         raise typer.Exit(code=1)
 
-    examples_dir = Path(__file__).parent.parent.parent / "examples" / example
+    examples_dir = _example_dir(example)
     if not examples_dir.exists():
-        console.print(f"  [bold #f59e0b]⚠[/]  Example directory not found: {examples_dir}")
-        console.print("  [dim](Examples are only available in the development checkout, not an installed package.)[/dim]")
+        console.print(f"  [bold #ef4444]✗[/]  Example directory not found: {examples_dir}")
         raise typer.Exit(code=1)
 
     run_py = examples_dir / "run.py"
@@ -388,6 +393,61 @@ def run(
     console.print()
     if proc.returncode != 0:
         raise typer.Exit(code=proc.returncode)
+
+
+# Files to skip when copying an example to a user directory
+_COPY_SKIP_NAMES  = {"results.json", "benchmark_results.txt"}
+_COPY_SKIP_SUFFIX = {".pyc", ".png"}
+_COPY_SKIP_DIRS   = {"__pycache__"}
+
+
+def _should_copy(p: Path) -> bool:
+    if p.name.startswith(".!"):
+        return False
+    if any(part in _COPY_SKIP_DIRS for part in p.parts):
+        return False
+    return p.suffix not in _COPY_SKIP_SUFFIX and p.name not in _COPY_SKIP_NAMES
+
+
+@app.command()
+def copy(
+    example: str          = typer.Argument(..., help=f"Example name ({', '.join(EXAMPLES)})"),
+    dest:    Optional[Path] = typer.Argument(None, help="Destination directory (default: ./<example>)"),
+) -> None:
+    """Copy a built-in example to a local directory so you can edit it."""
+    import shutil
+
+    if example not in EXAMPLES:
+        console.print(f"  [bold #ef4444]✗[/]  Unknown example [bold]{example!r}[/]. Run [bold]numen list[/bold] to see options.")
+        raise typer.Exit(code=1)
+
+    src_dir = _example_dir(example)
+    if not src_dir.exists():
+        console.print(f"  [bold #ef4444]✗[/]  Example directory not found: {src_dir}")
+        raise typer.Exit(code=1)
+
+    out_dir = dest or Path.cwd() / example
+    if out_dir.exists():
+        console.print(f"  [bold #ef4444]✗[/]  Destination already exists: [bold]{out_dir}[/]")
+        console.print("  [dim]Remove it first or choose a different path.[/dim]")
+        raise typer.Exit(code=1)
+
+    count = 0
+    for src_file in sorted(src_dir.rglob("*")):
+        if src_file.is_file() and _should_copy(src_file):
+            dst_file = out_dir / src_file.relative_to(src_dir)
+            dst_file.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src_file, dst_file)
+            count += 1
+
+    console.print()
+    console.print(f"  [bold #22c55e]✓[/]  Copied [bold]{example}[/] → [bold]{out_dir}[/]  ({count} files)")
+    console.print()
+    console.print(f"  [dim]cd {out_dir}[/dim]")
+    console.print(f"  [dim]uv run python run.py[/dim]")
+    if (out_dir / "test_plan.yaml").exists():
+        console.print(f"  [dim]uv run numen characterize test_plan.yaml[/dim]")
+    console.print()
 
 
 @app.command()
@@ -569,7 +629,7 @@ def info() -> None:
         [bold]_D = 1e-6[/bold]
         [bold]def _soft_pen(x):[/bold]
         [bold]    return jnp.where(x<=0, 0, jnp.where(x>=_D, x-0.5*_D, 0.5*x*x/_D))[/bold]
-        See [dim]examples/fluid_poppet/dynamics.py[/dim] for the full pattern.""")))
+        See [dim]fluid_poppet/dynamics.py[/dim] (copy with [bold]numen copy fluid_poppet[/bold]) for the full pattern.""")))
 
     # Parameter sweeps
     console.print(_panel("Parameter Sweeps", textwrap.dedent("""\
@@ -582,7 +642,7 @@ def info() -> None:
 
     # Reference
     console.print(_panel("Reference", textwrap.dedent("""\
-        [dim]examples/fluid_poppet/[/dim]   most complete reference (6-state pneumatic system)
+        [bold]numen copy fluid_poppet[/bold]   most complete reference (6-state pneumatic system)
         [dim]CLAUDE.md[/dim]               AI assistant context — auto-loaded by Claude Code
         [dim]DESIGN.md[/dim]               architecture decisions and open questions""")))
 

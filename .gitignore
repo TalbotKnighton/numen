@@ -9,3 +9,10 @@ dist/
 # Julia
 julia/Manifest.toml
 julia/.julia/
+
+# Example generated outputs (results stay local, not in the source tree)
+src/numen/examples/**/results.json
+src/numen/examples/**/*.png
+src/numen/examples/**/benchmark_results.txt
+src/numen/examples/**/.!*
+oscillator.png
