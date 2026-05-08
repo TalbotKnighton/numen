@@ -532,3 +532,27 @@ See `DESIGN.md` for the full architectural rationale. Key open questions:
   Requires the DAE path above.
 - Automatic Julia codegen — SymPy → `sympy.julia_code()` could auto-generate `dynamics.jl`
   from Python symbolic expressions. Currently hand-written; see DESIGN.md for the trade-off.
+
+---
+
+## Documentation workflow
+
+Active design work lives in `docs/plan_*.md` files. These are **living documents**:
+every time a design decision is refined during implementation, update the relevant
+plan file in the same commit as the code change. Never let the plan drift from the
+code.
+
+When a feature is complete, its design rationale graduates:
+- Architectural decisions → `DESIGN.md`
+- Model-authoring guidance (field types, patterns, gotchas) → this file (`CLAUDE.md`)
+
+Current active plans:
+
+| File | Status | Contents |
+|---|---|---|
+| `docs/plan_characterization_framework.md` | In progress | Characterization test framework: ExcitationPort, test types, DOE, bond graph abstraction, Julia-first architecture |
+| `docs/plan_symbolic_codegen.md` | Planned | SymPy → Julia auto-codegen to eliminate dual Python/Julia dynamics authoring |
+
+When starting a new session, check `docs/` for active plans before writing any
+code — they contain the full context of prior design decisions that should not
+be relitigated.
