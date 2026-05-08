@@ -9,9 +9,12 @@
 # amplitude is small (c(x) ≈ c₀ near x=0), but the amplitude sweep and
 # DC sweep reveal the nonlinearity at larger amplitudes or offsets.
 #
-# Run:   uv run numen characterize test_plan.yaml --output results.json
+# Run:   uv run numen characterize test_plan.yaml       # characterise + plot
+#         uv run numen characterize test_plan.yaml -c    # characterise only
+#         uv run numen characterize test_plan.yaml -p    # plot only
 
 version: "1.0"
+output: results.json
 
 backend:
   type: scipy
@@ -95,3 +98,52 @@ tests:
     probe_amplitude: 0.005
     settle_periods: 15    # intentionally short for demo speed; use ~315 for full accuracy
     measure_periods: 5
+
+# ── Plot configuration ───────────────────────────────────────────────────────
+#
+# Controls what numen characterize -p (or the default both-in-one run) renders.
+# Set enabled: false on any panel to hide it without deleting the entry.
+
+plots:
+  output: characterization_summary.png
+  dpi: 150
+  figure:
+    title: "Nonlinear Oscillator — Characterization Campaign"
+    subtitle: "ẍ + (c₀ + c₁x²)ẋ + ω²x = F(t)      ω=2π rad/s  c₀=0.1  c₁=2.0"
+
+  panels:
+
+    # Bode plot: stepped sine curve; chirp magnitude overlay for survey context.
+    # Chirp phase is omitted (show_phase: false) — unreliable for Q≈63 systems
+    # because the resonance bandwidth (~0.016 Hz) is far below FFT resolution.
+    - type: bode
+      enabled: true
+      title: "Bode — Stepped Sine vs Chirp"
+      series:
+        - test: baseline_frf
+          label: stepped sine
+          show_phase: true
+          db: true
+        - test: chirp_survey
+          label: chirp (survey)
+          show_phase: false
+          db: true
+
+    # Raw chirp output — shows the amplitude build-up at resonance visually.
+    - type: chirp_timeseries
+      enabled: true
+      title: "Chirp Time Series (log-sweep 0.2→3 Hz)"
+      test: chirp_survey
+
+    # Amplitude sweep — flat for a linear system; droops here due to c₁x² damping.
+    - type: amplitude_sweep
+      enabled: true
+      title: "Amplitude Sweep — Nonlinearity Signature"
+      test: amplitude_sweep_resonance
+      show_phase: false   # phase not informative for this demo
+
+    # DC sweep — small-signal gain and phase vs equilibrium offset.
+    - type: dc_sweep
+      enabled: true
+      title: "DC Sweep"
+      test: dc_bias_sweep

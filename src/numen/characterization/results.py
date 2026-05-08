@@ -327,6 +327,100 @@ def _result_to_rows(
 
 
 # ---------------------------------------------------------------------------
+# JSON → typed result reconstruction
+# ---------------------------------------------------------------------------
+
+def _dict_to_result(d: dict[str, Any]) -> Any:
+    """Reconstruct a typed result object from a to_dict() output."""
+    t = d.get("type")
+
+    if t == "frf":
+        return FRFResult(
+            name          = d["name"],
+            frequencies   = np.array(d["frequencies"]),
+            magnitudes    = np.array(d["magnitudes"]),
+            phases_deg    = np.array(d["phases_deg"]),
+            f0            = d.get("f0"),
+            Q             = d.get("Q"),
+            damping_ratio = d.get("damping_ratio"),
+            amplitude     = d.get("amplitude", 0.0),
+            dc_offset     = d.get("dc_offset", 0.0),
+        )
+
+    if t == "dc_swept_frf":
+        measurements = [
+            OperatingPointMeasurement(
+                dc_value  = m["dc_value"],
+                magnitude = m["magnitude"],
+                phase_deg = m["phase_deg"],
+                f0        = m.get("f0"),
+                Q         = m.get("Q"),
+            )
+            for m in d.get("measurements", [])
+        ]
+        return DCSweptFRFResult(
+            name            = d["name"],
+            probe_frequency = d["probe_frequency"],
+            measurements    = measurements,
+        )
+
+    if t == "amplitude_sweep":
+        return AmplitudeSweepResult(
+            name                = d["name"],
+            frequency           = d["frequency"],
+            drive_amplitudes    = np.array(d["drive_amplitudes"]),
+            response_amplitudes = np.array(d["response_amplitudes"]),
+            phases_deg          = np.array(d["phases_deg"]),
+            H_magnitudes        = np.array(d["H_magnitudes"]),
+            dc_offset           = d.get("dc_offset", 0.0),
+        )
+
+    if t == "chirp":
+        return ChirpResult(
+            name        = d["name"],
+            t           = np.array(d["t"]),
+            output      = np.array(d["output"]),
+            frequencies = np.array(d["frequencies"]),
+            H_mag       = np.array(d["H_mag"]),
+            H_phase_deg = np.array(d["H_phase_deg"]),
+            f_start     = d["f_start"],
+            f_end       = d["f_end"],
+            amplitude   = d["amplitude"],
+            dc_offset   = d.get("dc_offset", 0.0),
+            chirp_type  = d.get("chirp_type", "log"),
+        )
+
+    if t == "parameter_family":
+        return ParameterFamilyResult(
+            name         = d["name"],
+            sweep_param  = d["sweep_param"],
+            param_values = d["param_values"],
+            sub_results  = [_dict_to_result(r) for r in d.get("sub_results", [])],
+        )
+
+    if t == "parameter_grid":
+        return ParameterGridResult(
+            name         = d["name"],
+            param_keys   = d["param_keys"],
+            combinations = d["combinations"],
+            mode         = d.get("mode", "full_factorial"),
+            sub_results  = [_dict_to_result(r) for r in d.get("sub_results", [])],
+        )
+
+    if t == "doe_sweep":
+        return DOESweepResult(
+            name         = d["name"],
+            design       = d["design"],
+            param_keys   = d["param_keys"],
+            combinations = d["combinations"],
+            sub_results  = [_dict_to_result(r) for r in d.get("sub_results", [])],
+        )
+
+    # Unknown type — return the raw dict so callers can still iterate
+    return d
+
+
+# ---------------------------------------------------------------------------
 # Campaign-level accumulator
 # ---------------------------------------------------------------------------
 
@@ -364,6 +458,16 @@ class CampaignResults:
         with open(path, "w") as f:
             json.dump({"version": self.config_version, "results": out}, f,
                       indent=2, default=_json_default)
+
+    @classmethod
+    def load(cls, path: str | Path) -> "CampaignResults":
+        """Load a saved JSON file back into typed result objects."""
+        with open(path) as f:
+            data = json.load(f)
+        obj = cls(config_version=data.get("version", "1.0"))
+        for d in data.get("results", []):
+            obj.append(d["name"], _dict_to_result(d))
+        return obj
 
     def to_dataframe(self) -> "Any":
         """Flatten all results to a pandas DataFrame.

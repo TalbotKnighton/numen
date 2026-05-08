@@ -10,10 +10,13 @@ models.  The canonical loading pattern is::
 Design principles:
 - Test types are signal-level (step, sweep, chirp, DOE) — never domain-specific.
 - Domain knowledge lives in the model's metrics registry, not here.
-- All test specs use Pydantic discriminated unions on the `type` field.
+- All test specs use Pydantic discriminated unions on the ``type`` field.
+- The ``plots:`` section mirrors the ``tests:`` section; both live in the same
+  YAML file so the experiment is fully self-contained.
 """
 from __future__ import annotations
 
+import math
 from pathlib import Path
 from typing import Annotated, Any, Literal, Union
 
@@ -27,8 +30,8 @@ from pydantic import BaseModel, Field, model_validator
 class BackendSpec(BaseModel):
     """Which solver backend to use for all solves in this campaign."""
     type:       Literal["scipy", "jax", "julia", "julia_server"] = "scipy"
-    julia_file: str | None = None    # path to .jl dynamics file (julia / julia_server only)
-    method:     str | None = None    # solver name, e.g. "Dopri5", "Rodas5P"
+    julia_file: str | None = None
+    method:     str | None = None
     rtol:       float = 1e-8
     atol:       float = 1e-9
 
@@ -45,10 +48,10 @@ class BackendSpec(BaseModel):
 
 class ModelSpec(BaseModel):
     """How to construct the Numen world under test."""
-    module:          str                  # importable module path, e.g. "examples.nonlinear_oscillator.world"
-    factory:         str                  # callable in that module, e.g. "make_world"
-    factory_kwargs:  dict[str, Any] = {}  # keyword arguments forwarded to the factory
-    metrics:         str | None = None    # optional module path containing a METRICS dict
+    module:         str
+    factory:        str
+    factory_kwargs: dict[str, Any] = {}
+    metrics:        str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -57,9 +60,9 @@ class ModelSpec(BaseModel):
 
 class ExcitationSpec(BaseModel):
     """Which entity / port to drive and which state to measure."""
-    entity:       str   # entity_id in the world, e.g. "osc"
-    port:         str   # ExcitationPort field name on the component, e.g. "force"
-    output_state: str   # state field to measure, e.g. "position"
+    entity:       str
+    port:         str
+    output_state: str
 
 
 # ---------------------------------------------------------------------------
@@ -102,68 +105,60 @@ class DOEParamSpec(BaseModel):
 # ---------------------------------------------------------------------------
 
 class DiscreteFrequencySweepSpec(BaseModel):
-    """Stepped sine: one solve per frequency, extract amplitude and phase."""
-    name:           str
-    type:           Literal["discrete_frequency_sweep"]
-    frequencies:    FrequencyGridSpec
-    amplitude:      float
-    dc_offset:      float = 0.0
-    settle_periods: int   = 10   # cycles to discard before measuring
-    measure_periods: int  = 5    # cycles to use for lock-in extraction
+    name:            str
+    type:            Literal["discrete_frequency_sweep"]
+    enabled:         bool  = True
+    frequencies:     FrequencyGridSpec
+    amplitude:       float
+    dc_offset:       float = 0.0
+    settle_periods:  int   = 10
+    measure_periods: int   = 5
 
 
 class DCOperatingPointSweepSpec(BaseModel):
-    """Sweep DC bias; measure small-signal FRF at each operating point.
-
-    Maps out how effective damping and stiffness shift with bias — the
-    first-order fingerprint of a nonlinearity.
-    """
     name:            str
     type:            Literal["dc_operating_point_sweep"]
+    enabled:         bool        = True
     dc_values:       list[float]
-    probe_frequency: float         # Hz — typically near resonance
-    probe_amplitude: float         # small relative to operating point
-    settle_periods:  int = 10
-    measure_periods: int = 5
-
-
-class AmplitudeSweepSpec(BaseModel):
-    """Fixed frequency, varying drive amplitude — nonlinearity signature."""
-    name:           str
-    type:           Literal["amplitude_sweep"]
-    frequency:      float
-    amplitudes:     list[float]
-    dc_offset:      float = 0.0
-    settle_periods: int   = 10
+    probe_frequency: float
+    probe_amplitude: float
+    settle_periods:  int  = 10
     measure_periods: int  = 5
 
 
+class AmplitudeSweepSpec(BaseModel):
+    name:            str
+    type:            Literal["amplitude_sweep"]
+    enabled:         bool        = True
+    frequency:       float
+    amplitudes:      list[float]
+    dc_offset:       float = 0.0
+    settle_periods:  int   = 10
+    measure_periods: int   = 5
+
+
 class ParameterSweepSpec(BaseModel):
-    """Repeat a named test for each value of a model ParameterField."""
     name:        str
     type:        Literal["parameter_sweep"]
-    sweep_param: str          # dot-separated key, e.g. "osc.c1"
+    enabled:     bool        = True
+    sweep_param: str
     values:      list[float]
-    sub_test:    str          # name of another test in the same plan
+    sub_test:    str
 
 
 class ParameterGridSpec(BaseModel):
-    """Full or paired factorial over explicit value lists for multiple params."""
     name:     str
     type:     Literal["parameter_grid"]
-    params:   dict[str, list[float]]   # param_key → list of values
+    enabled:  bool                    = True
+    params:   dict[str, list[float]]
     sub_test: str
     mode:     Literal["full_factorial", "pairs"] = "full_factorial"
 
 
 class DOESweepSpec(BaseModel):
-    """Space-filling or classical DOE over continuous parameter ranges.
-
-    Uses scipy.stats.qmc (LHS, Sobol, Halton) or pyDOE3 (CCD, Box-Behnken).
-    Install optional extras: ``uv pip install "numen[characterization]"``
-    """
     name:    str
     type:    Literal["doe_sweep"]
+    enabled: bool = True
     design:  Literal[
         "latin_hypercube", "sobol", "halton",
         "central_composite", "box_behnken", "full_factorial",
@@ -171,27 +166,20 @@ class DOESweepSpec(BaseModel):
     n_samples: int = 50
     params:    dict[str, DOEParamSpec]
     sub_test:  str
-    outputs:   list[str] = []   # scalar metric names to tabulate per design point
+    outputs:   list[str] = []
 
 
 class ContinuousChirpSpec(BaseModel):
-    """Single solve with a frequency-swept (chirp) input signal.
-
-    Faster than stepped sine (one solve vs N), lower SNR and resolution.
-    """
     name:       str
     type:       Literal["continuous_chirp"]
+    enabled:    bool                           = True
     f_start:    float
     f_end:      float
     duration:   float
     amplitude:  float
-    dc_offset:  float                      = 0.0
-    chirp_type: Literal["log", "linear"]   = "log"
+    dc_offset:  float                          = 0.0
+    chirp_type: Literal["log", "linear"]       = "log"
 
-
-# ---------------------------------------------------------------------------
-# Discriminated union of all test types
-# ---------------------------------------------------------------------------
 
 TestSpec = Annotated[
     Union[
@@ -208,16 +196,122 @@ TestSpec = Annotated[
 
 
 # ---------------------------------------------------------------------------
+# Plot panel specs
+# ---------------------------------------------------------------------------
+
+class BodeSeriesSpec(BaseModel):
+    """One series on a Bode plot — references a test by name."""
+    test:       str
+    label:      str | None = None
+    show_phase: bool       = True
+    db:         bool       = True
+
+
+class BodePanelSpec(BaseModel):
+    """Magnitude + phase Bode diagram; overlays multiple test series."""
+    type:    Literal["bode"] = "bode"
+    enabled: bool            = True
+    title:   str | None      = None
+    series:  list[BodeSeriesSpec] = []
+
+
+class ChirpTimeseriesPanelSpec(BaseModel):
+    """Raw time series of the chirp output state."""
+    type:    Literal["chirp_timeseries"] = "chirp_timeseries"
+    enabled: bool                        = True
+    title:   str | None                  = None
+    test:    str
+
+
+class AmplitudeSweepPanelSpec(BaseModel):
+    """Transfer function magnitude (and optionally phase) vs drive amplitude."""
+    type:       Literal["amplitude_sweep"] = "amplitude_sweep"
+    enabled:    bool                       = True
+    title:      str | None                 = None
+    test:       str
+    show_phase: bool = True
+
+
+class DCSweepPanelSpec(BaseModel):
+    """Small-signal gain and phase vs DC operating point."""
+    type:    Literal["dc_sweep"] = "dc_sweep"
+    enabled: bool                = True
+    title:   str | None          = None
+    test:    str
+
+
+class ParameterFamilyPanelSpec(BaseModel):
+    """Family of Bode curves from a parameter sweep, coloured by parameter value."""
+    type:       Literal["parameter_family"] = "parameter_family"
+    enabled:    bool                        = True
+    title:      str | None                  = None
+    test:       str
+    db:         bool = True
+    show_phase: bool = True
+
+
+class DOEScatterPanelSpec(BaseModel):
+    """Scatter of one scalar metric vs one parameter from a DOE or parameter sweep."""
+    type:        Literal["doe_scatter"] = "doe_scatter"
+    enabled:     bool                   = True
+    title:       str | None             = None
+    test:        str
+    x_param:     str
+    y_metric:    str        = "f0"    # f0 | Q | damping_ratio | peak_magnitude
+    color_param: str | None = None
+
+
+class ParameterGridHeatmapPanelSpec(BaseModel):
+    """Heatmap of a scalar metric over a 2-parameter grid."""
+    type:    Literal["parameter_grid_heatmap"] = "parameter_grid_heatmap"
+    enabled: bool                              = True
+    title:   str | None                        = None
+    test:    str
+    metric:  str = "peak_magnitude"   # f0 | Q | damping_ratio | peak_magnitude
+
+
+AnyPanelSpec = Annotated[
+    Union[
+        BodePanelSpec,
+        ChirpTimeseriesPanelSpec,
+        AmplitudeSweepPanelSpec,
+        DCSweepPanelSpec,
+        ParameterFamilyPanelSpec,
+        DOEScatterPanelSpec,
+        ParameterGridHeatmapPanelSpec,
+    ],
+    Field(discriminator="type"),
+]
+
+
+class FigureSpec(BaseModel):
+    """Top-level figure appearance."""
+    title:    str | None                    = None
+    subtitle: str | None                    = None
+    size:     tuple[float, float] | None    = None   # inches; auto if None
+
+
+class PlotsSpec(BaseModel):
+    """Plot generation configuration — paired with the tests: section."""
+    output:  str        = "characterization_summary.png"
+    dpi:     int        = 150
+    figure:  FigureSpec = Field(default_factory=FigureSpec)
+    panels:  list[AnyPanelSpec] = []
+
+
+# ---------------------------------------------------------------------------
 # Top-level config
 # ---------------------------------------------------------------------------
 
 class CharacterizationConfig(BaseModel):
-    """Complete characterization test plan."""
+    """Complete characterization campaign: tests + plots in one file."""
     version:    str            = "1.0"
-    backend:    BackendSpec
+    output:     str            = "results.json"
+    backend:    BackendSpec    = Field(default_factory=BackendSpec)
     model:      ModelSpec
     excitation: ExcitationSpec
-    tests:      list[TestSpec]
+    tests:      list[TestSpec] = []
+    plots:      PlotsSpec      = Field(default_factory=PlotsSpec)
 
     @model_validator(mode="after")
     def _unique_test_names(self) -> "CharacterizationConfig":
@@ -238,21 +332,19 @@ class CharacterizationConfig(BaseModel):
                 )
         return self
 
-    # --- Loaders ---
-
     @classmethod
     def from_yaml(cls, path: str | Path) -> "CharacterizationConfig":
-        """Load and validate a YAML test plan."""
         try:
             import yaml
         except ImportError as e:
-            raise ImportError("PyYAML is required to load YAML plans: pip install pyyaml") from e
+            raise ImportError(
+                "PyYAML is required to load YAML plans: pip install pyyaml"
+            ) from e
         with open(path) as f:
             return cls.model_validate(yaml.safe_load(f))
 
     @classmethod
     def from_json(cls, path: str | Path) -> "CharacterizationConfig":
-        """Load and validate a JSON test plan."""
         import json
         with open(path) as f:
             return cls.model_validate(json.load(f))

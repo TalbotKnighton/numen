@@ -162,6 +162,9 @@ class CharacterizationRunner:
         results = CampaignResults(config_version=self.config.version)
         with _backend_context(self.config.backend) as backend:
             for test in self.config.tests:
+                if not getattr(test, "enabled", True):
+                    _log.info("Skipping test '%s' (enabled=false)", test.name)
+                    continue
                 _log.info("Running test '%s' (type=%s)", test.name, test.type)
                 result = self._run_test(test, backend)
                 results.append(test.name, result)

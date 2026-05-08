@@ -133,7 +133,7 @@ def callback(ctx: typer.Context) -> None:
         t.add_column(style="bold #06b6d4", no_wrap=True)
         t.add_column(style="dim")
         t.add_row("check",        "Verify scipy, JAX, and Julia backends")
-        t.add_row("characterize", "Run a YAML/JSON characterization test plan")
+        t.add_row("characterize", "Run tests (-c), plot results (-p), or both")
         t.add_row("init",         "Bootstrap a new project with CLAUDE.md")
         t.add_row("new",          "Scaffold a model directory")
         t.add_row("list",         "Show built-in examples")
@@ -392,23 +392,32 @@ def run(
 
 @app.command()
 def characterize(
-    plan: str = typer.Argument(..., help="Path to YAML or JSON test plan"),
-    output: Optional[str] = typer.Option(
-        None, "--output", "-o", help="Save results to JSON file",
-    ),
-    verbose: bool = typer.Option(False, "--verbose", "-v", help="Enable DEBUG logging"),
+    plan:     str  = typer.Argument(..., help="Path to YAML or JSON test plan"),
+    do_char:  bool = typer.Option(False, "-c", is_eager=False,
+                                  help="Run characterisation (write results JSON)"),
+    do_plot:  bool = typer.Option(False, "-p", is_eager=False,
+                                  help="Generate plots (read results JSON)"),
+    verbose:  bool = typer.Option(False, "--verbose", "-v", help="Enable DEBUG logging"),
 ) -> None:
-    """Run a characterization test plan against a Numen model.
+    """Run a characterization campaign and/or generate plots.
 
-    The plan is a YAML or JSON file describing the backend, model, excitation,
-    and a list of tests (frequency sweeps, DC sweeps, amplitude sweeps, etc.).
+    Output paths are read from the YAML ``output:`` and ``plots.output:`` keys.
+    When neither -c nor -p is given, both run (characterise then plot).
 
-    Example::
+    Examples::
 
-        uv run numen characterize test_plan.yaml --output results.json
+        numen characterize test_plan.yaml          # characterise + plot
+        numen characterize test_plan.yaml -c       # characterise only
+        numen characterize test_plan.yaml -p       # plot only
+        numen characterize test_plan.yaml -c -p    # explicit both
     """
     import logging as _logging
     from pathlib import Path as _Path
+    from numen.characterization.plot_runner import resolve_path
+
+    # Default: run both when no flag is given
+    if not do_char and not do_plot:
+        do_char = do_plot = True
 
     if verbose:
         from numen.logging import configure_logging
@@ -416,12 +425,11 @@ def characterize(
 
     plan_path = _Path(plan).resolve()
     if not plan_path.exists():
-        console.print(f"  [bold #ef4444]✗[/]  Plan file not found: {plan_path}")
+        _fail(f"Plan file not found: {plan_path}")
         raise typer.Exit(code=1)
 
-    # Add the plan file's directory to sys.path so that model modules that use
-    # bare relative imports (from components import ...) can be found.
-    plan_dir = str(plan_path.parent)
+    yaml_dir = plan_path.parent
+    plan_dir = str(yaml_dir)
     if plan_dir not in sys.path:
         sys.path.insert(0, plan_dir)
 
@@ -442,47 +450,74 @@ def characterize(
             _fail(f"Failed to load plan: {e}")
             raise typer.Exit(code=1)
 
-    n_tests = len(config.tests)
-    _ok(f"Plan validated  ({n_tests} test{'s' if n_tests != 1 else ''})")
+    out_json = resolve_path(config.output, yaml_dir)
+
+    enabled_tests = [t for t in config.tests if getattr(t, "enabled", True)]
+    n_tests = len(enabled_tests)
+    skipped = len(config.tests) - n_tests
+    skip_str = f"  [dim]({skipped} skipped)[/dim]" if skipped else ""
+    _ok(f"Plan validated  ({n_tests} test{'s' if n_tests != 1 else ''}{skip_str})")
     console.print()
 
     # Print test table
     t = Table(box=box.SIMPLE, show_header=True, padding=(0, 2))
-    t.add_column("#", style="dim", no_wrap=True, min_width=3)
-    t.add_column("Name", style="bold #06b6d4", no_wrap=True)
-    t.add_column("Type", style="dim")
+    t.add_column("#",      style="dim",           no_wrap=True, min_width=3)
+    t.add_column("Name",   style="bold #06b6d4",  no_wrap=True)
+    t.add_column("Type",   style="dim")
+    t.add_column("",       style="dim",           no_wrap=True)
     for i, test in enumerate(config.tests, 1):
-        t.add_row(str(i), test.name, test.type)
+        enabled = getattr(test, "enabled", True)
+        row_style = "" if enabled else "dim"
+        t.add_row(str(i), test.name, test.type, "" if enabled else "skip",
+                  style=row_style)
     console.print(t)
     console.print()
 
-    # Run the campaign
-    with console.status("[dim]Running campaign...[/dim]", spinner="dots"):
-        try:
-            from numen.characterization.runner import CharacterizationRunner
-            runner  = CharacterizationRunner.from_config(config)
-            results = runner.run()
-        except Exception as e:
-            _fail(f"Campaign failed: {e}")
-            if verbose:
-                console.print_exception()
+    # ── Characterise ─────────────────────────────────────────────────────────
+    if do_char:
+        with console.status("[dim]Running campaign...[/dim]", spinner="dots"):
+            try:
+                from numen.characterization.runner import CharacterizationRunner
+                runner  = CharacterizationRunner.from_config(config)
+                results = runner.run()
+            except Exception as e:
+                _fail(f"Campaign failed: {e}")
+                if verbose:
+                    console.print_exception()
+                raise typer.Exit(code=1)
+
+        _ok(f"Campaign complete  ({len(results)} tests)")
+        results.save(out_json)
+        _ok(f"Results saved → {out_json}")
+        console.print()
+
+    # ── Plot ─────────────────────────────────────────────────────────────────
+    if do_plot:
+        if not out_json.exists():
+            _fail(f"Results not found: {out_json}  (run with -c first)")
             raise typer.Exit(code=1)
 
-    _ok(f"Campaign complete  ({len(results)} tests)")
+        enabled_panels = [p for p in config.plots.panels if p.enabled]
+        if not enabled_panels:
+            console.print("  [dim]No enabled panels in plots: — skipping plot step.[/dim]")
+        else:
+            with console.status("[dim]Generating plots...[/dim]", spinner="dots"):
+                try:
+                    from numen.characterization.results import CampaignResults
+                    from numen.characterization.plot_runner import CharacterizationPlotter
+                    loaded  = CampaignResults.load(out_json)
+                    plotter = CharacterizationPlotter(config, loaded, yaml_dir)
+                    out_png = plotter.run()
+                except Exception as e:
+                    _fail(f"Plot generation failed: {e}")
+                    if verbose:
+                        console.print_exception()
+                    raise typer.Exit(code=1)
 
-    # Optionally save
-    if output:
-        out_path = _Path(output)
-        results.save(out_path)
-        _ok(f"Results saved → {out_path.resolve()}")
+            _ok(f"Plot saved → {out_png}")
+            console.print()
 
-    console.print()
     console.print(Rule(style="dim #7c3aed"))
-    console.print()
-    console.print(
-        "  Load results in Python: "
-        "[bold]from numen.characterization.results import CampaignResults[/bold]"
-    )
     console.print()
 
 
