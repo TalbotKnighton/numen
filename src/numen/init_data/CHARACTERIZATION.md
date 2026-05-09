@@ -239,7 +239,8 @@ can be a **model parameter** or an **excitation input**:
 | `excitation.frequency` | Fixed probe frequency (for amplitude_sweep sub-tests) |
 
 **Sub-test types supported inside a sweep:** `discrete_frequency_sweep`,
-`continuous_chirp`, `amplitude_sweep`, `dc_operating_point_sweep`.
+`continuous_chirp`, `amplitude_sweep`, `dc_operating_point_sweep`,
+`two_tone`, `harmonic_distortion_sweep`, `phase_portrait`.
 
 ### 3.6  `parameter_grid`
 
@@ -277,6 +278,92 @@ Supports the same `excitation.*` paths.
 Install optional extras for classical designs:
 ```bash
 uv pip install "numen[characterization]"   # adds pyDOE3, SALib, pandas
+```
+
+### 3.8  `two_tone`
+
+Apply two simultaneous sinusoids at f1 and f2; extract intermodulation products,
+THD, IMD3 (dB), and IP3 estimate.  Identifies the order and magnitude of
+nonlinearity without sweeping.
+
+```yaml
+- name: two_tone_near_resonance
+  type: two_tone
+  f1: 0.9          # Hz — lower tone (near f₀)
+  f2: 1.1          # Hz — upper tone (near f₀)
+  amplitude1: 0.05
+  amplitude2: 0.05
+  n_cycles: 50     # total cycles of f1 to simulate; 70% discarded as transient
+  max_order: 3     # extract IM products up to order 3 (standard IM2, IM3)
+  dc_offset: 0.0
+```
+
+**What it tells you:**
+- **IMD3 (dB)**: ratio of strongest 3rd-order sideband to fundamental.  More negative = more linear.
+- **IP3**: input amplitude at which the extrapolated fundamental and IM3 lines would intersect.  Higher = more headroom.
+- **THD (%)**: all distortion relative to the fundamental.
+
+**Frequency placement:** put f1 and f2 near (but not at) resonance so the response
+is amplified.  The 3rd-order in-band sidebands are at 2f1−f2 and 2f2−f1; these
+appear between or just outside f1 and f2.
+
+### 3.9  `harmonic_distortion_sweep`
+
+Stepped sine that measures H1, H2, H3, … vs frequency.  THD(f) localises where
+the nonlinearity is active; the harmonic orders identify the type.
+
+```yaml
+- name: thd_sweep
+  type: harmonic_distortion_sweep
+  frequencies:
+    spacing: log
+    f_start: 0.1
+    f_end: 10.0
+    n_points: 30
+  amplitude: 0.1
+  dc_offset: 0.0
+  max_harmonic: 4     # measure H1 through H4
+  settle_periods: 30
+  measure_periods: 5
+```
+
+### 3.10  `free_decay`
+
+Release from a large initial condition; apply the Hilbert transform to extract:
+- **Backbone curve**: instantaneous frequency f(A) as amplitude decays
+- **Damping curve**: instantaneous damping ratio ζ(A)
+
+For a linear system, f(A) is flat at f₀ and ζ(A) is constant.  Any slope or
+curvature reveals nonlinearity.
+
+```yaml
+- name: free_decay_large_ic
+  type: free_decay
+  initial_displacement: 2.0
+  initial_velocity: 0.0
+  t_end: 60.0              # s — long enough to ring down to small amplitude
+  bandpass_low: 0.3        # Hz — pre-filter to isolate the mode of interest
+  bandpass_high: 5.0       # Hz
+```
+
+### 3.11  `phase_portrait`
+
+Record the steady-state limit cycle in (position, velocity) state space.  If
+`poincare: true`, also records stroboscopic samples at multiples of the forcing
+period T:
+- **Periodic response**: Poincaré dots cluster at one point
+- **Period-doubled**: two clusters
+- **Quasi-periodic / chaotic**: ring or area of points
+
+```yaml
+- name: portrait_at_resonance
+  type: phase_portrait
+  frequency: 1.0
+  amplitude: 0.5
+  n_transient_cycles: 50   # discard to reach steady state
+  n_record_cycles: 10      # record limit cycle
+  poincare: true
+  dc_offset: 0.0
 ```
 
 ---
@@ -377,6 +464,53 @@ Scatter plot of a scalar metric vs one DOE parameter, with optional colour axis.
   title: "Grid — Peak |H|"
   test: c0_c1_grid
   metric: peak_magnitude      # f0 | Q | damping_ratio | peak_magnitude
+```
+
+### 4.8  `two_tone_spectrum`
+
+Full one-sided FFT of a `two_tone` result, with annotated vertical lines for
+each identified harmonic and IM product.
+
+```yaml
+- type: two_tone_spectrum
+  title: "Two-Tone Spectrum"
+  test: two_tone_near_resonance
+  db_floor: -80.0          # floor for the dB axis
+  annotate_products: true  # draw and label component lines
+```
+
+### 4.9  `thd_spectrum`
+
+Two stacked subplots: THD(f) on top, H1 and selected harmonics on bottom.
+
+```yaml
+- type: thd_spectrum
+  title: "Harmonic Distortion vs Frequency"
+  test: thd_sweep
+  show_harmonics: [2, 3, 4]   # which Hn rows to overlay
+```
+
+### 4.10  `backbone_curve`
+
+Two side-by-side subplots: backbone curve (instantaneous frequency vs amplitude)
+and damping ratio vs time.
+
+```yaml
+- type: backbone_curve
+  title: "Backbone Curve"
+  decay_test: free_decay_large_ic
+```
+
+### 4.11  `phase_portrait_panel`
+
+Overlay multiple `phase_portrait` limit cycles in one state-space plot, coloured
+by amplitude.  Poincaré dots are shown as small filled circles.
+
+```yaml
+- type: phase_portrait_panel
+  title: "Phase Portrait"
+  tests: [portrait_small, portrait_large]   # list of phase_portrait test names
+  show_poincare: true
 ```
 
 ---

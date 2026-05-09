@@ -169,6 +169,211 @@ def chirp_phase(
     return phase
 
 
+def spectrum_fft(
+    t: np.ndarray,
+    y: np.ndarray,
+    t_start: float = 0.0,
+) -> tuple[np.ndarray, np.ndarray]:
+    """One-sided FFT magnitude spectrum with Hann window.
+
+    Trims to t >= t_start, resamples to a uniform grid if necessary, and
+    applies a Hann window before computing the FFT.  The returned magnitudes
+    are peak amplitudes (2/N × |FFT|), so a pure sinusoid of amplitude A at
+    frequency f returns magnitude ≈ A at that frequency bin.
+
+    Args:
+        t:       Time array (may be non-uniform).
+        y:       Signal array (same length as t).
+        t_start: Discard samples before this time.
+
+    Returns:
+        (freqs, magnitudes) — one-sided arrays up to the Nyquist frequency.
+    """
+    mask = t >= t_start
+    t_m, y_m = t[mask], y[mask]
+    if len(t_m) < 4:
+        return np.empty(0), np.empty(0)
+
+    # Resample to uniform grid
+    t_u, y_u = resample_uniform(t_m, y_m)
+    n  = len(y_u)
+    dt = (t_u[-1] - t_u[0]) / (n - 1)
+
+    window = np.hanning(n)
+    y_win  = y_u * window
+    fft    = np.fft.rfft(y_win)
+    freqs  = np.fft.rfftfreq(n, dt)
+
+    # Scale to peak amplitude: 2/sum(window) × |FFT|
+    scale  = 2.0 / np.sum(window)
+    mag    = np.abs(fft) * scale
+    # DC and Nyquist bins don't get the ×2 factor
+    mag[0] /= 2.0
+    if n % 2 == 0:
+        mag[-1] /= 2.0
+
+    return freqs, mag
+
+
+def resample_uniform(
+    t: np.ndarray,
+    y: np.ndarray,
+    n: int | None = None,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Linearly interpolate (t, y) onto a uniform time grid of n points.
+
+    Args:
+        t: Time array (monotonically increasing, possibly non-uniform).
+        y: Signal array (same length as t).
+        n: Number of output samples.  Defaults to len(t).
+
+    Returns:
+        (t_uniform, y_uniform)
+    """
+    if n is None:
+        n = len(t)
+    t_u = np.linspace(t[0], t[-1], n)
+    y_u = np.interp(t_u, t, y)
+    return t_u, y_u
+
+
+def extract_harmonic_components(
+    t: np.ndarray,
+    y: np.ndarray,
+    f_fundamental: float,
+    max_harmonic: int,
+    t_start: float,
+) -> dict[str, float]:
+    """Extract amplitudes of harmonics 1f, 2f, …, max_harmonic·f using lock-in detection.
+
+    Args:
+        t:             Time array.
+        y:             Signal array.
+        f_fundamental: Fundamental frequency [Hz].
+        max_harmonic:  Highest harmonic to extract (inclusive).
+        t_start:       Measurement window start time.
+
+    Returns:
+        Dict mapping "1f", "2f", "3f", … to peak amplitude.
+    """
+    result: dict[str, float] = {}
+    for n in range(1, max_harmonic + 1):
+        amp, _ = lock_in(t, y, n * f_fundamental, t_start)
+        result[f"{n}f"] = amp
+    return result
+
+
+def extract_intermod_components(
+    t: np.ndarray,
+    y: np.ndarray,
+    f1: float,
+    f2: float,
+    max_order: int,
+    t_start: float,
+) -> dict[str, float]:
+    """Extract amplitudes of two-tone intermodulation products via lock-in.
+
+    Enumerates all frequencies of the form |m·f1 + n·f2| where
+    |m| + |n| <= max_order, |m| + |n| >= 1, and the resulting frequency > 0.
+    Skips components whose frequency is within 0.01 Hz of another already
+    extracted (avoids near-duplicate lock-in calls).
+
+    Returns:
+        Dict mapping descriptive names ("f1", "f2", "2f1", "2f2-f1", …)
+        to peak amplitude.
+    """
+    seen_freqs: list[float] = []
+    components: dict[str, float] = {}
+
+    def _add(name: str, m: int, n: int) -> None:
+        freq = m * f1 + n * f2
+        if freq <= 0.0:
+            return
+        # Skip near-duplicates (e.g. when f1 ≈ f2)
+        if any(abs(freq - sf) < 0.01 for sf in seen_freqs):
+            return
+        amp, _ = lock_in(t, y, freq, t_start)
+        components[name] = amp
+        seen_freqs.append(freq)
+
+    for order in range(1, max_order + 1):
+        for m in range(-order, order + 1):
+            n_abs = order - abs(m)
+            for n in [n_abs, -n_abs] if n_abs > 0 else [0]:
+                if abs(m) + abs(n) != order:
+                    continue
+                freq = m * f1 + n * f2
+                if freq <= 0.0:
+                    continue
+                # Build readable name
+                parts = []
+                if m != 0:
+                    coeff = abs(m)
+                    parts.append(("" if coeff == 1 else str(coeff)) + "f1")
+                if n != 0:
+                    coeff = abs(n)
+                    sign  = "+" if n > 0 else "-"
+                    parts.append(sign + ("" if coeff == 1 else str(coeff)) + "f2")
+                name = "".join(parts).lstrip("+")
+                _add(name, m, n)
+
+    return components
+
+
+def instantaneous_frequency_amplitude(
+    t: np.ndarray,
+    y: np.ndarray,
+    f_bandpass_low: float | None = None,
+    f_bandpass_high: float | None = None,
+    n_resample: int | None = None,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Hilbert-transform estimate of instantaneous amplitude, frequency, and phase.
+
+    Resamples to a uniform grid, optionally bandpass-filters, then applies the
+    Hilbert transform to obtain the analytic signal.
+
+    Args:
+        t:               Time array (may be non-uniform).
+        y:               Signal array.
+        f_bandpass_low:  Low-cut frequency [Hz] for bandpass pre-filter (None = no filter).
+        f_bandpass_high: High-cut frequency [Hz] for bandpass pre-filter (None = no filter).
+        n_resample:      Number of uniform resample points (default = len(t)).
+
+    Returns:
+        (envelope, inst_freq_hz, inst_phase_rad) all on the uniform time grid.
+        ``envelope`` is the instantaneous amplitude.
+        ``inst_freq_hz`` is the instantaneous frequency (smoothed with a median filter).
+        ``inst_phase_rad`` is the unwrapped instantaneous phase.
+    """
+    from scipy.signal import hilbert
+
+    t_u, y_u = resample_uniform(t, y, n_resample)
+    dt = (t_u[-1] - t_u[0]) / (len(t_u) - 1)
+    fs = 1.0 / dt
+
+    # Optional bandpass filter
+    if f_bandpass_low is not None or f_bandpass_high is not None:
+        from scipy.signal import butter, sosfiltfilt
+        low  = max(f_bandpass_low  or 1e-6, 1e-6)
+        high = min(f_bandpass_high or 0.49 * fs, 0.49 * fs)
+        if high > low:
+            sos  = butter(4, [low, high], btype="bandpass", fs=fs, output="sos")
+            y_u  = sosfiltfilt(sos, y_u)
+
+    analytic    = hilbert(y_u)
+    envelope    = np.abs(analytic)
+    phase       = np.unwrap(np.angle(analytic))
+    # Instantaneous frequency: dφ/dt / (2π)
+    inst_freq   = np.gradient(phase, t_u) / (2.0 * np.pi)
+
+    # Light median filter on inst_freq to suppress differentiation noise
+    from scipy.signal import medfilt
+    kernel = max(3, min(21, (len(inst_freq) // 50) | 1))  # odd, ≤ 21
+    inst_freq = medfilt(inst_freq, kernel_size=kernel)
+
+    return envelope, inst_freq, phase
+
+
 def analyze_chirp_frf(
     t: np.ndarray,
     output: np.ndarray,

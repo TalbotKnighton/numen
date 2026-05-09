@@ -600,6 +600,16 @@ every project scaffolded with `numen new`) for the full reference.
 | `parameter_grid` | Outer grid over multiple params (full_factorial or pairs) |
 | `doe_sweep` | Space-filling / classical DOE over continuous ranges |
 
+Planned nonlinear test types (see `docs/plan_nonlinear_test_suite.md`):
+
+| Type | What it does |
+|---|---|
+| `two_tone` | Two simultaneous sinusoids; extracts IM products, IP3, IMD₃ |
+| `harmonic_distortion_sweep` | Stepped sine + THD; measures H₂, H₃ vs. frequency |
+| `free_decay` | Ring-down + Hilbert transform; backbone curve, amplitude-dep. damping |
+| `phase_portrait` | Steady-state limit cycle in (x, ẋ); Poincaré section for chaos detection |
+| `broadband_noise` | Band-limited noise; Best Linear Approximation + NL distortion spectrum |
+
 ### `excitation.*` parameter paths
 
 `parameter_sweep`, `parameter_grid`, and `doe_sweep` can vary excitation inputs
@@ -683,6 +693,7 @@ Current active plans:
 | `docs/plan_characterization_plots.md` | Complete | YAML-driven plots: `-c`/`-p` CLI, `plots:` schema, all panel types, excitation.* outer-loop sweeps |
 | `docs/plan_parallel_characterization.md` | Complete | Parallel characterization: `n_workers`, DOE-level dispatch, `JuliaServerPool`, `precompile()`, chunked response protocol |
 | `docs/plan_symbolic_codegen.md` | Planned | SymPy → Julia auto-codegen to eliminate dual Python/Julia dynamics authoring |
+| `docs/plan_nonlinear_test_suite.md` | Planned | Two-tone/IMD, harmonic distortion sweep, free-decay backbone, phase portrait, broadband noise — five new test types |
 
 When starting a new session, check `docs/` for active plans before writing any
 code — they contain the full context of prior design decisions that should not

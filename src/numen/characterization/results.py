@@ -233,6 +233,140 @@ class DOESweepResult:
         }
 
 
+@dataclass
+class TwoToneResult:
+    """Result of a two-tone intermodulation test.
+
+    ``components`` is a dict mapping descriptive names ("f1", "f2", "2f1-f2",
+    "2f2-f1", …) to peak amplitude at that frequency.  ``spectrum_freq`` and
+    ``spectrum_mag`` give the full one-sided FFT for plotting.
+    """
+    name:           str
+    f1:             float
+    f2:             float
+    amplitude1:     float
+    amplitude2:     float
+    spectrum_freq:  np.ndarray          # Hz
+    spectrum_mag:   np.ndarray          # peak amplitude
+    components:     dict[str, float]    # named IM products → amplitude
+    thd:            float               # Total Harmonic Distortion [%]
+    imd3:           float               # 3rd-order IMD ratio [dB]  (negative = product below fund)
+    ip3_estimate:   float | None        # input-referred IP3 amplitude (None if im3 == 0)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "name":          self.name,
+            "type":          "two_tone",
+            "f1":            self.f1,
+            "f2":            self.f2,
+            "amplitude1":    self.amplitude1,
+            "amplitude2":    self.amplitude2,
+            "spectrum_freq": self.spectrum_freq.tolist(),
+            "spectrum_mag":  self.spectrum_mag.tolist(),
+            "components":    self.components,
+            "thd":           self.thd,
+            "imd3":          self.imd3,
+            "ip3_estimate":  self.ip3_estimate,
+        }
+
+
+@dataclass
+class HarmonicDistortionResult:
+    """Result of a harmonic distortion sweep.
+
+    ``H1[i]`` is the normalised fundamental response |output| / |drive| at
+    ``freqs[i]``.  ``Hn[k, i]`` is the (k+2)-th harmonic response at ``freqs[i]``.
+    ``thd[i]`` is the Total Harmonic Distortion percentage.
+    """
+    name:       str
+    freqs:      np.ndarray          # Hz, shape (n_freqs,)
+    H1:         np.ndarray          # normalised fundamental, shape (n_freqs,)
+    Hn:         np.ndarray          # shape (max_harmonic-1, n_freqs): H2, H3, …
+    thd:        np.ndarray          # THD [%], shape (n_freqs,)
+    amplitude:  float
+    dc_offset:  float = 0.0
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "name":      self.name,
+            "type":      "harmonic_distortion",
+            "freqs":     self.freqs.tolist(),
+            "H1":        self.H1.tolist(),
+            "Hn":        self.Hn.tolist(),
+            "thd":       self.thd.tolist(),
+            "amplitude": self.amplitude,
+            "dc_offset": self.dc_offset,
+        }
+
+
+@dataclass
+class FreeDecayResult:
+    """Result of a free-decay ring-down analysis.
+
+    ``backbone_amplitude`` and ``backbone_frequency`` are matched arrays tracing
+    the instantaneous amplitude–frequency relationship as the system rings down
+    (sorted by decreasing amplitude).  ``inst_damping`` is on the same grid.
+    """
+    name:                str
+    t:                   np.ndarray      # full time array (uniform, resampled)
+    x:                   np.ndarray      # displacement time series
+    envelope:            np.ndarray      # Hilbert envelope A(t)
+    inst_freq_hz:        np.ndarray      # instantaneous frequency [Hz]
+    inst_damping:        np.ndarray      # instantaneous damping ratio ζ(t)
+    backbone_amplitude:  np.ndarray      # sorted by decreasing amplitude
+    backbone_frequency:  np.ndarray      # matched instantaneous frequency
+    initial_displacement: float
+    initial_velocity:    float = 0.0
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "name":                  self.name,
+            "type":                  "free_decay",
+            "t":                     self.t.tolist(),
+            "x":                     self.x.tolist(),
+            "envelope":              self.envelope.tolist(),
+            "inst_freq_hz":          self.inst_freq_hz.tolist(),
+            "inst_damping":          self.inst_damping.tolist(),
+            "backbone_amplitude":    self.backbone_amplitude.tolist(),
+            "backbone_frequency":    self.backbone_frequency.tolist(),
+            "initial_displacement":  self.initial_displacement,
+            "initial_velocity":      self.initial_velocity,
+        }
+
+
+@dataclass
+class PhasePortraitResult:
+    """Result of a phase-portrait (limit cycle) test.
+
+    ``x`` and ``xdot`` are the settled limit-cycle trajectory.  If
+    ``poincare=True`` was requested, ``poincare_x`` and ``poincare_xdot``
+    hold the stroboscopic samples at multiples of the forcing period.
+    """
+    name:           str
+    t:              np.ndarray
+    x:              np.ndarray          # displacement (settled portion)
+    xdot:           np.ndarray          # velocity (settled portion)
+    frequency:      float
+    amplitude:      float
+    poincare_x:     np.ndarray | None   # stroboscopic samples, or None
+    poincare_xdot:  np.ndarray | None
+    dc_offset:      float = 0.0
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "name":          self.name,
+            "type":          "phase_portrait",
+            "t":             self.t.tolist(),
+            "x":             self.x.tolist(),
+            "xdot":          self.xdot.tolist(),
+            "frequency":     self.frequency,
+            "amplitude":     self.amplitude,
+            "poincare_x":    self.poincare_x.tolist() if self.poincare_x is not None else None,
+            "poincare_xdot": self.poincare_xdot.tolist() if self.poincare_xdot is not None else None,
+            "dc_offset":     self.dc_offset,
+        }
+
+
 # ---------------------------------------------------------------------------
 # DataFrame flattening helpers
 # ---------------------------------------------------------------------------
@@ -388,6 +522,61 @@ def _dict_to_result(d: dict[str, Any]) -> Any:
             amplitude   = d["amplitude"],
             dc_offset   = d.get("dc_offset", 0.0),
             chirp_type  = d.get("chirp_type", "log"),
+        )
+
+    if t == "two_tone":
+        return TwoToneResult(
+            name          = d["name"],
+            f1            = d["f1"],
+            f2            = d["f2"],
+            amplitude1    = d["amplitude1"],
+            amplitude2    = d["amplitude2"],
+            spectrum_freq = np.array(d["spectrum_freq"]),
+            spectrum_mag  = np.array(d["spectrum_mag"]),
+            components    = d["components"],
+            thd           = d["thd"],
+            imd3          = d["imd3"],
+            ip3_estimate  = d.get("ip3_estimate"),
+        )
+
+    if t == "harmonic_distortion":
+        return HarmonicDistortionResult(
+            name      = d["name"],
+            freqs     = np.array(d["freqs"]),
+            H1        = np.array(d["H1"]),
+            Hn        = np.array(d["Hn"]),
+            thd       = np.array(d["thd"]),
+            amplitude = d["amplitude"],
+            dc_offset = d.get("dc_offset", 0.0),
+        )
+
+    if t == "free_decay":
+        return FreeDecayResult(
+            name                 = d["name"],
+            t                    = np.array(d["t"]),
+            x                    = np.array(d["x"]),
+            envelope             = np.array(d["envelope"]),
+            inst_freq_hz         = np.array(d["inst_freq_hz"]),
+            inst_damping         = np.array(d["inst_damping"]),
+            backbone_amplitude   = np.array(d["backbone_amplitude"]),
+            backbone_frequency   = np.array(d["backbone_frequency"]),
+            initial_displacement = d["initial_displacement"],
+            initial_velocity     = d.get("initial_velocity", 0.0),
+        )
+
+    if t == "phase_portrait":
+        px  = d.get("poincare_x")
+        pxd = d.get("poincare_xdot")
+        return PhasePortraitResult(
+            name          = d["name"],
+            t             = np.array(d["t"]),
+            x             = np.array(d["x"]),
+            xdot          = np.array(d["xdot"]),
+            frequency     = d["frequency"],
+            amplitude     = d["amplitude"],
+            poincare_x    = np.array(px)    if px    is not None else None,
+            poincare_xdot = np.array(pxd)   if pxd   is not None else None,
+            dc_offset     = d.get("dc_offset", 0.0),
         )
 
     if t == "parameter_family":

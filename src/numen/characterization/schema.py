@@ -193,6 +193,75 @@ class ContinuousChirpSpec(BaseModel):
     chirp_type: Literal["log", "linear"]       = "log"
 
 
+class TwoToneSpec(BaseModel):
+    """Apply two simultaneous sinusoids; extract harmonics and IM products.
+
+    The two tones are injected as independent excitation systems that
+    accumulate into the same ExcitationPort target — no extra infrastructure
+    is needed.  The simulation runs for ``n_cycles`` cycles of f1, with the
+    first 70% discarded as transient.
+    """
+    name:       str
+    type:       Literal["two_tone"]
+    enabled:    bool  = True
+    f1:         float
+    f2:         float
+    amplitude1: float
+    amplitude2: float
+    n_cycles:   int   = 30    # total cycles of f1 to simulate
+    max_order:  int   = 3     # highest IM order to extract (1–3)
+    dc_offset:  float = 0.0
+
+
+class HarmonicDistortionSweepSpec(BaseModel):
+    """Stepped-sine sweep that measures THD and individual harmonics at each frequency."""
+    name:            str
+    type:            Literal["harmonic_distortion_sweep"]
+    enabled:         bool  = True
+    frequencies:     FrequencyGridSpec
+    amplitude:       float
+    dc_offset:       float = 0.0
+    max_harmonic:    int   = 4     # measure H1 through H_max_harmonic
+    settle_periods:  int   = 10
+    measure_periods: int   = 5
+
+
+class FreeDecaySpec(BaseModel):
+    """Ring-down from a large initial condition; Hilbert-transform backbone extraction.
+
+    The excitation force is set to zero.  The initial state is overridden to
+    ``initial_displacement`` (position) and ``initial_velocity`` (velocity).
+    """
+    name:                  str
+    type:                  Literal["free_decay"]
+    enabled:               bool        = True
+    initial_displacement:  float
+    initial_velocity:      float       = 0.0
+    t_end:                 float
+    bandpass_low:          float | None = None   # Hz; None = no filter
+    bandpass_high:         float | None = None   # Hz; None = no filter
+
+
+class PhasePortraitSpec(BaseModel):
+    """Record the steady-state limit cycle in (position, velocity) state space.
+
+    Simulates ``n_transient_cycles + n_record_cycles`` forcing periods.  The
+    first ``n_transient_cycles`` are discarded; the rest are returned as the
+    limit cycle.  If ``poincare=True``, stroboscopic samples at multiples of
+    the forcing period are also returned (one dot per period for a periodic
+    response; a cloud for quasi-periodic or chaotic response).
+    """
+    name:               str
+    type:               Literal["phase_portrait"]
+    enabled:            bool  = True
+    frequency:          float
+    amplitude:          float
+    dc_offset:          float = 0.0
+    n_transient_cycles: int   = 50
+    n_record_cycles:    int   = 10
+    poincare:           bool  = True
+
+
 TestSpec = Annotated[
     Union[
         DiscreteFrequencySweepSpec,
@@ -202,6 +271,10 @@ TestSpec = Annotated[
         ParameterGridSpec,
         DOESweepSpec,
         ContinuousChirpSpec,
+        TwoToneSpec,
+        HarmonicDistortionSweepSpec,
+        FreeDecaySpec,
+        PhasePortraitSpec,
     ],
     Field(discriminator="type"),
 ]
@@ -282,6 +355,42 @@ class ParameterGridHeatmapPanelSpec(BaseModel):
     metric:  str = "peak_magnitude"   # f0 | Q | damping_ratio | peak_magnitude
 
 
+class TwoToneSpectrumPanelSpec(BaseModel):
+    """Full FFT of a two-tone result with annotated harmonic and IM product lines."""
+    type:               Literal["two_tone_spectrum"] = "two_tone_spectrum"
+    enabled:            bool        = True
+    title:              str | None  = None
+    test:               str
+    db_floor:           float       = -120.0
+    annotate_products:  bool        = True
+
+
+class THDSpectrumPanelSpec(BaseModel):
+    """THD(f) and individual harmonic magnitudes from a harmonic_distortion_sweep."""
+    type:            Literal["thd_spectrum"] = "thd_spectrum"
+    enabled:         bool       = True
+    title:           str | None = None
+    test:            str
+    show_harmonics:  list[int]  = [2, 3]
+
+
+class BackboneCurvePanelSpec(BaseModel):
+    """Backbone curve (instantaneous frequency vs amplitude) from a free_decay test."""
+    type:       Literal["backbone_curve"] = "backbone_curve"
+    enabled:    bool       = True
+    title:      str | None = None
+    decay_test: str
+
+
+class PhasePortraitPanelSpec(BaseModel):
+    """Phase portrait (position vs velocity limit cycle) with optional Poincaré dots."""
+    type:            Literal["phase_portrait_panel"] = "phase_portrait_panel"
+    enabled:         bool       = True
+    title:           str | None = None
+    tests:           list[str]  = []    # overlay multiple portrait results
+    show_poincare:   bool       = True
+
+
 AnyPanelSpec = Annotated[
     Union[
         BodePanelSpec,
@@ -291,6 +400,10 @@ AnyPanelSpec = Annotated[
         ParameterFamilyPanelSpec,
         DOEScatterPanelSpec,
         ParameterGridHeatmapPanelSpec,
+        TwoToneSpectrumPanelSpec,
+        THDSpectrumPanelSpec,
+        BackboneCurvePanelSpec,
+        PhasePortraitPanelSpec,
     ],
     Field(discriminator="type"),
 ]

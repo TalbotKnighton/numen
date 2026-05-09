@@ -123,6 +123,61 @@ Stiff problems: use `method="Rodas5P"` (Julia) or `solver="Kvaerno5"` (JAX).
 
 ---
 
+## Writing Julia dynamics  ⚠️ signature convention
+
+Every Julia dynamics function **must** use two separate type parameters for `dx` and `x`:
+
+```julia
+function my_dynamics!(
+    dx  :: AbstractVector{T},
+    x   :: AbstractVector{S},
+    p   :: Vector{Float64},
+    t   :: Real,
+    spec:: CompiledSpec,
+    sys :: CompiledSystemSpec,
+) where {T <: Real, S <: Real}
+    ...
+end
+```
+
+**Why two type parameters?**  Rosenbrock stiff solvers (Rodas5P, Rodas4, …) call
+the ODE function in three distinct passes during each step:
+1. Normal evaluation: `T=S=Float64`, `t=Float64`
+2. Jacobian (∂f/∂x): `T=S=Dual{...}`, `t=Float64`
+3. Time gradient (∂f/∂t): `T=Dual{...}`, `S=Float64`, `t=Dual{...}`
+
+Pass 3 is why a single shared `T` parameter fails — `dx` and `x` have different
+element types. Using `{T, S}` with `t::Real` handles all three patterns.
+
+**Helper functions** that return a value derived from state must also be generic:
+
+```julia
+const STOP_DELTA = 1e-6
+
+function soft_pen(x::T)::T where T <: Real
+    x <= 0.0 && return zero(T)                   # zero(T), not 0.0
+    x >= STOP_DELTA && return x - 0.5 * STOP_DELTA
+    return 0.5 * x * x / STOP_DELTA
+end
+```
+
+Use `zero(T)` (not `0.0`) in early-return paths to preserve the inferred return type.
+
+**Parameter-derived vs state-derived values in helpers:**
+If an argument to a helper is read from the parameter vector `p` (type `Float64`),
+annotate it `:: Float64`.  If it is derived from the state vector `x` (type `S`),
+annotate it `:: Real` (or `:: S` if already in scope):
+
+```julia
+# A from p → Float64; A from x (e.g. poppet position) → Real
+function orifice_mdot(
+    P_up::T, P_dn::T, T_up::Float64,
+    R::Float64, Cd::Float64, A::Real, gamma::Float64,
+) where T <: Real
+```
+
+---
+
 ## Accessing results
 
 ```python

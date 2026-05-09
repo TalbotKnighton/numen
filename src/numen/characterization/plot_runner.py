@@ -400,6 +400,199 @@ def _render_parameter_grid_heatmap(fig, subplot_spec, spec, results_by_name):
     ax.set_title(spec.title or f"Grid Heatmap — {spec.metric}", fontsize=10)
 
 
+def _render_two_tone_spectrum(fig, subplot_spec, spec, results_by_name):
+    """Full FFT with labelled harmonic and IM product components."""
+    from numen.characterization.results import TwoToneResult
+
+    ax     = fig.add_subplot(subplot_spec)
+    result = results_by_name.get(spec.test)
+
+    if result is None or not isinstance(result, TwoToneResult):
+        ax.text(0.5, 0.5, f"No data for '{spec.test}'",
+                transform=ax.transAxes, ha="center", va="center", color="gray")
+        return
+
+    # Background spectrum
+    mag_db = 20.0 * np.log10(np.maximum(result.spectrum_mag, 1e-30))
+    mag_db = np.maximum(mag_db, spec.db_floor)
+    ax.plot(result.spectrum_freq, mag_db, lw=0.7, color="tab:blue", alpha=0.6)
+
+    if spec.annotate_products:
+        # Color scheme: fundamentals red, key IM3 orange, harmonics green, rest gray
+        def _color(name: str) -> str:
+            if name in ("f1", "f2"):
+                return "red"
+            if name in ("2f1-f2", "2f2-f1", "-f1+2f2", "2f2-1f1"):
+                return "darkorange"
+            if name in ("2f1", "2f2", "3f1", "3f2"):
+                return "tab:green"
+            return "gray"
+
+        for name, amp in result.components.items():
+            if amp <= 0:
+                continue
+            # Reconstruct the frequency from f1, f2 and the name via a lookup
+            f_comp = _component_freq_from_name(name, result.f1, result.f2)
+            if f_comp is None or f_comp <= 0:
+                continue
+            db_val = max(20.0 * np.log10(max(amp, 1e-30)), spec.db_floor)
+            color  = _color(name)
+            ax.axvline(f_comp, color=color, lw=0.9, alpha=0.55, linestyle="--")
+            ax.annotate(
+                name, xy=(f_comp, db_val),
+                xytext=(0, 6), textcoords="offset points",
+                fontsize=7, color=color, rotation=60, ha="left",
+            )
+
+    # Info box
+    lines = [f"IMD3 = {result.imd3:.1f} dB", f"THD = {result.thd:.2f}%"]
+    if result.ip3_estimate is not None:
+        lines.append(f"IP3 ≈ {result.ip3_estimate:.3g}")
+    ax.text(0.98, 0.02, "\n".join(lines), transform=ax.transAxes, fontsize=8,
+            ha="right", va="bottom",
+            bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.85))
+
+    ax.set_xlabel("Frequency [Hz]")
+    ax.set_ylabel("|output| [dB]")
+    ax.set_ylim(bottom=spec.db_floor)
+    ax.grid(True, alpha=0.3)
+    ax.set_title(spec.title or f"Two-Tone Spectrum — {spec.test}", fontsize=10)
+
+
+def _component_freq_from_name(name: str, f1: float, f2: float) -> float | None:
+    """Reconstruct the frequency of an IM component from its descriptive name.
+
+    Names follow the pattern produced by extract_intermod_components:
+    "f1" → f1, "f2" → f2, "2f1" → 2f1, "2f1-f2" → 2f1-f2, etc.
+    Returns None if the name cannot be parsed.
+    """
+    try:
+        import re
+        # Replace f1→A and f2→B to evaluate as an expression
+        expr = name.replace("f1", f"({f1})").replace("f2", f"({f2})")
+        # Insert * between coefficient and opening paren: "2(" → "2*("
+        expr = re.sub(r"(\d)\(", r"\1*(", expr)
+        val  = float(eval(expr))  # noqa: S307 — controlled substitution, no user input
+        return val if val > 0 else None
+    except Exception:
+        return None
+
+
+def _render_thd_spectrum(fig, subplot_spec, spec, results_by_name):
+    """THD(f) + harmonic magnitudes from a harmonic_distortion_sweep."""
+    from numen.characterization.results import HarmonicDistortionResult
+    import matplotlib.gridspec as gridspec
+    import matplotlib.pyplot as plt
+
+    result = results_by_name.get(spec.test)
+    inner  = gridspec.GridSpecFromSubplotSpec(2, 1, subplot_spec=subplot_spec, hspace=0.12)
+    ax_thd  = fig.add_subplot(inner[0])
+    ax_harm = fig.add_subplot(inner[1], sharex=ax_thd)
+
+    if result is None or not isinstance(result, HarmonicDistortionResult):
+        ax_thd.text(0.5, 0.5, f"No data for '{spec.test}'",
+                    transform=ax_thd.transAxes, ha="center", va="center", color="gray")
+        return
+
+    ax_thd.semilogx(result.freqs, result.thd, lw=2, color="tab:red")
+    ax_thd.set_ylabel("THD [%]")
+    ax_thd.grid(True, which="both", alpha=0.3)
+    ax_thd.set_title(spec.title or f"Harmonic Distortion — {spec.test}", fontsize=10)
+    plt.setp(ax_thd.get_xticklabels(), visible=False)
+
+    harm_colors = ["tab:orange", "tab:green", "tab:purple", "tab:brown", "tab:pink"]
+    ax_harm.semilogx(result.freqs, result.H1, lw=2, color="tab:blue", label="H1 (fund)")
+    for idx, h_num in enumerate(spec.show_harmonics):
+        row = h_num - 2   # Hn row index: H2 → row 0, H3 → row 1, …
+        if 0 <= row < len(result.Hn):
+            ax_harm.semilogx(
+                result.freqs, result.Hn[row],
+                lw=1.5, color=harm_colors[idx % len(harm_colors)],
+                label=f"H{h_num}",
+            )
+    ax_harm.set_xlabel("Frequency [Hz]")
+    ax_harm.set_ylabel("|H|")
+    ax_harm.legend(fontsize=8)
+    ax_harm.grid(True, which="both", alpha=0.3)
+
+
+def _render_backbone_curve(fig, subplot_spec, spec, results_by_name):
+    """Backbone curve (frequency vs amplitude) and damping vs amplitude."""
+    from numen.characterization.results import FreeDecayResult
+    import matplotlib.gridspec as gridspec
+    import matplotlib.pyplot as plt
+
+    result = results_by_name.get(spec.decay_test)
+    inner  = gridspec.GridSpecFromSubplotSpec(1, 2, subplot_spec=subplot_spec, wspace=0.35)
+    ax_bb  = fig.add_subplot(inner[0])
+    ax_dmp = fig.add_subplot(inner[1])
+
+    if result is None or not isinstance(result, FreeDecayResult):
+        ax_bb.text(0.5, 0.5, f"No data for '{spec.decay_test}'",
+                   transform=ax_bb.transAxes, ha="center", va="center", color="gray")
+        return
+
+    # Backbone: frequency (x) vs amplitude (y) — "how natural frequency shifts with amplitude"
+    ax_bb.plot(result.backbone_frequency, result.backbone_amplitude,
+               lw=2, color="tab:blue")
+    ax_bb.set_xlabel("Instantaneous frequency [Hz]")
+    ax_bb.set_ylabel("Amplitude")
+    ax_bb.set_title(spec.title or f"Backbone Curve — {spec.decay_test}", fontsize=10)
+    ax_bb.grid(True, alpha=0.3)
+
+    # Time-varying damping over the decay
+    ax_dmp.plot(result.t, result.inst_damping, lw=1.2, color="tab:orange", alpha=0.8)
+    ax_dmp.set_xlabel("t [s]")
+    ax_dmp.set_ylabel("Damping ratio ζ")
+    ax_dmp.set_title("Instantaneous Damping", fontsize=10)
+    ax_dmp.grid(True, alpha=0.3)
+
+
+def _render_phase_portrait(fig, subplot_spec, spec, results_by_name):
+    """Limit cycle trajectories in (position, velocity) space with Poincaré dots."""
+    from numen.characterization.results import PhasePortraitResult
+    import matplotlib.pyplot as plt
+    from matplotlib.cm import ScalarMappable
+    from matplotlib.colors import Normalize
+
+    ax     = fig.add_subplot(subplot_spec)
+    tests  = list(spec.tests)
+    if not tests:
+        ax.text(0.5, 0.5, "No tests listed", transform=ax.transAxes,
+                ha="center", va="center", color="gray")
+        return
+
+    valid_results = [
+        (name, results_by_name[name])
+        for name in tests
+        if name in results_by_name and isinstance(results_by_name[name], PhasePortraitResult)
+    ]
+
+    if not valid_results:
+        ax.text(0.5, 0.5, f"No PhasePortraitResult for:\n{tests}",
+                transform=ax.transAxes, ha="center", va="center", color="gray", fontsize=8)
+        return
+
+    n      = len(valid_results)
+    colors = plt.cm.viridis(np.linspace(0.1, 0.9, n))
+
+    for (name, result), color in zip(valid_results, colors):
+        lbl = f"A={result.amplitude:.3g}, f={result.frequency:.3g} Hz"
+        ax.plot(result.x, result.xdot, lw=1.0, color=color, alpha=0.75, label=lbl)
+        if spec.show_poincare and result.poincare_x is not None:
+            ax.scatter(
+                result.poincare_x, result.poincare_xdot,
+                s=18, color=color, zorder=5,
+                edgecolors="black", linewidths=0.4,
+            )
+
+    ax.set_xlabel("Position")
+    ax.set_ylabel("Velocity")
+    ax.set_title(spec.title or "Phase Portrait", fontsize=10)
+    ax.legend(fontsize=7)
+    ax.grid(True, alpha=0.3)
+
+
 _PANEL_RENDERERS = {
     "bode":                   _render_bode,
     "chirp_timeseries":       _render_chirp_timeseries,
@@ -408,6 +601,10 @@ _PANEL_RENDERERS = {
     "parameter_family":       _render_parameter_family,
     "doe_scatter":            _render_doe_scatter,
     "parameter_grid_heatmap": _render_parameter_grid_heatmap,
+    "two_tone_spectrum":      _render_two_tone_spectrum,
+    "thd_spectrum":           _render_thd_spectrum,
+    "backbone_curve":         _render_backbone_curve,
+    "phase_portrait_panel":   _render_phase_portrait,
 }
 
 

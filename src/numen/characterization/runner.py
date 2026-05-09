@@ -29,10 +29,14 @@ from numen.characterization.schema import (
     DiscreteFrequencySweepSpec,
     DOESweepSpec,
     ExcitationSpec,
+    FreeDecaySpec,
+    HarmonicDistortionSweepSpec,
     ModelSpec,
     ParameterGridSpec,
     ParameterSweepSpec,
+    PhasePortraitSpec,
     TestSpec,
+    TwoToneSpec,
 )
 from numen.characterization.excitation import (
     find_excitation_ports,
@@ -161,6 +165,10 @@ class CharacterizationRunner:
         self._base_spec  = compile_spec(self._world)
         self._exc_spec   = _make_exc_spec(self._base_spec, self._world, config.excitation)
         self._output_key = f"{config.excitation.entity}.{config.excitation.output_state}"
+        # The ExcitationPort's target field (e.g. "velocity") — used by runners
+        # that need to inject multiple excitations or override initial conditions.
+        ports = find_excitation_ports(self._world, config.excitation.entity)
+        self._exc_target_field = ports[config.excitation.port].targets
         _log.info(
             "Runner ready: state_size=%d  param_size=%d  tests=%d",
             self._exc_spec.state_size,
@@ -254,6 +262,29 @@ class CharacterizationRunner:
             exc_s = set_excitation_params(self._exc_spec, e_id, e_port, dc=test.dc_offset)
             return run_continuous_chirp(test, exc_s, e_id, e_port, out, backend)
 
+        if isinstance(test, TwoToneSpec):
+            from numen.characterization.tests.two_tone import run_two_tone
+            exc_s = set_excitation_params(self._exc_spec, e_id, e_port, dc=0.0)
+            return run_two_tone(test, exc_s, e_id, e_port, self._exc_target_field, out, backend)
+
+        if isinstance(test, HarmonicDistortionSweepSpec):
+            from numen.characterization.tests.harmonic_distortion import run_harmonic_distortion_sweep
+            exc_s = set_excitation_params(self._exc_spec, e_id, e_port, dc=test.dc_offset)
+            return run_harmonic_distortion_sweep(test, exc_s, e_id, e_port, out, backend)
+
+        if isinstance(test, FreeDecaySpec):
+            from numen.characterization.tests.free_decay import run_free_decay
+            return run_free_decay(
+                test, self._base_spec, e_id, e_port, self._exc_target_field, out, backend,
+            )
+
+        if isinstance(test, PhasePortraitSpec):
+            from numen.characterization.tests.phase_portrait import run_phase_portrait
+            exc_s = set_excitation_params(self._exc_spec, e_id, e_port, dc=0.0)
+            return run_phase_portrait(
+                test, exc_s, e_id, e_port, self._exc_target_field, out, backend,
+            )
+
         _log.warning("Unknown test type '%s'. Skipping '%s'.", test.type, test.name)
         return None
 
@@ -281,10 +312,22 @@ class CharacterizationRunner:
             if isinstance(sub_spec_obj, ContinuousChirpSpec):
                 from numen.characterization.tests.chirp_sweep import run_continuous_chirp
                 return run_continuous_chirp(sub_spec_obj, spec_v, e_id, e_port, out, backend)
+            if isinstance(sub_spec_obj, TwoToneSpec):
+                from numen.characterization.tests.two_tone import run_two_tone
+                tgt = self._exc_target_field
+                return run_two_tone(sub_spec_obj, spec_v, e_id, e_port, tgt, out, backend)
+            if isinstance(sub_spec_obj, HarmonicDistortionSweepSpec):
+                from numen.characterization.tests.harmonic_distortion import run_harmonic_distortion_sweep
+                return run_harmonic_distortion_sweep(sub_spec_obj, spec_v, e_id, e_port, out, backend)
+            if isinstance(sub_spec_obj, PhasePortraitSpec):
+                from numen.characterization.tests.phase_portrait import run_phase_portrait
+                tgt = self._exc_target_field
+                return run_phase_portrait(sub_spec_obj, spec_v, e_id, e_port, tgt, out, backend)
             raise NotImplementedError(
                 f"'{context}' sub_test type '{sub_spec_obj.type}' not supported as sub_test. "
                 f"Supported: discrete_frequency_sweep, dc_operating_point_sweep, "
-                f"amplitude_sweep, continuous_chirp"
+                f"amplitude_sweep, continuous_chirp, two_tone, harmonic_distortion_sweep, "
+                f"phase_portrait"
             )
 
         return _runner
