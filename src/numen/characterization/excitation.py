@@ -86,10 +86,15 @@ def inject_excitation(
             f"Available fields for '{entity_id}': {available}"
         )
 
-    # Extend the parameter map with amp / freq / dc for the synthetic exc entity
+    # Extend the parameter map with amp / freq / dc / target_idx.
+    # target_idx stores the 0-based state index of the target field as a float so
+    # the Julia NumenCharacterization.excitation_dynamics! can look it up without
+    # needing a closure (Julia named functions can't capture runtime state).
+    target_idx_0 = float(spec.state_index_map[target_key][0])
+
     new_param_map = dict(spec.param_index_map)
     new_p         = list(spec.p)
-    for name, val in [("amp", amp), ("freq", freq), ("dc", dc)]:
+    for name, val in [("amp", amp), ("freq", freq), ("dc", dc), ("target_idx", target_idx_0)]:
         key   = f"{exc_eid}.{name}"
         start = len(new_p)
         new_param_map[key] = (start, start + 1)
@@ -157,10 +162,17 @@ def inject_chirp_excitation(
             f"Available fields for '{entity_id}': {available}"
         )
 
+    # target_idx and chirp_type_flag let Julia's chirp_dynamics! find the right
+    # state slot and select the sweep formula without needing a closure.
+    # chirp_type_flag: 0.0 = log sweep, 1.0 = linear sweep.
+    target_idx_0      = float(spec.state_index_map[target_key][0])
+    chirp_type_flag   = 1.0 if chirp_type == "linear" else 0.0
+
     new_param_map = dict(spec.param_index_map)
     new_p         = list(spec.p)
     for name, val in [("amp", amp), ("f_start", f_start), ("f_end", f_end),
-                      ("duration", duration), ("dc", dc)]:
+                      ("duration", duration), ("dc", dc),
+                      ("target_idx", target_idx_0), ("chirp_type_flag", chirp_type_flag)]:
         key   = f"{exc_eid}.{name}"
         start = len(new_p)
         new_param_map[key] = (start, start + 1)

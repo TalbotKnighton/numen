@@ -458,6 +458,8 @@ def characterize(
     do_plot:  bool = typer.Option(False, "-p", is_eager=False,
                                   help="Generate plots (read results JSON)"),
     verbose:  bool = typer.Option(False, "--verbose", "-v", help="Enable DEBUG logging"),
+    workers:  int  = typer.Option(0, "--workers", "-w",
+                                  help="Parallel Julia server processes (0 = use YAML n_workers)"),
 ) -> None:
     """Run a characterization campaign and/or generate plots.
 
@@ -469,7 +471,7 @@ def characterize(
         numen characterize test_plan.yaml          # characterise + plot
         numen characterize test_plan.yaml -c       # characterise only
         numen characterize test_plan.yaml -p       # plot only
-        numen characterize test_plan.yaml -c -p    # explicit both
+        numen characterize test_plan.yaml --workers 4   # parallel with 4 Julia servers
     """
     import logging as _logging
     from pathlib import Path as _Path
@@ -509,6 +511,22 @@ def characterize(
         except Exception as e:
             _fail(f"Failed to load plan: {e}")
             raise typer.Exit(code=1)
+
+    # Resolve julia_file relative to the YAML directory when it's a relative path
+    if config.backend.julia_file:
+        jf = _Path(config.backend.julia_file)
+        if not jf.is_absolute():
+            config = config.model_copy(update={
+                "backend": config.backend.model_copy(
+                    update={"julia_file": str(yaml_dir / jf)}
+                )
+            })
+
+    # CLI --workers overrides YAML n_workers (0 means "use YAML value")
+    if workers > 0:
+        config = config.model_copy(update={
+            "backend": config.backend.model_copy(update={"n_workers": workers})
+        })
 
     out_json = resolve_path(config.output, yaml_dir)
 

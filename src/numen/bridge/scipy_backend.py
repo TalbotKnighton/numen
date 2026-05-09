@@ -69,10 +69,17 @@ class ScipyBackend:
         "control_callbacks",
     })
 
-    def __init__(self, method: str = "RK45", rtol: float = 1e-6, atol: float = 1e-8):
+    def __init__(self, method: str = "RK45", rtol: float = 1e-6, atol: float = 1e-8,
+                 dtmax: float | None = None, dtsave: float | None = None,
+                 n_save_points: int = 0):
+        if n_save_points > 0 and dtsave is not None:
+            raise ValueError("Specify either n_save_points or dtsave, not both.")
         self.method = method
         self.rtol = rtol
         self.atol = atol
+        self.dtmax = dtmax
+        self.dtsave = dtsave
+        self.n_save_points = n_save_points
 
     def solve(
         self,
@@ -126,15 +133,16 @@ class ScipyBackend:
         if progress:
             rhs = _wrap_rhs_progress(rhs, t0_sim, tf_sim)
 
+        t_eval = _apply_save_density(t_eval, tspan, self.dtsave, self.n_save_points)
         dense_eval = _merge_t_eval(t_eval, tstops)
+
+        kw: dict = dict(method=self.method, t_eval=dense_eval, rtol=self.rtol, atol=self.atol)
+        if self.dtmax is not None:
+            kw["max_step"] = self.dtmax
 
         t0_wall = time.perf_counter()
         try:
-            sol = solve_ivp(
-                rhs, tspan, compiled_spec.x0,
-                method=self.method, t_eval=dense_eval,
-                rtol=self.rtol, atol=self.atol,
-            )
+            sol = solve_ivp(rhs, tspan, compiled_spec.x0, **kw)
         finally:
             if progress:
                 _close_rhs_progress(rhs)
@@ -160,6 +168,8 @@ class ScipyBackend:
     ) -> SolveResult:
         p = np.array(compiled_spec.p)
         t0_sim, tf_sim = tspan
+
+        t_eval = _apply_save_density(t_eval, tspan, self.dtsave, self.n_save_points)
 
         # Build the callback fire schedule
         cb_schedule = _build_tstop_callbacks(compiled_spec.compiled_callbacks, tspan)
@@ -210,11 +220,10 @@ class ScipyBackend:
             else:
                 seg_eval = np.array([t_stop])
 
-            sol = solve_ivp(
-                rhs, (t_cur, t_stop), x_cur,
-                method=self.method, t_eval=seg_eval,
-                rtol=self.rtol, atol=self.atol,
-            )
+            seg_kw: dict = dict(method=self.method, t_eval=seg_eval, rtol=self.rtol, atol=self.atol)
+            if self.dtmax is not None:
+                seg_kw["max_step"] = self.dtmax
+            sol = solve_ivp(rhs, (t_cur, t_stop), x_cur, **seg_kw)
             if not sol.success:
                 elapsed_ms = (time.perf_counter() - t0_wall) * 1000
                 _log.error("segment solve failed at t=%.6f after %.0f ms: %s", t_stop, elapsed_ms, sol.message)
@@ -265,6 +274,23 @@ class ScipyBackend:
 # ------------------------------------------------------------------
 # Helpers
 # ------------------------------------------------------------------
+
+def _apply_save_density(
+    t_eval: "np.ndarray | None",
+    tspan: tuple[float, float],
+    dtsave: "float | None",
+    n_save_points: int,
+) -> "np.ndarray | None":
+    """Convert dtsave / n_save_points to a t_eval array if the caller didn't supply one."""
+    if t_eval is not None:
+        return t_eval   # explicit t_eval wins
+    t0, tf = tspan
+    if dtsave is not None and dtsave > 0.0:
+        return np.arange(t0, tf + dtsave * 0.5, dtsave)
+    if n_save_points > 0:
+        return np.linspace(t0, tf, n_save_points)
+    return None
+
 
 def _merge_t_eval(
     t_eval: "np.ndarray | None",

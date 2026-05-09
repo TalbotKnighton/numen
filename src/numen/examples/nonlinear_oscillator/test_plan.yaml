@@ -17,9 +17,12 @@ version: "1.0"
 output: results.json
 
 backend:
-  type: scipy
+  type: julia_server          # pays JIT once; all solves share the compiled kernel
+  julia_file: dynamics.jl    # resolved relative to this YAML file
+  method: Tsit5              # non-stiff adaptive solver; fast for this system
   rtol: 1.0e-8
   atol: 1.0e-9
+  n_save_points: 4000        # cap output density; prevents huge JSON payloads on long chirps
 
 model:
   module: world           # world.py lives in the same directory as this YAML

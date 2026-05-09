@@ -172,3 +172,38 @@ def run_doe_sweep(
 
     _log.info("DOE sweep '%s' done: %d points", test.name, len(combinations))
     return result_obj
+
+
+def run_doe_sweep_parallel(
+    test: DOESweepSpec,
+    exc_spec: Any,
+    factory: Callable[[Any, Any], Any],
+    pool: Any,
+    entity_id: str | None = None,
+    port_name: str | None = None,
+) -> DOESweepResult:
+    """Parallel variant — dispatches each design point to the pool concurrently."""
+    combinations = _generate_design(test)
+    _log.info(
+        "DOE sweep '%s' [%s, parallel, %d workers]: %d points (%d params)",
+        test.name, test.design, pool.n_workers, len(combinations), len(test.params),
+    )
+
+    all_specs = []
+    for combo in combinations:
+        spec_v = exc_spec
+        for key, val in combo.items():
+            spec_v = _set_model_param(spec_v, key, val, entity_id, port_name)
+        all_specs.append(spec_v)
+
+    sub_results = pool.map(factory, all_specs)
+
+    result_obj = DOESweepResult(
+        name         = test.name,
+        design       = test.design,
+        param_keys   = list(test.params.keys()),
+        combinations = combinations,
+    )
+    result_obj.sub_results.extend(sub_results)
+    _log.info("DOE sweep '%s' done [parallel]: %d points", test.name, len(combinations))
+    return result_obj

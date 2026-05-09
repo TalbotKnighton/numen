@@ -72,6 +72,33 @@ def _set_model_param(
     return replace(spec, p=new_p)
 
 
+def run_parameter_sweep_parallel(
+    test: ParameterSweepSpec,
+    exc_spec: Any,
+    factory: Callable[[Any, Any], Any],
+    pool: Any,
+    entity_id: str | None = None,
+    port_name: str | None = None,
+) -> ParameterFamilyResult:
+    """Parallel variant — dispatches each value to the pool concurrently."""
+    all_specs = [
+        _set_model_param(exc_spec, test.sweep_param, val, entity_id, port_name)
+        for val in test.values
+    ]
+    sub_results = pool.map(factory, all_specs)
+    result_obj = ParameterFamilyResult(
+        name         = test.name,
+        sweep_param  = test.sweep_param,
+        param_values = list(test.values),
+    )
+    result_obj.sub_results.extend(sub_results)
+    _log.info(
+        "Parameter sweep '%s' (%s) done [parallel, %d workers]: %d values",
+        test.name, test.sweep_param, pool.n_workers, len(test.values),
+    )
+    return result_obj
+
+
 def run_parameter_sweep(
     test: ParameterSweepSpec,
     exc_spec: Any,

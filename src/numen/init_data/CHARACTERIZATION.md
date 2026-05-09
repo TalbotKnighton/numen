@@ -56,6 +56,10 @@ backend:
   method: null                # RK45 | Dopri5 | Rodas5P | Tsit5 | …
   rtol: 1.0e-8
   atol: 1.0e-9
+  n_workers: 1                # julia_server only: N parallel solver processes
+  n_save_points: 0            # 0 = save every adaptive step; N = save N uniform points
+  dtsave: null                # save every dtsave seconds (mutually exclusive with n_save_points)
+  dtmax: null                 # cap adaptive step size (prevents aliasing / missing transients)
 
 model:
   module: world               # importable module (YAML dir added to sys.path)
@@ -85,6 +89,45 @@ plots:
       enabled: true
       ...
 ```
+
+---
+
+## 2a  Parallel execution (`n_workers`)
+
+Set `n_workers: N` to launch N Julia server processes and distribute DOE-level work
+across them.  Each worker JIT-compiles all dynamics on its first solve; subsequent
+solves within the same worker are warm.  Single-server sequential is the default.
+
+```yaml
+backend:
+  type: julia_server
+  julia_file: dynamics.jl
+  method: Tsit5
+  n_workers: 4          # 4 parallel processes
+  n_save_points: 2000   # cap output size per solve
+```
+
+CLI override (always wins over YAML):
+
+```bash
+numen characterize test_plan.yaml --workers 4
+numen characterize test_plan.yaml --workers 1   # force sequential
+```
+
+**What parallelises:** `parameter_sweep`, `parameter_grid`, `doe_sweep` — each design
+point is dispatched to a free worker.  Top-level leaf tests (chirp, FRF, etc.) are
+not parallelised; they run on one worker sequentially.
+
+**Output density knobs (all backends):**
+
+| Key | Meaning |
+|---|---|
+| `n_save_points: N` | Save exactly N uniformly-spaced output points |
+| `dtsave: 0.001` | Save every 1 ms (mutually exclusive with `n_save_points`) |
+| `dtmax: 0.0005` | Cap adaptive step size at 0.5 ms (independent of save density) |
+
+Rule of thumb for `dtmax` / `dtsave`: set to `1 / (10 × f_max)` for 10 samples per
+period of the highest-frequency content you care about.
 
 ---
 

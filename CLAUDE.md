@@ -253,13 +253,21 @@ Tsit5 produces pathological step rejection (>99%). Use Dopri5 instead:
 
 ```python
 # scipy (development / debugging)
-ScipyBackend(rtol=1e-8, atol=1e-10)       # uses RK45 (Dormand-Prince)
+ScipyBackend(rtol=1e-8, atol=1e-10)
 
 # JAX (fast repeated solves — ~1500x faster than scipy warm)
 JAXBackend(rtol=1e-8, atol=1e-10, solver="Dopri5", max_steps=100_000)
 
-# Julia (long simulations — ~600x faster than scipy warm, subprocess)
+# Julia single-shot (long simulations, ~600x faster than scipy warm)
 JuliaBackend(julia_file="dynamics.jl", rtol=1e-8, atol=1e-10)
+
+# Julia persistent server (pay JIT once; all solves reuse compiled kernel)
+JuliaServerBackend(julia_file="dynamics.jl", method="Tsit5",
+                   rtol=1e-8, atol=1e-10, n_save_points=2000)
+
+# Julia pool (parallel parameter sweeps — N processes, DOE-level dispatch)
+JuliaServerPool(n_workers=4, julia_file="dynamics.jl", method="Tsit5",
+                rtol=1e-8, atol=1e-10, n_save_points=2000)
 ```
 
 **Backend warm timings for the fluid poppet example (150 ms pneumatic + poppet):**
@@ -271,8 +279,22 @@ JuliaBackend(julia_file="dynamics.jl", rtol=1e-8, atol=1e-10)
 | JuliaBackend (Tsit5) | 14 ms | 634× |
 
 JAX cold (first call, JIT compile): ~550 ms. Subsequent calls hit the compiled kernel.
-Julia cold (subprocess startup + JIT): ~6700 ms. Warm calls reuse compiled dynamics if
-you batch multiple solves via `reps` parameter.
+Julia cold (subprocess startup + JIT): ~6700 ms. `JuliaServerBackend` amortises JIT
+across all solves in a session. `JuliaServerPool` additionally runs `precompile()` on
+all dynamics functions after startup so the first real solve carries no JIT latency.
+
+### Output density and step control
+
+All Julia backends and ScipyBackend accept these kwargs (also available in YAML `backend:`):
+
+| Kwarg | Default | Meaning |
+|---|---|---|
+| `n_save_points=N` | 0 | Save N uniformly-spaced output points instead of every adaptive step |
+| `dtsave=dt` | None | Save every `dt` time units (mutually exclusive with `n_save_points`) |
+| `dtmax=dt` | None | Cap the adaptive step size — prevents aliasing or missing brief transients |
+
+Rule of thumb: `dtmax = dtsave = 1 / (10 × f_max)` for 10 samples per period of the
+highest-frequency content you care about.
 
 ---
 
@@ -574,13 +596,43 @@ This is how DC-offset Bode families are generated: outer loop sets equilibrium
 bias, inner loop runs the FRF.  The result is a `ParameterFamilyResult` rendered
 by the `parameter_family` plot panel (curves coloured by sweep parameter).
 
+### Parallel execution
+
+Add `n_workers: N` to `backend:` to run sweep tests in parallel across N Julia
+server processes.  Each worker precompiles all dynamics at startup (via Julia's
+`precompile()`) so the first real solve carries no JIT latency.
+
+```yaml
+backend:
+  type: julia_server
+  julia_file: dynamics.jl
+  n_workers: 4          # 4 parallel processes
+  n_save_points: 2000   # cap output size to avoid huge JSON payloads
+```
+
+CLI override: `numen characterize test_plan.yaml --workers 4`
+
+- `parameter_sweep`, `parameter_grid`, `doe_sweep` dispatch each design point to
+  a free worker in parallel; results are returned in input order.
+- Top-level leaf tests (chirp, FRF, amplitude sweep) run on one worker sequentially.
+
 ### Key implementation detail
 
 Inner test runners (`freq_sweep`, `amplitude_sweep`, `chirp_sweep`) do NOT apply
-`dc_offset` themselves.  `CharacterizationRunner._run_test` pre-applies the test's
-own `dc_offset` once before calling the inner runner (standalone path).  The
+`dc_offset` themselves.  `CharacterizationRunner._run_leaf_test` pre-applies the
+test's own `dc_offset` once before calling the runner (standalone path).  The
 sub-runner path passes `spec_v` (outer-sweep DC already set) straight through.
 This is why outer `excitation.*` sweeps work correctly.
+
+### Julia server response protocol
+
+Server responses use a chunked line protocol (since the last major update):
+- Line 1: `{"n_t": <int>, "n_states": <int>}` — header
+- Line 2: `[t0, t1, …]` — time vector
+- Lines 3…: one line per state row
+
+This prevents single huge `readline()` calls for long simulations.  Use
+`n_save_points` or `dtsave` in the backend config to cap output density.
 
 ### Plot panel types
 
@@ -608,6 +660,7 @@ Current active plans:
 |---|---|---|
 | `docs/plan_characterization_framework.md` | Complete | Characterization test framework: ExcitationPort, test types, DOE, bond graph abstraction, Julia-first architecture |
 | `docs/plan_characterization_plots.md` | Complete | YAML-driven plots: `-c`/`-p` CLI, `plots:` schema, all panel types, excitation.* outer-loop sweeps |
+| `docs/plan_parallel_characterization.md` | Complete | Parallel characterization: `n_workers`, DOE-level dispatch, `JuliaServerPool`, `precompile()`, chunked response protocol |
 | `docs/plan_symbolic_codegen.md` | Planned | SymPy → Julia auto-codegen to eliminate dual Python/Julia dynamics authoring |
 
 When starting a new session, check `docs/` for active plans before writing any

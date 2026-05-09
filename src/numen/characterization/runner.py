@@ -52,9 +52,12 @@ _log = logging.getLogger("numen.characterization.runner")
 def _open_backend(spec: BackendSpec) -> Any:
     if spec.type == "scipy":
         from numen.bridge.scipy_backend import ScipyBackend
-        kwargs: dict[str, Any] = {"rtol": spec.rtol, "atol": spec.atol}
+        kwargs: dict[str, Any] = {"rtol": spec.rtol, "atol": spec.atol,
+                                  "n_save_points": spec.n_save_points, "dtsave": spec.dtsave}
         if spec.method:
             kwargs["method"] = spec.method
+        if spec.dtmax is not None:
+            kwargs["dtmax"] = spec.dtmax
         return ScipyBackend(**kwargs)
 
     if spec.type == "jax":
@@ -66,14 +69,17 @@ def _open_backend(spec: BackendSpec) -> Any:
 
     if spec.type == "julia":
         from numen.bridge.runtime import JuliaBackend
-        kwargs = {"julia_file": spec.julia_file, "rtol": spec.rtol, "atol": spec.atol}
+        kwargs: dict[str, Any] = {"julia_file": spec.julia_file, "rtol": spec.rtol, "atol": spec.atol,
+                                  "n_save_points": spec.n_save_points, "dtsave": spec.dtsave,
+                                  "dtmax": spec.dtmax}
         if spec.method:
             kwargs["method"] = spec.method
         return JuliaBackend(**kwargs)
 
     if spec.type == "julia_server":
         from numen.bridge.server_backend import JuliaServerBackend
-        kwargs = {"julia_file": spec.julia_file, "rtol": spec.rtol, "atol": spec.atol}
+        kwargs = {"julia_file": spec.julia_file, "rtol": spec.rtol, "atol": spec.atol,
+                  "n_save_points": spec.n_save_points, "dtsave": spec.dtsave, "dtmax": spec.dtmax}
         if spec.method:
             kwargs["method"] = spec.method
         return JuliaServerBackend(**kwargs)
@@ -85,17 +91,34 @@ def _open_backend(spec: BackendSpec) -> Any:
 def _backend_context(spec: BackendSpec) -> Generator[Any, None, None]:
     """Context manager that owns the backend lifecycle.
 
-    julia_server backends are used as context managers (keeps the subprocess
-    alive).  All other backends are plain objects — nullcontext wraps them.
+    When ``spec.type == 'julia_server'`` and ``spec.n_workers > 1``, opens a
+    ``JuliaServerPool``; sweep runners then dispatch design points across the
+    pool in parallel.  All other cases open a single backend sequentially.
     """
-    backend = _open_backend(spec)
-    if spec.type == "julia_server":
-        with backend:
-            _log.info("Julia server started")
-            yield backend
+    if spec.type == "julia_server" and spec.n_workers > 1:
+        from numen.bridge.server_backend import JuliaServerPool
+        pool = JuliaServerPool(
+            n_workers     = spec.n_workers,
+            julia_file    = spec.julia_file,
+            method        = spec.method or "Tsit5",
+            rtol          = spec.rtol,
+            atol          = spec.atol,
+            n_save_points = spec.n_save_points,
+            dtsave        = spec.dtsave,
+            dtmax         = spec.dtmax,
+        )
+        with pool:
+            _log.info("Julia pool started (%d workers)", spec.n_workers)
+            yield pool
     else:
-        with nullcontext(backend):
-            yield backend
+        backend = _open_backend(spec)
+        if spec.type == "julia_server":
+            with backend:
+                _log.info("Julia server started")
+                yield backend
+        else:
+            with nullcontext(backend):
+                yield backend
 
 
 # ---------------------------------------------------------------------------
@@ -189,90 +212,82 @@ class CharacterizationRunner:
 
     # --- Internal dispatch ---
 
-    def _run_test(self, test: TestSpec, backend: Any) -> Any:
+    def _run_test(self, test: TestSpec, backend_or_pool: Any) -> Any:
+        from numen.bridge.server_backend import JuliaServerPool
         exc    = self.config.excitation
         e_id   = exc.entity
         e_port = exc.port
         out    = self._output_key
 
+        # Sweep tests get the pool/backend so they can parallelise at DOE level.
+        if isinstance(test, ParameterSweepSpec):
+            return self._run_parameter_sweep(test, backend_or_pool)
+        if isinstance(test, ParameterGridSpec):
+            return self._run_parameter_grid(test, backend_or_pool)
+        if isinstance(test, DOESweepSpec):
+            return self._run_doe_sweep(test, backend_or_pool)
+
+        # Leaf tests run on a single server.  When a pool is active, borrow one.
+        if isinstance(backend_or_pool, JuliaServerPool):
+            with backend_or_pool.borrow() as backend:
+                return self._run_leaf_test(test, backend, e_id, e_port, out)
+        return self._run_leaf_test(test, backend_or_pool, e_id, e_port, out)
+
+    def _run_leaf_test(self, test: TestSpec, backend: Any,
+                       e_id: str, e_port: str, out: str) -> Any:
         if isinstance(test, DiscreteFrequencySweepSpec):
             from numen.characterization.tests.freq_sweep import run_discrete_frequency_sweep
             exc_s = set_excitation_params(self._exc_spec, e_id, e_port, dc=test.dc_offset)
-            return run_discrete_frequency_sweep(
-                test, exc_s, e_id, e_port, out, backend,
-            )
+            return run_discrete_frequency_sweep(test, exc_s, e_id, e_port, out, backend)
 
         if isinstance(test, DCOperatingPointSweepSpec):
             from numen.characterization.tests.dc_sweep import run_dc_operating_point_sweep
-            return run_dc_operating_point_sweep(
-                test, self._exc_spec, e_id, e_port, out, backend,
-            )
+            return run_dc_operating_point_sweep(test, self._exc_spec, e_id, e_port, out, backend)
 
         if isinstance(test, AmplitudeSweepSpec):
             from numen.characterization.tests.amplitude_sweep import run_amplitude_sweep
             exc_s = set_excitation_params(self._exc_spec, e_id, e_port, dc=test.dc_offset)
-            return run_amplitude_sweep(
-                test, exc_s, e_id, e_port, out, backend,
-            )
+            return run_amplitude_sweep(test, exc_s, e_id, e_port, out, backend)
 
         if isinstance(test, ContinuousChirpSpec):
             from numen.characterization.tests.chirp_sweep import run_continuous_chirp
             exc_s = set_excitation_params(self._exc_spec, e_id, e_port, dc=test.dc_offset)
-            return run_continuous_chirp(
-                test, exc_s, e_id, e_port, out, backend,
-            )
-
-        if isinstance(test, ParameterSweepSpec):
-            return self._run_parameter_sweep(test, backend)
-
-        if isinstance(test, ParameterGridSpec):
-            return self._run_parameter_grid(test, backend)
-
-        if isinstance(test, DOESweepSpec):
-            return self._run_doe_sweep(test, backend)
+            return run_continuous_chirp(test, exc_s, e_id, e_port, out, backend)
 
         _log.warning("Unknown test type '%s'. Skipping '%s'.", test.type, test.name)
         return None
 
-    def _make_sub_runner(
-        self,
-        sub_spec_obj: Any,
-        backend: Any,
-        context: str,
-    ) -> Any:
-        """Return a closure that runs sub_spec_obj with the given backend/excitation info."""
+    def _make_sub_runner_factory(self, sub_spec_obj: Any, context: str) -> Any:
+        """Return Callable[[backend, spec_v], result] — backend supplied at call time.
+
+        The factory captures excitation info and sub_spec_obj but NOT the backend,
+        so the same factory can be handed to a pool for parallel dispatch (each
+        call supplies a different server from the pool).
+        """
         e_id   = self.config.excitation.entity
         e_port = self.config.excitation.port
         out    = self._output_key
 
-        def _sub_runner(spec_v: Any) -> Any:
+        def _runner(backend: Any, spec_v: Any) -> Any:
             if isinstance(sub_spec_obj, DiscreteFrequencySweepSpec):
                 from numen.characterization.tests.freq_sweep import run_discrete_frequency_sweep
-                return run_discrete_frequency_sweep(
-                    sub_spec_obj, spec_v, e_id, e_port, out, backend,
-                )
+                return run_discrete_frequency_sweep(sub_spec_obj, spec_v, e_id, e_port, out, backend)
             if isinstance(sub_spec_obj, DCOperatingPointSweepSpec):
                 from numen.characterization.tests.dc_sweep import run_dc_operating_point_sweep
-                return run_dc_operating_point_sweep(
-                    sub_spec_obj, spec_v, e_id, e_port, out, backend,
-                )
+                return run_dc_operating_point_sweep(sub_spec_obj, spec_v, e_id, e_port, out, backend)
             if isinstance(sub_spec_obj, AmplitudeSweepSpec):
                 from numen.characterization.tests.amplitude_sweep import run_amplitude_sweep
-                return run_amplitude_sweep(
-                    sub_spec_obj, spec_v, e_id, e_port, out, backend,
-                )
+                return run_amplitude_sweep(sub_spec_obj, spec_v, e_id, e_port, out, backend)
             if isinstance(sub_spec_obj, ContinuousChirpSpec):
                 from numen.characterization.tests.chirp_sweep import run_continuous_chirp
-                return run_continuous_chirp(
-                    sub_spec_obj, spec_v, e_id, e_port, out, backend,
-                )
+                return run_continuous_chirp(sub_spec_obj, spec_v, e_id, e_port, out, backend)
             raise NotImplementedError(
-                f"{context} sub_test type '{sub_spec_obj.type}' not supported. "
+                f"'{context}' sub_test type '{sub_spec_obj.type}' not supported as sub_test. "
                 f"Supported: discrete_frequency_sweep, dc_operating_point_sweep, "
                 f"amplitude_sweep, continuous_chirp"
             )
 
-        return _sub_runner
+        return _runner
 
     def _get_sub_spec(self, test_name: str, parent: str) -> Any:
         sub = next((t for t in self.config.tests if t.name == test_name), None)
@@ -280,32 +295,56 @@ class CharacterizationRunner:
             raise ValueError(f"'{parent}': sub_test '{test_name}' not found")
         return sub
 
-    def _run_parameter_sweep(self, test: ParameterSweepSpec, backend: Any) -> Any:
+    def _run_parameter_sweep(self, test: ParameterSweepSpec, backend_or_pool: Any) -> Any:
+        from numen.bridge.server_backend import JuliaServerPool
+        sub  = self._get_sub_spec(test.sub_test, test.name)
+        exc  = self.config.excitation
+        factory = self._make_sub_runner_factory(sub, test.name)
+        if isinstance(backend_or_pool, JuliaServerPool):
+            from numen.characterization.tests.param_sweep import run_parameter_sweep_parallel
+            return run_parameter_sweep_parallel(
+                test, self._exc_spec, factory, backend_or_pool,
+                entity_id=exc.entity, port_name=exc.port,
+            )
         from numen.characterization.tests.param_sweep import run_parameter_sweep
-        sub_spec_obj = self._get_sub_spec(test.sub_test, test.name)
-        exc = self.config.excitation
         return run_parameter_sweep(
             test, self._exc_spec,
-            self._make_sub_runner(sub_spec_obj, backend, test.name),
+            lambda spec_v: factory(backend_or_pool, spec_v),
             entity_id=exc.entity, port_name=exc.port,
         )
 
-    def _run_parameter_grid(self, test: ParameterGridSpec, backend: Any) -> Any:
+    def _run_parameter_grid(self, test: ParameterGridSpec, backend_or_pool: Any) -> Any:
+        from numen.bridge.server_backend import JuliaServerPool
+        sub  = self._get_sub_spec(test.sub_test, test.name)
+        exc  = self.config.excitation
+        factory = self._make_sub_runner_factory(sub, test.name)
+        if isinstance(backend_or_pool, JuliaServerPool):
+            from numen.characterization.tests.param_grid import run_parameter_grid_parallel
+            return run_parameter_grid_parallel(
+                test, self._exc_spec, factory, backend_or_pool,
+                entity_id=exc.entity, port_name=exc.port,
+            )
         from numen.characterization.tests.param_grid import run_parameter_grid
-        sub_spec_obj = self._get_sub_spec(test.sub_test, test.name)
-        exc = self.config.excitation
         return run_parameter_grid(
             test, self._exc_spec,
-            self._make_sub_runner(sub_spec_obj, backend, test.name),
+            lambda spec_v: factory(backend_or_pool, spec_v),
             entity_id=exc.entity, port_name=exc.port,
         )
 
-    def _run_doe_sweep(self, test: DOESweepSpec, backend: Any) -> Any:
+    def _run_doe_sweep(self, test: DOESweepSpec, backend_or_pool: Any) -> Any:
+        from numen.bridge.server_backend import JuliaServerPool
+        sub  = self._get_sub_spec(test.sub_test, test.name)
+        exc  = self.config.excitation
+        factory = self._make_sub_runner_factory(sub, test.name)
+        if isinstance(backend_or_pool, JuliaServerPool):
+            from numen.characterization.tests.doe_sweep import run_doe_sweep_parallel
+            return run_doe_sweep_parallel(
+                test, self._exc_spec, factory, backend_or_pool,
+                entity_id=exc.entity, port_name=exc.port,
+            )
         from numen.characterization.tests.doe_sweep import run_doe_sweep
-        sub_spec_obj = self._get_sub_spec(test.sub_test, test.name)
-        exc = self.config.excitation
         return run_doe_sweep(
             test, self._exc_spec,
-            self._make_sub_runner(sub_spec_obj, backend, test.name),
+            lambda spec_v: factory(backend_or_pool, spec_v),
             entity_id=exc.entity, port_name=exc.port,
         )

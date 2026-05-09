@@ -89,3 +89,38 @@ def run_parameter_grid(
 
     _log.info("Parameter grid '%s' done: %d points", test.name, len(combinations))
     return result_obj
+
+
+def run_parameter_grid_parallel(
+    test: ParameterGridSpec,
+    exc_spec: Any,
+    factory: Callable[[Any, Any], Any],
+    pool: Any,
+    entity_id: str | None = None,
+    port_name: str | None = None,
+) -> ParameterGridResult:
+    """Parallel variant — dispatches each grid point to the pool concurrently."""
+    combinations = _build_combinations(test.params, test.mode)
+    _log.info(
+        "Parameter grid '%s' [%s, parallel, %d workers]: %d points (%d params)",
+        test.name, test.mode, pool.n_workers, len(combinations), len(test.params),
+    )
+
+    all_specs = []
+    for combo in combinations:
+        spec_v = exc_spec
+        for key, val in combo.items():
+            spec_v = _set_model_param(spec_v, key, val, entity_id, port_name)
+        all_specs.append(spec_v)
+
+    sub_results = pool.map(factory, all_specs)
+
+    result_obj = ParameterGridResult(
+        name         = test.name,
+        param_keys   = list(test.params.keys()),
+        combinations = combinations,
+        mode         = test.mode,
+    )
+    result_obj.sub_results.extend(sub_results)
+    _log.info("Parameter grid '%s' done [parallel]: %d points", test.name, len(combinations))
+    return result_obj

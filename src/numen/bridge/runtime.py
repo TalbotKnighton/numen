@@ -83,11 +83,19 @@ class JuliaBackend:
         method: str = "Tsit5",
         rtol: float = 1e-6,
         atol: float = 1e-8,
+        n_save_points: int = 0,
+        dtsave: float | None = None,
+        dtmax: float | None = None,
     ) -> None:
+        if n_save_points > 0 and dtsave is not None:
+            raise ValueError("Specify either n_save_points or dtsave, not both.")
         self._julia_file = str(Path(julia_file).resolve()) if julia_file else None
         self.method = method
         self.rtol = rtol
         self.atol = atol
+        self.n_save_points = n_save_points
+        self.dtsave = dtsave
+        self.dtmax = dtmax
 
     def solve(
         self,
@@ -114,12 +122,15 @@ class JuliaBackend:
         )
 
         payload = {
-            "spec":   compiled_spec.to_dict(),
-            "tspan":  list(tspan),
-            "reps":   reps,
-            "method": self.method,
-            "rtol":   self.rtol,
-            "atol":   self.atol,
+            "spec":          compiled_spec.to_dict(),
+            "tspan":         list(tspan),
+            "reps":          reps,
+            "method":        self.method,
+            "rtol":          self.rtol,
+            "atol":          self.atol,
+            "n_save_points": self.n_save_points,
+            "dtsave":        self.dtsave,
+            "dtmax":         self.dtmax,
         }
 
         payload_path = Path(tempfile.mktemp(suffix=".json"))

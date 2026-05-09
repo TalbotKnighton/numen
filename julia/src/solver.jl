@@ -5,7 +5,7 @@ Entry point called from Python via runner.jl or server.jl.  Receives a
 JSON-encoded SolvePayload, builds and solves the ODE/DAE system, returns a
 SolveResult.
 """
-function solve(payload_json::String)::SolveResult
+function solve(payload_json::String; n_save_points::Int = 0, dtsave::Float64 = 0.0, dtmax::Float64 = 0.0)::SolveResult
     payload   = JSON3.read(payload_json, SolvePayload)
     spec      = payload.spec
     tspan     = (payload.tspan[1], payload.tspan[2])
@@ -32,12 +32,34 @@ function solve(payload_json::String)::SolveResult
     prob   = ODEProblem(ode_fn, copy(spec.x0), tspan, copy(spec.p))
     solver = getfield(OrdinaryDiffEq, Symbol(method))()
 
+    # saveat controls output density.  Options (mutually exclusive):
+    #   n_save_points > 0  →  N uniformly-spaced points via linspace
+    #   dtsave > 0         →  fixed interval via t0:dtsave:tf
+    #   neither            →  save at tstops only (empty = every adaptive step)
+    # In all cases, tstops are merged in so no discrete-field event is missed.
+    saveat_times = if n_save_points > 0
+        grid = collect(range(tspan[1], tspan[2]; length = n_save_points))
+        isempty(tstops) ? grid : sort!(unique!(vcat(grid, tstops)))
+    elseif dtsave > 0.0
+        grid = collect(tspan[1]:dtsave:tspan[2])
+        # Always include the final time
+        (isempty(grid) || grid[end] < tspan[2]) && push!(grid, tspan[2])
+        isempty(tstops) ? grid : sort!(unique!(vcat(grid, tstops)))
+    else
+        tstops   # empty → every adaptive step; non-empty → events only
+    end
+
     kw = (
         tstops  = tstops,
-        saveat  = tstops,
+        saveat  = saveat_times,
         abstol  = payload.atol,
         reltol  = payload.rtol,
     )
+    # dtmax > 0 limits adaptive step size — prevents missing brief transients
+    # or aliasing high-frequency inputs.  0.0 means no limit (solver default).
+    if dtmax > 0.0
+        kw = merge(kw, (dtmax = dtmax,))
+    end
     sol = cb_set !== nothing ?
         OrdinaryDiffEq.solve(prob, solver; kw..., callback = cb_set) :
         OrdinaryDiffEq.solve(prob, solver; kw...)

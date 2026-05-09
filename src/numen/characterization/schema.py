@@ -29,16 +29,28 @@ from pydantic import BaseModel, Field, model_validator
 
 class BackendSpec(BaseModel):
     """Which solver backend to use for all solves in this campaign."""
-    type:       Literal["scipy", "jax", "julia", "julia_server"] = "scipy"
-    julia_file: str | None = None
-    method:     str | None = None
-    rtol:       float = 1e-8
-    atol:       float = 1e-9
+    type:           Literal["scipy", "jax", "julia", "julia_server"] = "scipy"
+    julia_file:     str | None = None
+    method:         str | None = None
+    rtol:           float = 1e-8
+    atol:           float = 1e-9
+    n_workers:      int          = 1
+    n_save_points:  int          = 0
+    dtsave:         float | None = None
+    dtmax:          float | None = None
+    # n_workers:     parallel Julia server processes (julia_server only; 1 = sequential).
+    # n_save_points: save exactly N uniformly-spaced output points (0 = every adaptive step).
+    # dtsave:        save every dtsave time units.  Mutually exclusive with n_save_points.
+    # dtmax:         cap the adaptive step size (prevents missing transients / aliasing).
 
     @model_validator(mode="after")
-    def _julia_needs_file(self) -> "BackendSpec":
+    def _validate(self) -> "BackendSpec":
         if self.type in ("julia", "julia_server") and self.julia_file is None:
             raise ValueError(f"backend.type={self.type!r} requires julia_file to be set")
+        if self.n_save_points > 0 and self.dtsave is not None:
+            raise ValueError("Specify either n_save_points or dtsave, not both.")
+        if self.n_workers > 1 and self.type != "julia_server":
+            raise ValueError(f"n_workers > 1 requires backend.type='julia_server' (got {self.type!r})")
         return self
 
 
