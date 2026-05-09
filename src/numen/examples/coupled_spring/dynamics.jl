@@ -8,13 +8,13 @@ import Main: CompiledSpec, CompiledSystemSpec, state_idx, param_idx
 Position kinematics: ẋ = v for every mass entity.  ``group_size = 1``.
 """
 function mass_kinematics_dynamics!(
-    dx  :: Vector{Float64},
-    x   :: Vector{Float64},
+    dx  :: AbstractVector{T},
+    x   :: AbstractVector{S},
     p   :: Vector{Float64},
-    t   :: Float64,
+    t   :: Real,
     spec:: CompiledSpec,
     sys :: CompiledSystemSpec,
-)
+) where {T <: Real, S <: Real}
     gs = sys.group_size   # = 1
     for i in 1:gs:length(sys.entity_ids)
         eid     = sys.entity_ids[i]
@@ -32,13 +32,13 @@ Hooke's law spring forces.  ``group_size = 3``: each group is
 springs sharing a mass are correct.
 """
 function spring_force_dynamics!(
-    dx  :: Vector{Float64},
-    x   :: Vector{Float64},
+    dx  :: AbstractVector{T},
+    x   :: AbstractVector{S},
     p   :: Vector{Float64},
-    t   :: Float64,
+    t   :: Real,
     spec:: CompiledSpec,
     sys :: CompiledSystemSpec,
-)
+) where {T <: Real, S <: Real}
     gs = sys.group_size   # = 3: [mass_a, spring, mass_b]
     for i in 1:gs:length(sys.entity_ids)
         id_a = sys.entity_ids[i]

@@ -15,13 +15,13 @@ Dict lookups (``state_idx`` / ``param_idx``) happen once per entity per RHS
 call; Julia's JIT compiles away the overhead after the first invocation.
 """
 function oscillator_dynamics!(
-    dx  :: Vector{Float64},
-    x   :: Vector{Float64},
+    dx  :: AbstractVector{T},
+    x   :: AbstractVector{S},
     p   :: Vector{Float64},
-    t   :: Float64,
+    t   :: Real,
     spec:: CompiledSpec,
     sys :: CompiledSystemSpec,
-)
+) where {T <: Real, S <: Real}
     gs = sys.group_size   # = 1; each entity is its own group
     for i in 1:gs:length(sys.entity_ids)
         eid = sys.entity_ids[i]

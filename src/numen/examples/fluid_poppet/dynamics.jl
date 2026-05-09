@@ -9,14 +9,14 @@ import Main: CompiledSpec, CompiledSystemSpec, state_idx, param_idx
 const STOP_DELTA = 1e-6  # 1 µm smoothing distance (matches Python _STOP_DELTA)
 
 """
-    soft_pen(x) -> Float64
+    soft_pen(x) -> T
 
 C1-smooth approximation of max(0, x) with quadratic ramp over [0, STOP_DELTA].
 Removes the slope kink at contact onset that causes ODE solvers to take many
 tiny rejected steps each time the poppet grazes a stop.
 """
-function soft_pen(x::Float64)::Float64
-    x <= 0.0 && return 0.0
+function soft_pen(x::T) where T <: Real
+    x <= 0.0 && return zero(T)
     x >= STOP_DELTA && return x - 0.5 * STOP_DELTA
     return 0.5 * x * x / STOP_DELTA
 end
@@ -26,19 +26,22 @@ end
 # ---------------------------------------------------------------------------
 
 """
-    orifice_mdot(P_up, P_dn, T_up, R, Cd, A, gamma) -> Float64
+    orifice_mdot(P_up, P_dn, T_up, R, Cd, A, gamma) -> T
 
 Isentropic compressible mass flow through an orifice (kg/s, always ≥ 0).
 Switches between choked and unchoked branches at the critical pressure ratio:
     β_crit = (2/(γ+1))^(γ/(γ-1))
+
+P_up, P_dn, and A may be Dual numbers (state-derived); the remaining arguments
+are always Float64 (from the parameter vector p).
 """
 function orifice_mdot(
-    P_up::Float64, P_dn::Float64, T_up::Float64,
-    R::Float64, Cd::Float64, A::Float64, gamma::Float64,
-)::Float64
-    (P_up <= 0.0 || A <= 0.0) && return 0.0
+    P_up::T, P_dn::T, T_up::Float64,
+    R::Float64, Cd::Float64, A::Real, gamma::Float64,
+) where T <: Real
+    (P_up <= 0.0 || A <= 0.0) && return zero(T)
 
-    beta      = max(0.0, P_dn) / P_up
+    beta      = max(zero(T), P_dn) / P_up
     beta_crit = (2.0 / (gamma + 1.0))^(gamma / (gamma - 1.0))
 
     if beta <= beta_crit
@@ -48,7 +51,7 @@ function orifice_mdot(
     else
         # unchoked
         arg = beta^(2.0 / gamma) - beta^((gamma + 1.0) / gamma)
-        return Cd * A * P_up * sqrt(max(0.0, 2.0 * gamma / ((gamma - 1.0) * R * T_up) * arg))
+        return Cd * A * P_up * sqrt(max(zero(T), 2.0 * gamma / ((gamma - 1.0) * R * T_up) * arg))
     end
 end
 
@@ -63,9 +66,9 @@ Fixed-area isentropic compressible orifice flow between two control volumes.
 Entity group stride: [cv_a, orifice, cv_b]  (group_size = 3).
 """
 function orifice_flow_dynamics!(
-    dx::Vector{Float64}, x::Vector{Float64}, p::Vector{Float64},
-    t::Float64, spec::CompiledSpec, sys::CompiledSystemSpec,
-)
+    dx :: AbstractVector{T}, x :: AbstractVector{S}, p :: Vector{Float64},
+    t  :: Real, spec :: CompiledSpec, sys :: CompiledSystemSpec,
+) where {T <: Real, S <: Real}
     gs = sys.group_size  # 3
     for i in 1:gs:length(sys.entity_ids)
         id_a = sys.entity_ids[i]
@@ -109,22 +112,22 @@ Entity group stride: [cv_inlet, poppet, cv_outlet]  (group_size = 3).
 Flow area = max_flow_area * clamp(position / max_travel, 0, 1).
 """
 function poppet_flow_dynamics!(
-    dx::Vector{Float64}, x::Vector{Float64}, p::Vector{Float64},
-    t::Float64, spec::CompiledSpec, sys::CompiledSystemSpec,
-)
+    dx :: AbstractVector{T}, x :: AbstractVector{S}, p :: Vector{Float64},
+    t  :: Real, spec :: CompiledSpec, sys :: CompiledSystemSpec,
+) where {T <: Real, S <: Real}
     gs = sys.group_size  # 3
     for i in 1:gs:length(sys.entity_ids)
         id_a = sys.entity_ids[i]
         id_p = sys.entity_ids[i + 1]
         id_b = sys.entity_ids[i + 2]
 
-        pos          = x[state_idx(spec, id_p * ".position")]
-        max_travel   = p[param_idx(spec, id_p * ".max_travel")]
+        pos           = x[state_idx(spec, id_p * ".position")]
+        max_travel    = p[param_idx(spec, id_p * ".max_travel")]
         max_flow_area = p[param_idx(spec, id_p * ".max_flow_area")]
-        Cd           = p[param_idx(spec, id_p * ".Cd")]
-        gam          = p[param_idx(spec, id_p * ".gamma")]
+        Cd            = p[param_idx(spec, id_p * ".Cd")]
+        gam           = p[param_idx(spec, id_p * ".gamma")]
 
-        opening = clamp(pos / max_travel, 0.0, 1.0)
+        opening = clamp(pos / max_travel, zero(S), one(S))
         A       = max_flow_area * opening
         A <= 0.0 && continue
 
@@ -137,6 +140,7 @@ function poppet_flow_dynamics!(
         V_a = p[param_idx(spec, id_a * ".volume")]
         V_b = p[param_idx(spec, id_b * ".volume")]
 
+        # A is S here (derived from poppet position); orifice_mdot accepts A::Real
         if P_a >= P_b
             mdot = orifice_mdot(P_a, P_b, T_a, R_a, Cd, A, gam)
         else
@@ -160,9 +164,9 @@ end
 Position kinematics: ẋ = v.  group_size = 1.
 """
 function poppet_kinematics_dynamics!(
-    dx::Vector{Float64}, x::Vector{Float64}, p::Vector{Float64},
-    t::Float64, spec::CompiledSpec, sys::CompiledSystemSpec,
-)
+    dx :: AbstractVector{T}, x :: AbstractVector{S}, p :: Vector{Float64},
+    t  :: Real, spec :: CompiledSpec, sys :: CompiledSystemSpec,
+) where {T <: Real, S <: Real}
     for id_p in sys.entity_ids
         i_pos = state_idx(spec, id_p * ".position")
         i_vel = state_idx(spec, id_p * ".velocity")
@@ -186,9 +190,9 @@ Forces (positive = opening direction):
   F_stop     = penalty springs + dampers at both hard stops
 """
 function poppet_mechanics_dynamics!(
-    dx::Vector{Float64}, x::Vector{Float64}, p::Vector{Float64},
-    t::Float64, spec::CompiledSpec, sys::CompiledSystemSpec,
-)
+    dx :: AbstractVector{T}, x :: AbstractVector{S}, p :: Vector{Float64},
+    t  :: Real, spec :: CompiledSpec, sys :: CompiledSystemSpec,
+) where {T <: Real, S <: Real}
     gs = sys.group_size  # 3
     for i in 1:gs:length(sys.entity_ids)
         id_inlet  = sys.entity_ids[i]
@@ -211,12 +215,12 @@ function poppet_mechanics_dynamics!(
         F_pressure = (P_in - P_out) * seat_area
         F_spring   = -(spring_k * pos + spring_preload)
 
-        pen_close  = soft_pen(-pos)
-        pen_open   = soft_pen(pos - max_travel)
-        alpha_close = clamp(-pos / STOP_DELTA, 0.0, 1.0)
-        alpha_open  = clamp((pos - max_travel) / STOP_DELTA, 0.0, 1.0)
-        v_damp_close = max(0.0, -vel) * alpha_close
-        v_damp_open  = max(0.0,  vel) * alpha_open
+        pen_close   = soft_pen(-pos)
+        pen_open    = soft_pen(pos - max_travel)
+        alpha_close = clamp(-pos / STOP_DELTA, zero(S), one(S))
+        alpha_open  = clamp((pos - max_travel) / STOP_DELTA, zero(S), one(S))
+        v_damp_close = max(zero(S), -vel) * alpha_close
+        v_damp_open  = max(zero(S),  vel) * alpha_open
         F_stop = (k_stop * pen_close + c_stop * v_damp_close
                  - k_stop * pen_open  - c_stop * v_damp_open)
 

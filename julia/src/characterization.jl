@@ -25,13 +25,13 @@ Parameters stored under the synthetic entity id (e.g. `_exc_osc_force`):
   .target_idx — 0-based index of the state slot to write (stored as Float64)
 """
 function excitation_dynamics!(
-    dx  :: Vector{Float64},
-    x   :: Vector{Float64},
+    dx  :: AbstractVector{T},
+    x   :: AbstractVector{S},
     p   :: Vector{Float64},
-    t   :: Float64,
+    t   :: Real,
     spec:: CompiledSpec,
     sys :: CompiledSystemSpec,
-)
+) where {T <: Real, S <: Real}
     eid   = sys.entity_ids[1]
     amp   = p[param_idx(spec, eid * ".amp")]
     freq  = p[param_idx(spec, eid * ".freq")]
@@ -60,13 +60,13 @@ Log sweep:    φ(t) = 2π · f_s · T/k · (exp(k·t/T) − 1)  where k = ln(f_e
 Linear sweep: φ(t) = 2π · (f_s·t + (f_e−f_s)·t²/(2T))
 """
 function chirp_dynamics!(
-    dx  :: Vector{Float64},
-    x   :: Vector{Float64},
+    dx  :: AbstractVector{T},
+    x   :: AbstractVector{S},
     p   :: Vector{Float64},
-    t   :: Float64,
+    t   :: Real,
     spec:: CompiledSpec,
     sys :: CompiledSystemSpec,
-)
+) where {T <: Real, S <: Real}
     eid    = sys.entity_ids[1]
     amp    = p[param_idx(spec, eid * ".amp")]
     f_s    = p[param_idx(spec, eid * ".f_start")]

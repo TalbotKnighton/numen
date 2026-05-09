@@ -298,18 +298,21 @@ highest-frequency content you care about.
 
 ### Stiff solvers (Rodas5P, Rodas4, Rosenbrock23, …)
 
-Rosenbrock-type stiff solvers use ForwardDiff by default to compute Jacobians.
-This requires passing Dual-number arrays through the ODE function, which fails if
-your Julia dynamics functions have concrete `Vector{Float64}` type annotations
-(the Numen convention).
+Rosenbrock-type stiff solvers use ForwardDiff to compute exact Jacobians by
+calling the ODE function with `Dual`-number arrays instead of `Float64`.  Numen
+dynamics functions use `AbstractVector{T} where T <: Real` so Julia specialises
+them for both `Vector{Float64}` (normal solves) and `Vector{Dual{…}}` (Jacobian
+evaluation), with no extra per-step function calls.
 
-**The framework handles this automatically**: `solver.jl` constructs all Rosenbrock
-methods with `autodiff = AutoFiniteDiff()`, which uses finite differences for the
-Jacobian instead. Per the OrdinaryDiffEq docs, this has **minimal performance impact**
-for the square-Jacobian scenario of a characterization solve.
+**Why two type parameters `{T, S}`:** stiff solvers compute both a Jacobian
+(`dx=Dual, x=Dual, t=Float64`) and a time gradient (`dx=Dual, x=Float64, t=Dual`).
+In the time-gradient case `dx` and `x` carry *different* element types, so they
+need separate parameters.  `t :: Real` covers both `Float64` (Jacobian pass) and
+`Dual` (time-gradient pass).
 
-You do NOT need to make your dynamics functions ForwardDiff-compatible. Keep the
-concrete `Vector{Float64}` annotations — they are correct and efficient.
+**Convention for scalar helpers** (soft_pen, orifice flow, etc.): scalars
+extracted from `x` are type `S`; use `where T <: Real` (or `where S <: Real`)
+and `return zero(T)` instead of `return 0.0` for early-exit zero returns.
 
 ---
 
@@ -359,9 +362,9 @@ module MyDynamics
 import Main: CompiledSpec, CompiledSystemSpec, state_idx, param_idx
 
 function gravity_dynamics!(
-    dx::Vector{Float64}, x::Vector{Float64}, p::Vector{Float64},
-    t::Float64, spec::CompiledSpec, sys::CompiledSystemSpec,
-)
+    dx :: AbstractVector{T}, x :: AbstractVector{S}, p :: Vector{Float64},
+    t  :: Real, spec :: CompiledSpec, sys :: CompiledSystemSpec,
+) where {T <: Real, S <: Real}
     for id_ball in sys.entity_ids
         i_pos = state_idx(spec, id_ball * ".position")
         i_vel = state_idx(spec, id_ball * ".velocity")

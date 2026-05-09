@@ -8,8 +8,8 @@ import Main: CompiledSpec, CompiledSystemSpec, state_idx, param_idx
 
 const STOP_DELTA = 1e-6  # 1 µm C1 ramp (matches Python _STOP_DELTA)
 
-function soft_pen(x::Float64)::Float64
-    x <= 0.0 && return 0.0
+function soft_pen(x::T) where T <: Real
+    x <= 0.0 && return zero(T)
     x >= STOP_DELTA && return x - 0.5 * STOP_DELTA
     return 0.5 * x * x / STOP_DELTA
 end
@@ -19,18 +19,22 @@ end
 # ---------------------------------------------------------------------------
 
 """
-    orifice_mdot(P_up, P_dn, T_up, R, Cd, A, gamma) -> Float64
+    orifice_mdot(P_up, P_dn, T_up, R, Cd, A, gamma) -> T
 
 Isentropic compressible mass flow (kg/s, always ≥ 0).
 Switches between choked and unchoked branches at β_crit = (2/(γ+1))^(γ/(γ-1)).
+
+P_up and P_dn may be Dual numbers when called from a stiff solver's Jacobian
+evaluation; the remaining arguments are always Float64 (from the parameter
+vector p).
 """
 function orifice_mdot(
-    P_up  :: Float64, P_dn  :: Float64, T_up  :: Float64,
+    P_up  :: T, P_dn  :: T, T_up  :: Float64,
     R     :: Float64, Cd    :: Float64, A     :: Float64, gamma :: Float64,
-) :: Float64
-    (P_up <= 0.0 || A <= 0.0) && return 0.0
+) :: T where T <: Real
+    (P_up <= 0.0 || A <= 0.0) && return zero(T)
 
-    beta      = max(0.0, P_dn) / P_up
+    beta      = max(zero(T), P_dn) / P_up
     beta_crit = (2.0 / (gamma + 1.0))^(gamma / (gamma - 1.0))
 
     if beta <= beta_crit
@@ -38,25 +42,25 @@ function orifice_mdot(
         return Cd * A * P_up * sqrt(gamma / (R * T_up)) * (2.0 / (gamma + 1.0))^choke_exp
     else
         arg = beta^(2.0 / gamma) - beta^((gamma + 1.0) / gamma)
-        return Cd * A * P_up * sqrt(max(0.0, 2.0 * gamma / ((gamma - 1.0) * R * T_up) * arg))
+        return Cd * A * P_up * sqrt(max(zero(T), 2.0 * gamma / ((gamma - 1.0) * R * T_up) * arg))
     end
 end
 
 """
-    signed_orifice_flow(P_chamber, P_ambient, T, R, gamma, Cd, A) -> Float64
+    signed_orifice_flow(P_chamber, P_ambient, T_amb, R, gamma, Cd, A) -> T
 
 Signed mass flow into the chamber (kg/s).
   Positive: atmosphere → chamber (P_ambient > P_chamber)
   Negative: chamber → atmosphere (P_chamber > P_ambient)
 """
 function signed_orifice_flow(
-    P_chamber :: Float64, P_ambient :: Float64,
-    T         :: Float64, R         :: Float64,
+    P_chamber :: T, P_ambient :: Float64,
+    T_amb     :: Float64, R         :: Float64,
     gamma     :: Float64, Cd        :: Float64, A :: Float64,
-) :: Float64
-    P_up  = max(P_ambient, P_chamber)
-    P_dn  = min(P_ambient, P_chamber)
-    mdot  = orifice_mdot(P_up, P_dn, T, R, Cd, A, gamma)
+) where T <: Real
+    P_up  = max(T(P_ambient), P_chamber)
+    P_dn  = min(T(P_ambient), P_chamber)
+    mdot  = orifice_mdot(P_up, P_dn, T_amb, R, Cd, A, gamma)
     return P_ambient >= P_chamber ? mdot : -mdot
 end
 
@@ -71,13 +75,13 @@ Isothermal gas-spring dashpot: two chambers vented to atmosphere through orifice
 Mirrors the Python `pneumatic_dashpot_dynamics` function.
 """
 function pneumatic_dashpot_dynamics!(
-    dx  :: Vector{Float64},
-    x   :: Vector{Float64},
+    dx  :: AbstractVector{T},
+    x   :: AbstractVector{S},
     p   :: Vector{Float64},
-    t   :: Float64,
+    t   :: Real,
     spec:: CompiledSpec,
     sys :: CompiledSystemSpec,
-)
+) where {T <: Real, S <: Real}
     gs = sys.group_size  # = 1 for single-entity systems
     for i in 1:gs:length(sys.entity_ids)
         eid = sys.entity_ids[i]
@@ -108,7 +112,7 @@ function pneumatic_dashpot_dynamics!(
         bore    = p[i_bore];   hs     = p[i_hstroke]; clr = p[i_clr]
         A_o     = p[i_ao];     Cd     = p[i_cd]
         mass    = p[i_mass];   fric   = p[i_fric]; kstop = p[i_kstop]
-        P_amb   = p[i_pamb];   T      = p[i_temp]
+        P_amb   = p[i_pamb];   T_gas  = p[i_temp]
         R       = p[i_R];      gamma  = p[i_gamma]
 
         # ── Volumes ───────────────────────────────────────────────────────
@@ -118,12 +122,12 @@ function pneumatic_dashpot_dynamics!(
         dV_R = -bore * vel
 
         # ── Orifice flows ─────────────────────────────────────────────────
-        mdot_L = signed_orifice_flow(P_L, P_amb, T, R, gamma, Cd, A_o)
-        mdot_R = signed_orifice_flow(P_R, P_amb, T, R, gamma, Cd, A_o)
+        mdot_L = signed_orifice_flow(P_L, P_amb, T_gas, R, gamma, Cd, A_o)
+        mdot_R = signed_orifice_flow(P_R, P_amb, T_gas, R, gamma, Cd, A_o)
 
         # ── Pressure ODEs (isothermal) ────────────────────────────────────
-        dx[i_pl] += (R * T / V_L) * mdot_L - (P_L / V_L) * dV_L
-        dx[i_pr] += (R * T / V_R) * mdot_R - (P_R / V_R) * dV_R
+        dx[i_pl] += (R * T_gas / V_L) * mdot_L - (P_L / V_L) * dV_L
+        dx[i_pr] += (R * T_gas / V_R) * mdot_R - (P_R / V_R) * dV_R
 
         # ── Piston equation of motion ─────────────────────────────────────
         F_pneu   = (P_L - P_R) * bore

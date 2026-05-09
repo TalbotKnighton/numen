@@ -30,7 +30,7 @@ function solve(payload_json::String; n_save_points::Int = 0, dtsave::Float64 = 0
     end
 
     prob   = ODEProblem(ode_fn, copy(spec.x0), tspan, copy(spec.p))
-    solver = _build_solver(method)
+    solver = getfield(OrdinaryDiffEq, Symbol(method))()
 
     # saveat controls output density.  Options (mutually exclusive):
     #   n_save_points > 0  →  N uniformly-spaced points via linspace
@@ -105,32 +105,4 @@ function build_tstops(discrete_dts::Vector{Float64}, tspan::Tuple{Float64, Float
         end
     end
     sort!(unique!(times))
-end
-
-# ---------------------------------------------------------------------------
-# Solver construction
-# ---------------------------------------------------------------------------
-
-# Rosenbrock / stiff-Rosenbrock methods use ForwardDiff to compute Jacobians
-# by default, which requires calling the ODE function with Dual-number arrays.
-# Numen dynamics functions have concrete Vector{Float64} type annotations that
-# prevent this.  These methods must be constructed with AutoFiniteDiff() so
-# that OrdinaryDiffEq falls back to finite-difference Jacobians instead.
-#
-# Performance note (from SciML docs): "turning off automatic differentiation
-# tends to have a very minimal performance impact for this use case" — the
-# Jacobian is square and computed once per step, so finite-diff overhead is
-# negligible compared with the solve itself.
-const _ROSENBROCK_METHODS = Set([
-    "Rodas3",    "Rodas3P",
-    "Rodas4",    "Rodas4P",    "Rodas42",
-    "Rodas5",    "Rodas5P",    "Rodas5Pr",
-    "Rosenbrock23", "Rosenbrock32",
-    "ROS3P",     "RosenbrockW6S4OS",
-])
-
-function _build_solver(method::String)
-    T = getfield(OrdinaryDiffEq, Symbol(method))
-    method in _ROSENBROCK_METHODS && return T(autodiff = AutoFiniteDiff())
-    return T()
 end

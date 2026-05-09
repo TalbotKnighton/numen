@@ -11,13 +11,13 @@ Mirrors the Python ``nl_oscillator_dynamics`` function.
 c0 is the linear damping baseline; c1 scales damping with displacement squared.
 """
 function nl_oscillator_dynamics!(
-    dx  :: Vector{Float64},
-    x   :: Vector{Float64},
+    dx  :: AbstractVector{T},
+    x   :: AbstractVector{S},
     p   :: Vector{Float64},
-    t   :: Float64,
+    t   :: Real,
     spec:: CompiledSpec,
     sys :: CompiledSystemSpec,
-)
+) where {T <: Real, S <: Real}
     gs = sys.group_size   # = 1 for single-entity systems
     for i in 1:gs:length(sys.entity_ids)
         eid = sys.entity_ids[i]
