@@ -3,6 +3,7 @@ module Numen
 using JSON3
 using LinearAlgebra
 using OrdinaryDiffEq
+using ADTypes: AutoFiniteDiff
 
 include("types.jl")
 include("solver.jl")

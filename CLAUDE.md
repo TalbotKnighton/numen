@@ -296,6 +296,21 @@ All Julia backends and ScipyBackend accept these kwargs (also available in YAML 
 Rule of thumb: `dtmax = dtsave = 1 / (10 × f_max)` for 10 samples per period of the
 highest-frequency content you care about.
 
+### Stiff solvers (Rodas5P, Rodas4, Rosenbrock23, …)
+
+Rosenbrock-type stiff solvers use ForwardDiff by default to compute Jacobians.
+This requires passing Dual-number arrays through the ODE function, which fails if
+your Julia dynamics functions have concrete `Vector{Float64}` type annotations
+(the Numen convention).
+
+**The framework handles this automatically**: `solver.jl` constructs all Rosenbrock
+methods with `autodiff = AutoFiniteDiff()`, which uses finite differences for the
+Jacobian instead. Per the OrdinaryDiffEq docs, this has **minimal performance impact**
+for the square-Jacobian scenario of a characterization solve.
+
+You do NOT need to make your dynamics functions ForwardDiff-compatible. Keep the
+concrete `Vector{Float64}` annotations — they are correct and efficient.
+
 ---
 
 ## Backend feature compatibility
@@ -428,8 +443,11 @@ src/numen/
 examples/
 ├── oscillator/            Minimal: single 1D harmonic oscillator
 ├── coupled_spring/        Multi-entity: 3-mass spring chain
-└── fluid_poppet/          Full: 4-CV pneumatic network + spring-mass poppet
-                           ← Best reference for new models
+├── fluid_poppet/          Full: 4-CV pneumatic network + spring-mass poppet
+│                          ← Best reference for complex multi-system models
+├── nonlinear_oscillator/  Characterization campaign reference (FRF, chirp, parameter sweep)
+└── pneumatic_dashpot/     Piston with orifice vents — stiff ODE, Rodas5P, orifice sweep
+                           ← Best reference for stiff systems + parameter sweeps
 ```
 
 ---

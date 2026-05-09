@@ -1,0 +1,140 @@
+module PneumaticDashpotDynamics
+
+import Main: CompiledSpec, CompiledSystemSpec, state_idx, param_idx
+
+# ---------------------------------------------------------------------------
+# Smooth contact helper
+# ---------------------------------------------------------------------------
+
+const STOP_DELTA = 1e-6  # 1 µm C1 ramp (matches Python _STOP_DELTA)
+
+function soft_pen(x::Float64)::Float64
+    x <= 0.0 && return 0.0
+    x >= STOP_DELTA && return x - 0.5 * STOP_DELTA
+    return 0.5 * x * x / STOP_DELTA
+end
+
+# ---------------------------------------------------------------------------
+# Orifice mass-flow helpers
+# ---------------------------------------------------------------------------
+
+"""
+    orifice_mdot(P_up, P_dn, T_up, R, Cd, A, gamma) -> Float64
+
+Isentropic compressible mass flow (kg/s, always ≥ 0).
+Switches between choked and unchoked branches at β_crit = (2/(γ+1))^(γ/(γ-1)).
+"""
+function orifice_mdot(
+    P_up  :: Float64, P_dn  :: Float64, T_up  :: Float64,
+    R     :: Float64, Cd    :: Float64, A     :: Float64, gamma :: Float64,
+) :: Float64
+    (P_up <= 0.0 || A <= 0.0) && return 0.0
+
+    beta      = max(0.0, P_dn) / P_up
+    beta_crit = (2.0 / (gamma + 1.0))^(gamma / (gamma - 1.0))
+
+    if beta <= beta_crit
+        choke_exp = (gamma + 1.0) / (2.0 * (gamma - 1.0))
+        return Cd * A * P_up * sqrt(gamma / (R * T_up)) * (2.0 / (gamma + 1.0))^choke_exp
+    else
+        arg = beta^(2.0 / gamma) - beta^((gamma + 1.0) / gamma)
+        return Cd * A * P_up * sqrt(max(0.0, 2.0 * gamma / ((gamma - 1.0) * R * T_up) * arg))
+    end
+end
+
+"""
+    signed_orifice_flow(P_chamber, P_ambient, T, R, gamma, Cd, A) -> Float64
+
+Signed mass flow into the chamber (kg/s).
+  Positive: atmosphere → chamber (P_ambient > P_chamber)
+  Negative: chamber → atmosphere (P_chamber > P_ambient)
+"""
+function signed_orifice_flow(
+    P_chamber :: Float64, P_ambient :: Float64,
+    T         :: Float64, R         :: Float64,
+    gamma     :: Float64, Cd        :: Float64, A :: Float64,
+) :: Float64
+    P_up  = max(P_ambient, P_chamber)
+    P_dn  = min(P_ambient, P_chamber)
+    mdot  = orifice_mdot(P_up, P_dn, T, R, Cd, A, gamma)
+    return P_ambient >= P_chamber ? mdot : -mdot
+end
+
+# ---------------------------------------------------------------------------
+# Dynamics
+# ---------------------------------------------------------------------------
+
+"""
+    pneumatic_dashpot_dynamics!(dx, x, p, t, spec, sys)
+
+Isothermal gas-spring dashpot: two chambers vented to atmosphere through orifices.
+Mirrors the Python `pneumatic_dashpot_dynamics` function.
+"""
+function pneumatic_dashpot_dynamics!(
+    dx  :: Vector{Float64},
+    x   :: Vector{Float64},
+    p   :: Vector{Float64},
+    t   :: Float64,
+    spec:: CompiledSpec,
+    sys :: CompiledSystemSpec,
+)
+    gs = sys.group_size  # = 1 for single-entity systems
+    for i in 1:gs:length(sys.entity_ids)
+        eid = sys.entity_ids[i]
+
+        # ── Index lookups ─────────────────────────────────────────────────
+        i_pos     = state_idx(spec, eid * ".position")
+        i_vel     = state_idx(spec, eid * ".velocity")
+        i_pl      = state_idx(spec, eid * ".p_left")
+        i_pr      = state_idx(spec, eid * ".p_right")
+
+        i_bore    = param_idx(spec, eid * ".bore_area")
+        i_hstroke = param_idx(spec, eid * ".half_stroke")
+        i_clr     = param_idx(spec, eid * ".clearance")
+        i_ao      = param_idx(spec, eid * ".orifice_area")
+        i_cd      = param_idx(spec, eid * ".cd")
+        i_mass    = param_idx(spec, eid * ".mass")
+        i_fric    = param_idx(spec, eid * ".friction")
+        i_kstop   = param_idx(spec, eid * ".k_stop")
+        i_pamb    = param_idx(spec, eid * ".p_ambient")
+        i_temp    = param_idx(spec, eid * ".temp")
+        i_R       = param_idx(spec, eid * ".R_gas")
+        i_gamma   = param_idx(spec, eid * ".gamma")
+
+        # ── State & params ────────────────────────────────────────────────
+        pos     = x[i_pos];    vel    = x[i_vel]
+        P_L     = x[i_pl];     P_R    = x[i_pr]
+
+        bore    = p[i_bore];   hs     = p[i_hstroke]; clr = p[i_clr]
+        A_o     = p[i_ao];     Cd     = p[i_cd]
+        mass    = p[i_mass];   fric   = p[i_fric]; kstop = p[i_kstop]
+        P_amb   = p[i_pamb];   T      = p[i_temp]
+        R       = p[i_R];      gamma  = p[i_gamma]
+
+        # ── Volumes ───────────────────────────────────────────────────────
+        V_L = max(bore * (hs + pos + clr), 1e-12)
+        V_R = max(bore * (hs - pos + clr), 1e-12)
+        dV_L = bore * vel     # expands when piston moves right
+        dV_R = -bore * vel
+
+        # ── Orifice flows ─────────────────────────────────────────────────
+        mdot_L = signed_orifice_flow(P_L, P_amb, T, R, gamma, Cd, A_o)
+        mdot_R = signed_orifice_flow(P_R, P_amb, T, R, gamma, Cd, A_o)
+
+        # ── Pressure ODEs (isothermal) ────────────────────────────────────
+        dx[i_pl] += (R * T / V_L) * mdot_L - (P_L / V_L) * dV_L
+        dx[i_pr] += (R * T / V_R) * mdot_R - (P_R / V_R) * dV_R
+
+        # ── Piston equation of motion ─────────────────────────────────────
+        F_pneu   = (P_L - P_R) * bore
+        F_fric   = -fric * vel
+        pen_left  = -(pos + hs)   # > 0 when penetrating left stop
+        pen_right = pos - hs      # > 0 when penetrating right stop
+        F_stop    = kstop * (soft_pen(pen_left) - soft_pen(pen_right))
+
+        dx[i_pos] += vel
+        dx[i_vel] += (F_pneu + F_fric + F_stop) / mass
+    end
+end
+
+end  # module PneumaticDashpotDynamics

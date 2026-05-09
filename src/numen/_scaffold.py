@@ -23,6 +23,11 @@ EXAMPLES: dict[str, dict] = {
         "concepts":    ["ExcitationPort", "characterization", "FRF", "amplitude sweep", "chirp"],
         "domain":      "mechanical",
     },
+    "pneumatic_dashpot": {
+        "description": "Piston in a sealed cylinder with orifice vents — frequency-dependent pneumatic damping.",
+        "concepts":    ["orifice flow", "gas-spring", "stiff ODE", "parameter sweep", "Rodas5P"],
+        "domain":      "fluid/mechanical",
+    },
 }
 
 
