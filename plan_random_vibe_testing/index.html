@@ -1686,6 +1686,25 @@ generated signal is in m/s² (after ×9.80665), which is the SI unit expected by
 the dynamics function. <code>units: m_s2</code> means the spec and signal are both in SI
 units throughout.</p>
 <hr />
+<h2 id="10b-gating-composition-by-multiplication-shipped">10b. Gating (composition by multiplication) — shipped</h2>
+<p><code>StochasticExcitationSpec</code> accepts an optional <code>gate:</code> block.  The gate is
+built on the Python side as an array of values in <code>[0, 1]</code> and multiplied
+element-wise into the pre-computed signal before <code>inject_table_excitation</code> is
+called — no Julia or scipy runtime change.</p>
+<p>Two gate types are supported:</p>
+<ul>
+<li><code>intervals</code> — explicit list of ON windows <code>[(t_on, t_off), …]</code></li>
+<li><code>square</code>    — periodic duty cycle (<code>period</code>, <code>duty</code>, <code>phase</code>)</li>
+</ul>
+<p>Both honour <code>ramp_s</code> for a half-cosine taper at each ON/OFF edge.  This is the
+minimum-viable "compose excitations by multiplication" feature; the random
+vibe → gate path proves out the pattern.  General composition (multiply two
+arbitrary excitations, AM modulation, envelope filters) is deferred until the
+second concrete use case shows up.</p>
+<p>Code: <code>signal_gen.build_gate_signal</code>; applied in
+<code>tests/stochastic_excitation.run_stochastic_excitation</code> immediately after
+<code>_build_signal</code>.</p>
+<hr />
 <h2 id="11-implementation-phases">11. Implementation phases</h2>
 <h3 id="phase-1-implement-now">Phase 1 (implement now)</h3>
 <ul>
