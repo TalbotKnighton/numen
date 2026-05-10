@@ -71,17 +71,17 @@ function orifice_flow_dynamics!(
     t  :: Real, spec :: CompiledSpec, sys :: CompiledSystemSpec,
 ) where {T <: Real, S <: Real}
     for (id_a, id_o, id_b) in groups(sys)
-        P_a  = x[state_idx(spec, id_a * ".control_volume.pressure")]
-        P_b  = x[state_idx(spec, id_b * ".control_volume.pressure")]
-        T_a  = p[param_idx(spec, id_a * ".control_volume.temperature")]
-        T_b  = p[param_idx(spec, id_b * ".control_volume.temperature")]
-        R_a  = p[param_idx(spec, id_a * ".control_volume.R_specific")]
-        R_b  = p[param_idx(spec, id_b * ".control_volume.R_specific")]
-        V_a  = p[param_idx(spec, id_a * ".control_volume.volume")]
-        V_b  = p[param_idx(spec, id_b * ".control_volume.volume")]
-        Cd   = p[param_idx(spec, id_o * ".orifice.Cd")]
-        A    = p[param_idx(spec, id_o * ".orifice.area")]
-        gam  = p[param_idx(spec, id_o * ".orifice.gamma")]
+        P_a  = x[state_idx(spec, "$id_a.control_volume.pressure")]
+        P_b  = x[state_idx(spec, "$id_b.control_volume.pressure")]
+        T_a  = p[param_idx(spec, "$id_a.control_volume.temperature")]
+        T_b  = p[param_idx(spec, "$id_b.control_volume.temperature")]
+        R_a  = p[param_idx(spec, "$id_a.control_volume.R_specific")]
+        R_b  = p[param_idx(spec, "$id_b.control_volume.R_specific")]
+        V_a  = p[param_idx(spec, "$id_a.control_volume.volume")]
+        V_b  = p[param_idx(spec, "$id_b.control_volume.volume")]
+        Cd   = p[param_idx(spec, "$id_o.orifice.Cd")]
+        A    = p[param_idx(spec, "$id_o.orifice.area")]
+        gam  = p[param_idx(spec, "$id_o.orifice.gamma")]
 
         if P_a >= P_b
             mdot = orifice_mdot(P_a, P_b, T_a, R_a, Cd, A, gam)
@@ -89,8 +89,8 @@ function orifice_flow_dynamics!(
             mdot = -orifice_mdot(P_b, P_a, T_b, R_b, Cd, A, gam)
         end
 
-        i_Pa = state_idx(spec, id_a * ".control_volume.pressure")
-        i_Pb = state_idx(spec, id_b * ".control_volume.pressure")
+        i_Pa = state_idx(spec, "$id_a.control_volume.pressure")
+        i_Pb = state_idx(spec, "$id_b.control_volume.pressure")
         dx[i_Pa] += -(R_a * T_a / V_a) * mdot
         dx[i_Pb] +=  (R_b * T_b / V_b) * mdot
     end
@@ -113,24 +113,24 @@ function poppet_flow_dynamics!(
     t  :: Real, spec :: CompiledSpec, sys :: CompiledSystemSpec,
 ) where {T <: Real, S <: Real}
     for (id_a, id_p, id_b) in groups(sys)
-        pos           = x[state_idx(spec, id_p * ".poppet.position")]
-        max_travel    = p[param_idx(spec, id_p * ".poppet.max_travel")]
-        max_flow_area = p[param_idx(spec, id_p * ".poppet.max_flow_area")]
-        Cd            = p[param_idx(spec, id_p * ".poppet.Cd")]
-        gam           = p[param_idx(spec, id_p * ".poppet.gamma")]
+        pos           = x[state_idx(spec, "$id_p.poppet.position")]
+        max_travel    = p[param_idx(spec, "$id_p.poppet.max_travel")]
+        max_flow_area = p[param_idx(spec, "$id_p.poppet.max_flow_area")]
+        Cd            = p[param_idx(spec, "$id_p.poppet.Cd")]
+        gam           = p[param_idx(spec, "$id_p.poppet.gamma")]
 
         opening = clamp(pos / max_travel, zero(S), one(S))
         A       = max_flow_area * opening
         A <= 0.0 && continue
 
-        P_a = x[state_idx(spec, id_a * ".control_volume.pressure")]
-        P_b = x[state_idx(spec, id_b * ".control_volume.pressure")]
-        T_a = p[param_idx(spec, id_a * ".control_volume.temperature")]
-        T_b = p[param_idx(spec, id_b * ".control_volume.temperature")]
-        R_a = p[param_idx(spec, id_a * ".control_volume.R_specific")]
-        R_b = p[param_idx(spec, id_b * ".control_volume.R_specific")]
-        V_a = p[param_idx(spec, id_a * ".control_volume.volume")]
-        V_b = p[param_idx(spec, id_b * ".control_volume.volume")]
+        P_a = x[state_idx(spec, "$id_a.control_volume.pressure")]
+        P_b = x[state_idx(spec, "$id_b.control_volume.pressure")]
+        T_a = p[param_idx(spec, "$id_a.control_volume.temperature")]
+        T_b = p[param_idx(spec, "$id_b.control_volume.temperature")]
+        R_a = p[param_idx(spec, "$id_a.control_volume.R_specific")]
+        R_b = p[param_idx(spec, "$id_b.control_volume.R_specific")]
+        V_a = p[param_idx(spec, "$id_a.control_volume.volume")]
+        V_b = p[param_idx(spec, "$id_b.control_volume.volume")]
 
         # A is S here (derived from poppet position); orifice_mdot accepts A::Real
         if P_a >= P_b
@@ -139,8 +139,8 @@ function poppet_flow_dynamics!(
             mdot = -orifice_mdot(P_b, P_a, T_b, R_b, Cd, A, gam)
         end
 
-        i_Pa = state_idx(spec, id_a * ".control_volume.pressure")
-        i_Pb = state_idx(spec, id_b * ".control_volume.pressure")
+        i_Pa = state_idx(spec, "$id_a.control_volume.pressure")
+        i_Pb = state_idx(spec, "$id_b.control_volume.pressure")
         dx[i_Pa] += -(R_a * T_a / V_a) * mdot
         dx[i_Pb] +=  (R_b * T_b / V_b) * mdot
     end
@@ -161,8 +161,8 @@ function poppet_kinematics_dynamics!(
     t  :: Real, spec :: CompiledSpec, sys :: CompiledSystemSpec,
 ) where {T <: Real, S <: Real}
     for (id_p,) in groups(sys)
-        i_pos = state_idx(spec, id_p * ".poppet.position")
-        i_vel = state_idx(spec, id_p * ".poppet.velocity")
+        i_pos = state_idx(spec, "$id_p.poppet.position")
+        i_vel = state_idx(spec, "$id_p.poppet.velocity")
         dx[i_pos] += x[i_vel]
     end
 end
@@ -189,18 +189,18 @@ function poppet_mechanics_dynamics!(
     t  :: Real, spec :: CompiledSpec, sys :: CompiledSystemSpec,
 ) where {T <: Real, S <: Real}
     for (id_inlet, id_p, id_outlet) in groups(sys)
-        pos     = x[state_idx(spec, id_p     * ".poppet.position")]
-        vel     = x[state_idx(spec, id_p     * ".poppet.velocity")]
-        P_in    = x[state_idx(spec, id_inlet  * ".control_volume.pressure")]
-        P_out   = x[state_idx(spec, id_outlet * ".control_volume.pressure")]
+        pos     = x[state_idx(spec, "$id_p.poppet.position")]
+        vel     = x[state_idx(spec, "$id_p.poppet.velocity")]
+        P_in    = x[state_idx(spec, "$id_inlet.control_volume.pressure")]
+        P_out   = x[state_idx(spec, "$id_outlet.control_volume.pressure")]
 
-        mass           = p[param_idx(spec, id_p * ".poppet.mass")]
-        spring_k       = p[param_idx(spec, id_p * ".poppet.spring_k")]
-        spring_preload = p[param_idx(spec, id_p * ".poppet.spring_preload")]
-        seat_area      = p[param_idx(spec, id_p * ".poppet.seat_area")]
-        max_travel     = p[param_idx(spec, id_p * ".poppet.max_travel")]
-        k_stop         = p[param_idx(spec, id_p * ".poppet.stop_stiffness")]
-        c_stop         = p[param_idx(spec, id_p * ".poppet.stop_damping")]
+        mass           = p[param_idx(spec, "$id_p.poppet.mass")]
+        spring_k       = p[param_idx(spec, "$id_p.poppet.spring_k")]
+        spring_preload = p[param_idx(spec, "$id_p.poppet.spring_preload")]
+        seat_area      = p[param_idx(spec, "$id_p.poppet.seat_area")]
+        max_travel     = p[param_idx(spec, "$id_p.poppet.max_travel")]
+        k_stop         = p[param_idx(spec, "$id_p.poppet.stop_stiffness")]
+        c_stop         = p[param_idx(spec, "$id_p.poppet.stop_damping")]
 
         F_pressure = (P_in - P_out) * seat_area
         F_spring   = -(spring_k * pos + spring_preload)
@@ -214,7 +214,7 @@ function poppet_mechanics_dynamics!(
         F_stop = (k_stop * pen_close + c_stop * v_damp_close
                  - k_stop * pen_open  - c_stop * v_damp_open)
 
-        i_vel = state_idx(spec, id_p * ".poppet.velocity")
+        i_vel = state_idx(spec, "$id_p.poppet.velocity")
         dx[i_vel] += (F_pressure + F_spring + F_stop) / mass
     end
 end

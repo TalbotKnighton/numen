@@ -73,13 +73,13 @@ in dynamics functions:
 
     # group_size = 1 — single entity per group
     for (eid,) in groups(sys)
-        i_pos = state_idx(spec, eid * ".oscillator.position")
+        i_pos = state_idx(spec, "\$eid.oscillator.position")
         ...
     end
 
     # group_size = 3 — coupled triplet [a, middle, b]
     for (cv_a, orifice, cv_b) in groups(sys)
-        i_Pa = state_idx(spec, cv_a * ".control_volume.pressure")
+        i_Pa = state_idx(spec, "\$cv_a.control_volume.pressure")
         ...
     end
 

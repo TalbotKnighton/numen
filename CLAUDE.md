@@ -89,7 +89,7 @@ class VibeComponent(Component):
 ```
 
 - In dynamics: `spec.view(eid, VibeComponent, x, p).frequencies` returns a numpy/JAX slice.
-- In Julia: `p[param_idx(spec, id * ".vibe.frequencies") : param_idx(spec, id * ".vibe.frequencies") + 7]`
+- In Julia: `p[param_idx(spec, "$id.vibe.frequencies") : param_idx(spec, "$id.vibe.frequencies") + 7]`
   or use `param_slice` helper (returns a `UnitRange{Int}`).
 - Size is inferred at `compile_spec()` time from the field annotation — no need to
   specify it twice; just make sure the default value has the right length.
@@ -393,8 +393,8 @@ function gravity_dynamics!(
     t  :: Real, spec :: CompiledSpec, sys :: CompiledSystemSpec,
 ) where {T <: Real, S <: Real}
     for (id_ball,) in groups(sys)
-        i_pos = state_idx(spec, id_ball * ".ball.position")
-        i_vel = state_idx(spec, id_ball * ".ball.velocity")
+        i_pos = state_idx(spec, "$id_ball.ball.position")
+        i_vel = state_idx(spec, "$id_ball.ball.velocity")
         dx[i_pos] += x[i_vel]
         dx[i_vel] += -9.81
     end

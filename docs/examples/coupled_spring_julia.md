@@ -34,8 +34,8 @@ function mass_kinematics_dynamics!(
     sys :: CompiledSystemSpec,
 ) where {T <: Real, S <: Real}
     for (eid,) in groups(sys)
-        pos_idx = state_idx(spec, eid * ".mass.position")
-        vel_idx = state_idx(spec, eid * ".mass.velocity")
+        pos_idx = state_idx(spec, "$eid.mass.position")
+        vel_idx = state_idx(spec, "$eid.mass.velocity")
         dx[pos_idx] += x[vel_idx]
     end
 end
@@ -60,14 +60,14 @@ function spring_force_dynamics!(
     sys :: CompiledSystemSpec,
 ) where {T <: Real, S <: Real}
     for (id_a, id_s, id_b) in groups(sys)
-        pos_a    = state_idx(spec, id_a * ".mass.position")
-        pos_b    = state_idx(spec, id_b * ".mass.position")
-        vel_a    = state_idx(spec, id_a * ".mass.velocity")
-        vel_b    = state_idx(spec, id_b * ".mass.velocity")
-        mass_a   = param_idx(spec, id_a * ".mass.mass")
-        mass_b   = param_idx(spec, id_b * ".mass.mass")
-        k_idx    = param_idx(spec, id_s * ".spring.k")
-        rest_idx = param_idx(spec, id_s * ".spring.rest_length")
+        pos_a    = state_idx(spec, "$id_a.mass.position")
+        pos_b    = state_idx(spec, "$id_b.mass.position")
+        vel_a    = state_idx(spec, "$id_a.mass.velocity")
+        vel_b    = state_idx(spec, "$id_b.mass.velocity")
+        mass_a   = param_idx(spec, "$id_a.mass.mass")
+        mass_b   = param_idx(spec, "$id_b.mass.mass")
+        k_idx    = param_idx(spec, "$id_s.spring.k")
+        rest_idx = param_idx(spec, "$id_s.spring.rest_length")
 
         stretch = (x[pos_b] - x[pos_a]) - p[rest_idx]
         force   = p[k_idx] * stretch

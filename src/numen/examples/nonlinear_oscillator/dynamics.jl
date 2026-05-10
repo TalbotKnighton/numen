@@ -21,11 +21,11 @@ function nl_oscillator_dynamics!(
     sys :: CompiledSystemSpec,
 ) where {T <: Real, S <: Real}
     for (eid,) in groups(sys)
-        pos_idx   = state_idx(spec, eid * ".nl_oscillator.position")
-        vel_idx   = state_idx(spec, eid * ".nl_oscillator.velocity")
-        omega_idx = param_idx(spec, eid * ".nl_oscillator.omega")
-        c0_idx    = param_idx(spec, eid * ".nl_oscillator.c0")
-        c1_idx    = param_idx(spec, eid * ".nl_oscillator.c1")
+        pos_idx   = state_idx(spec, "$eid.nl_oscillator.position")
+        vel_idx   = state_idx(spec, "$eid.nl_oscillator.velocity")
+        omega_idx = param_idx(spec, "$eid.nl_oscillator.omega")
+        c0_idx    = param_idx(spec, "$eid.nl_oscillator.c0")
+        c1_idx    = param_idx(spec, "$eid.nl_oscillator.c1")
 
         pos   = x[pos_idx]
         vel   = x[vel_idx]

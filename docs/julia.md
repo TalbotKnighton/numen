@@ -67,8 +67,8 @@ function gravity_dynamics!(
     t  :: Real, spec :: CompiledSpec, sys :: CompiledSystemSpec,
 ) where {T <: Real, S <: Real}
     for (eid,) in groups(sys)
-        i_pos = state_idx(spec, eid * ".ball.position")
-        i_vel = state_idx(spec, eid * ".ball.velocity")
+        i_pos = state_idx(spec, "$eid.ball.position")
+        i_vel = state_idx(spec, "$eid.ball.velocity")
         dx[i_pos] += x[i_vel]
         dx[i_vel] += -9.81
     end
@@ -115,15 +115,15 @@ the entities in each group:
 ```julia
 # group_size = 1 — one entity per group
 for (eid,) in groups(sys)
-    i_pos = state_idx(spec, eid * ".oscillator.position")
+    i_pos = state_idx(spec, "$eid.oscillator.position")
     # ...
 end
 
 # group_size = 3 — coupled triplet [cv_a, orifice, cv_b]
 for (cv_a, orifice, cv_b) in groups(sys)
-    P_a = x[state_idx(spec, cv_a * ".control_volume.pressure")]
-    A   = p[param_idx(spec, orifice * ".orifice.area")]
-    P_b = x[state_idx(spec, cv_b * ".control_volume.pressure")]
+    P_a = x[state_idx(spec, "$cv_a.control_volume.pressure")]
+    A   = p[param_idx(spec, "$orifice.orifice.area")]
+    P_b = x[state_idx(spec, "$cv_b.control_volume.pressure")]
     # ...
 end
 ```
