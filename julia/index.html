@@ -1266,13 +1266,52 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#helpers-available-in-dynamics-files" class="md-nav__link">
+  <a href="#two-api-levels" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Helpers available in dynamics files
+        Two API levels
       
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="Two API levels">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#high-level-default-readable" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        High-level (default — readable)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#low-level-performance-tuned" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Low-level (performance-tuned)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#performance-trade-off" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Performance trade-off
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -1454,17 +1493,17 @@ the file once, then resolves function names from <code>dynamics_fn</code> string
 <code>"MyModule.my_fn!"</code>:</p>
 <pre><code class="language-julia"># dynamics.jl
 module MyDynamics
-import Main: CompiledSpec, CompiledSystemSpec, state_idx, param_idx, groups
+import Main: CompiledSpec, CompiledSystemSpec, groups,
+             get_state, get_param, add_deriv!
 
 function gravity_dynamics!(
     dx :: AbstractVector{T}, x :: AbstractVector{S}, p :: Vector{Float64},
     t  :: Real, spec :: CompiledSpec, sys :: CompiledSystemSpec,
 ) where {T &lt;: Real, S &lt;: Real}
     for (eid,) in groups(sys)
-        i_pos = state_idx(spec, &quot;$eid.ball.position&quot;)
-        i_vel = state_idx(spec, &quot;$eid.ball.velocity&quot;)
-        dx[i_pos] += x[i_vel]
-        dx[i_vel] += -9.81
+        vel = get_state(spec, x, eid, &quot;ball.velocity&quot;)
+        add_deriv!(spec, dx, eid, &quot;ball.position&quot;, vel)
+        add_deriv!(spec, dx, eid, &quot;ball.velocity&quot;, -9.81)
     end
 end
 
@@ -1472,75 +1511,123 @@ end  # module MyDynamics
 </code></pre>
 <p>In Python, set <code>dynamics_fn = "MyDynamics.gravity_dynamics!"</code> on the <code>System</code>.</p>
 <hr />
-<h2 id="helpers-available-in-dynamics-files">Helpers available in dynamics files</h2>
-<p>These five functions are always available via <code>import Main: ...</code>:</p>
+<h2 id="two-api-levels">Two API levels</h2>
+<p>Numen provides two layers of helpers. Pick one based on the situation.</p>
+<h3 id="high-level-default-readable">High-level (default — readable)</h3>
+<p>These take the entity ID and a <code>"kind.field"</code> path; they read like Python's
+<code>spec.view(eid, ComponentType, x, p).field</code>.</p>
 <table>
 <thead>
 <tr>
 <th>Function</th>
-<th>Returns</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>get_state(spec, x, eid, "kind.field")</code></td>
+<td>Read a scalar state value</td>
+</tr>
+<tr>
+<td><code>get_param(spec, p, eid, "kind.field")</code></td>
+<td>Read a scalar parameter</td>
+</tr>
+<tr>
+<td><code>get_state_vec(spec, x, eid, "kind.field")</code></td>
+<td>Read a vector state field as a <code>SubArray</code></td>
+</tr>
+<tr>
+<td><code>get_param_vec(spec, p, eid, "kind.field")</code></td>
+<td>Read a vector parameter field</td>
+</tr>
+<tr>
+<td><code>add_deriv!(spec, dx, eid, "kind.field", value)</code></td>
+<td>Accumulate <code>value</code> into <code>dx</code></td>
+</tr>
+<tr>
+<td><code>groups(sys)</code></td>
+<td>Iterate entity groups for tuple destructuring</td>
+</tr>
+</tbody>
+</table>
+<pre><code class="language-julia"># group_size = 3 — coupled triplet [cv_a, orifice, cv_b]
+for (cv_a, orifice, cv_b) in groups(sys)
+    P_a = get_state(spec, x, cv_a,    &quot;control_volume.pressure&quot;)
+    A   = get_param(spec, p, orifice, &quot;orifice.area&quot;)
+    P_b = get_state(spec, x, cv_b,    &quot;control_volume.pressure&quot;)
+    # ...
+    add_deriv!(spec, dx, cv_a, &quot;control_volume.pressure&quot;, -(R_a*T_a/V_a) * mdot)
+end
+</code></pre>
+<h3 id="low-level-performance-tuned">Low-level (performance-tuned)</h3>
+<p>When you need to minimise dictionary lookups inside a hot inner loop, drop down
+to the raw index helpers and cache the index for reuse:</p>
+<table>
+<thead>
+<tr>
+<th>Function</th>
 <th>Description</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td><code>state_idx(spec, key)</code></td>
-<td><code>Int</code> (1-based)</td>
-<td>First Julia index for a state field</td>
+<td>First 1-based Julia index for a state field</td>
 </tr>
 <tr>
 <td><code>param_idx(spec, key)</code></td>
-<td><code>Int</code> (1-based)</td>
-<td>First Julia index for a parameter field</td>
+<td>First 1-based Julia index for a parameter field</td>
 </tr>
 <tr>
 <td><code>state_range(spec, key)</code></td>
-<td><code>UnitRange{Int}</code></td>
-<td>Full slice for vector state fields (<code>size=N</code>)</td>
+<td><code>UnitRange{Int}</code> — full slice for vector fields (<code>size=N</code>)</td>
 </tr>
 <tr>
 <td><code>param_range(spec, key)</code></td>
-<td><code>UnitRange{Int}</code></td>
-<td>Full slice for vector parameter fields</td>
-</tr>
-<tr>
-<td><code>groups(sys)</code></td>
-<td>iterator</td>
-<td>Yields entity-id groups for destructuring</td>
+<td><code>UnitRange{Int}</code> — full slice for vector parameter fields</td>
 </tr>
 </tbody>
 </table>
-<p>Keys use the full path <code>"entity_id.component_kind.field_name"</code>, matching Python's <code>spec.state_index_map</code>.</p>
-<pre><code class="language-julia"># Scalar field
-i_pos = state_idx(spec, &quot;osc.oscillator.position&quot;)
-
-# Vector field (size=8)
-r = state_range(spec, &quot;node.beam.displacement&quot;)   # UnitRange 1:8
-x[r]                                               # 8-element view
+<p>Keys use the full path <code>"entity_id.component_kind.field_name"</code>.</p>
+<pre><code class="language-julia">i_pos = state_idx(spec, &quot;$eid.oscillator.position&quot;)
+i_vel = state_idx(spec, &quot;$eid.oscillator.velocity&quot;)
+pos = x[i_pos];  vel = x[i_vel]
+dx[i_pos] += vel
+dx[i_vel] += -omega^2 * pos - 2 * damping * omega * vel
 </code></pre>
+<h3 id="performance-trade-off">Performance trade-off</h3>
+<p>The high-level helpers do a <code>Dict{String, ...}</code> lookup on every call. Caching
+the index (low-level form) and reusing it for read+write is roughly 2× faster
+per state field per RHS call.</p>
+<p><strong>Default to the high-level helpers</strong> — the cost is microseconds and is dwarfed
+by ODE solver work on any realistic problem. Drop to the low-level form only
+when:</p>
+<ol>
+<li>You're solving a stiff problem (Rodas5P, Rosenbrock23, FBDF) where Jacobian
+   evaluation calls dynamics <code>O(state_size × color_count)</code> times per step</li>
+<li>You've measured a meaningful speedup with <code>BenchmarkTools.@btime</code></li>
+</ol>
+<p>Don't pre-optimise. Write the readable form first, profile if it's slow.</p>
 <hr />
 <h2 id="iterating-entity-groups">Iterating entity groups</h2>
-<p>Use <code>groups(sys)</code> and tuple-destructure each group — this mirrors the Python
-<code>for entity_group in system.entity_groups:</code> pattern and gives semantic names to
-the entities in each group:</p>
-<pre><code class="language-julia"># group_size = 1 — one entity per group
+<p><code>groups(sys)</code> mirrors the Python <code>for entity_group in system.entity_groups:</code>
+pattern. Each iteration yields a slice of <code>sys.entity_ids</code> of length
+<code>sys.group_size</code>, suitable for tuple destructuring:</p>
+<pre><code class="language-julia"># group_size = 1 — one entity per group (note the trailing comma!)
 for (eid,) in groups(sys)
-    i_pos = state_idx(spec, &quot;$eid.oscillator.position&quot;)
+    pos = get_state(spec, x, eid, &quot;oscillator.position&quot;)
     # ...
 end
 
-# group_size = 3 — coupled triplet [cv_a, orifice, cv_b]
+# group_size = 3 — three entities per group
 for (cv_a, orifice, cv_b) in groups(sys)
-    P_a = x[state_idx(spec, &quot;$cv_a.control_volume.pressure&quot;)]
-    A   = p[param_idx(spec, &quot;$orifice.orifice.area&quot;)]
-    P_b = x[state_idx(spec, &quot;$cv_b.control_volume.pressure&quot;)]
     # ...
 end
 </code></pre>
+<p>The destructured names should match the slot order declared in the Python
+<code>System</code> via <code>entity_slots = EntityGroup(...)</code>.</p>
 <p>Internally, <code>groups(sys) === Iterators.partition(sys.entity_ids, sys.group_size)</code>
-— a zero-allocation iterator over fixed-size slices of <code>sys.entity_ids</code>.
-Destructure into whatever names match your topology's slot order (defined by the
-<code>entity_slots = EntityGroup(...)</code> declaration on the Python <code>System</code> class).</p>
+— a zero-allocation iterator over fixed-size slices.</p>
 <hr />
 <h2 id="smooth-contact-hard-stop-helper">Smooth contact / hard-stop helper</h2>
 <p>A bare <code>max(0, -pos)</code> stop force has a C0 kink that causes thousands of tiny

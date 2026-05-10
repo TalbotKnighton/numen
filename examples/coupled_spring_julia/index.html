@@ -1319,7 +1319,8 @@ different <code>group_size</code> values sharing the same entity slots.</p>
 <h2 id="full-source">Full source</h2>
 <pre><code class="language-julia">module SpringDynamics
 
-import Main: CompiledSpec, CompiledSystemSpec, state_idx, param_idx, groups
+import Main: CompiledSpec, CompiledSystemSpec, groups,
+             get_state, get_param, add_deriv!
 
 # -------------------------------------------------------------------
 # MassKinematicsSystem  (group_size = 1)
@@ -1339,9 +1340,8 @@ function mass_kinematics_dynamics!(
     sys :: CompiledSystemSpec,
 ) where {T &lt;: Real, S &lt;: Real}
     for (eid,) in groups(sys)
-        pos_idx = state_idx(spec, &quot;$eid.mass.position&quot;)
-        vel_idx = state_idx(spec, &quot;$eid.mass.velocity&quot;)
-        dx[pos_idx] += x[vel_idx]
+        vel = get_state(spec, x, eid, &quot;mass.velocity&quot;)
+        add_deriv!(spec, dx, eid, &quot;mass.position&quot;, vel)
     end
 end
 
@@ -1365,20 +1365,18 @@ function spring_force_dynamics!(
     sys :: CompiledSystemSpec,
 ) where {T &lt;: Real, S &lt;: Real}
     for (id_a, id_s, id_b) in groups(sys)
-        pos_a    = state_idx(spec, &quot;$id_a.mass.position&quot;)
-        pos_b    = state_idx(spec, &quot;$id_b.mass.position&quot;)
-        vel_a    = state_idx(spec, &quot;$id_a.mass.velocity&quot;)
-        vel_b    = state_idx(spec, &quot;$id_b.mass.velocity&quot;)
-        mass_a   = param_idx(spec, &quot;$id_a.mass.mass&quot;)
-        mass_b   = param_idx(spec, &quot;$id_b.mass.mass&quot;)
-        k_idx    = param_idx(spec, &quot;$id_s.spring.k&quot;)
-        rest_idx = param_idx(spec, &quot;$id_s.spring.rest_length&quot;)
+        pos_a  = get_state(spec, x, id_a, &quot;mass.position&quot;)
+        pos_b  = get_state(spec, x, id_b, &quot;mass.position&quot;)
+        mass_a = get_param(spec, p, id_a, &quot;mass.mass&quot;)
+        mass_b = get_param(spec, p, id_b, &quot;mass.mass&quot;)
+        k      = get_param(spec, p, id_s, &quot;spring.k&quot;)
+        rest   = get_param(spec, p, id_s, &quot;spring.rest_length&quot;)
 
-        stretch = (x[pos_b] - x[pos_a]) - p[rest_idx]
-        force   = p[k_idx] * stretch
+        stretch = (pos_b - pos_a) - rest
+        force   = k * stretch
 
-        dx[vel_a] +=  force / p[mass_a]
-        dx[vel_b] += -force / p[mass_b]
+        add_deriv!(spec, dx, id_a, &quot;mass.velocity&quot;,  force / mass_a)
+        add_deriv!(spec, dx, id_b, &quot;mass.velocity&quot;, -force / mass_b)
     end
 end
 
@@ -1386,18 +1384,16 @@ end  # module SpringDynamics
 </code></pre>
 <hr />
 <h2 id="key-points">Key points</h2>
-<p><strong>Tuple destructuring in <code>groups(sys)</code></strong> — the spring system declares
+<p><strong>Tuple destructuring with <code>groups(sys)</code></strong> — the spring system declares
 <code>entity_slots = EntityGroup(MassComponent, SpringComponent, MassComponent)</code> on
-the Python side, so each group tuple has three entries in slot order. Naming
-them <code>(id_a, id_s, id_b)</code> makes the topology explicit at the loop header
-instead of buried in <code>entity_ids[i+1]</code> arithmetic.</p>
+the Python side, so each group has three entries in slot order. Naming them
+<code>(id_a, id_s, id_b)</code> makes the topology explicit at the loop header.</p>
 <p><strong>Two systems with different <code>group_size</code></strong> — <code>mass_kinematics_dynamics!</code> uses
 <code>group_size=1</code> (each mass independent); <code>spring_force_dynamics!</code> uses
-<code>group_size=3</code> (each group is <code>[mass_a, spring, mass_b]</code>). The loop header
-makes the difference obvious at a glance.</p>
+<code>group_size=3</code>. The <code>for</code> headers show this at a glance.</p>
 <p><strong>Force accumulation at shared masses</strong> — mass <code>m2</code> appears in <em>both</em> spring
-groups (<code>[m1, s1, m2]</code> and <code>[m2, s2, m3]</code>). Because we use <code>+=</code>, both springs
-contribute to <code>dx[m2.mass.velocity]</code> correctly.</p>
+groups (<code>[m1, s1, m2]</code> and <code>[m2, s2, m3]</code>). Because <code>add_deriv!</code> uses <code>+=</code>,
+both springs contribute to <code>m2</code>'s velocity correctly.</p>
 <hr />
 <h2 id="connecting-to-python">Connecting to Python</h2>
 <pre><code class="language-python">class MassKinematicsSystem(System):

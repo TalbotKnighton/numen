@@ -1318,7 +1318,8 @@ function, one entity group of size 1.</p>
 <h2 id="full-source">Full source</h2>
 <pre><code class="language-julia">module OscillatorDynamics
 
-import Main: CompiledSpec, CompiledSystemSpec, state_idx, param_idx, groups
+import Main: CompiledSpec, CompiledSystemSpec, groups,
+             get_state, get_param, add_deriv!
 
 &quot;&quot;&quot;
     oscillator_dynamics!(dx, x, p, t, spec, sys)
@@ -1334,18 +1335,14 @@ function oscillator_dynamics!(
     sys :: CompiledSystemSpec,
 ) where {T &lt;: Real, S &lt;: Real}
     for (eid,) in groups(sys)
-        pos_idx     = state_idx(spec, &quot;$eid.oscillator.position&quot;)
-        vel_idx     = state_idx(spec, &quot;$eid.oscillator.velocity&quot;)
-        omega_idx   = param_idx(spec, &quot;$eid.oscillator.omega&quot;)
-        damping_idx = param_idx(spec, &quot;$eid.oscillator.damping&quot;)
+        pos     = get_state(spec, x, eid, &quot;oscillator.position&quot;)
+        vel     = get_state(spec, x, eid, &quot;oscillator.velocity&quot;)
+        omega   = get_param(spec, p, eid, &quot;oscillator.omega&quot;)
+        damping = get_param(spec, p, eid, &quot;oscillator.damping&quot;)
 
-        pos     = x[pos_idx]
-        vel     = x[vel_idx]
-        omega   = p[omega_idx]
-        damping = p[damping_idx]
-
-        dx[pos_idx] += vel
-        dx[vel_idx] += -omega^2 * pos - 2 * damping * omega * vel
+        add_deriv!(spec, dx, eid, &quot;oscillator.position&quot;, vel)
+        add_deriv!(spec, dx, eid, &quot;oscillator.velocity&quot;,
+                   -omega^2 * pos - 2 * damping * omega * vel)
     end
 end
 
@@ -1355,13 +1352,16 @@ end  # module OscillatorDynamics
 <h2 id="key-points">Key points</h2>
 <p><strong><code>for (eid,) in groups(sys)</code></strong> — <code>groups(sys)</code> yields tuples of length
 <code>sys.group_size</code> (here, 1). The trailing comma in <code>(eid,)</code> destructures the
-single element. This mirrors the Python <code>for (entity_id,) in system.entity_groups:</code>
-pattern.</p>
-<p><strong>Reading state vs params</strong> — <code>x[state_idx(...)]</code> for integrated fields
-(position, velocity); <code>p[param_idx(...)]</code> for parameter fields (omega, damping).</p>
-<p><strong><code>+=</code> accumulation</strong> — even though only one system writes to these slots in
-this example, using <code>+=</code> is the correct pattern throughout. If a second system
-also touched velocity, both contributions would add correctly.</p>
+single element. Mirrors Python's <code>for (entity_id,) in system.entity_groups:</code>.</p>
+<p><strong><code>get_state</code> / <code>get_param</code></strong> — read scalar values from <code>x</code> (state) or <code>p</code>
+(parameters) using the <code>"kind.field"</code> path. The full key
+<code>"$eid.oscillator.position"</code> is built internally.</p>
+<p><strong><code>add_deriv!</code></strong> — accumulates the value into the <code>dx</code> slot at
+<code>"$eid.oscillator.position"</code>. Internally uses <code>+=</code>, so multiple systems can
+write to the same slot and contributions add up correctly.</p>
+<p>For details on the helper API, the lower-level <code>state_idx</code> / <code>param_idx</code>
+form, and when to drop down for hot-loop performance, see the <a href="../../julia/">Julia
+Reference</a>.</p>
 <hr />
 <h2 id="connecting-to-python">Connecting to Python</h2>
 <pre><code class="language-python"># dynamics.py

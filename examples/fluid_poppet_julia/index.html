@@ -1364,10 +1364,11 @@ flow coupling across multi-entity groups.</p>
 </code></pre>
 <p>The dynamics file imports the standard helpers at the top:</p>
 <pre><code class="language-julia">module FluidPoppetDynamics
-import Main: CompiledSpec, CompiledSystemSpec, state_idx, param_idx, groups
+import Main: CompiledSpec, CompiledSystemSpec, groups,
+             get_state, get_param, add_deriv!
 </code></pre>
 <p>All four systems below use <code>groups(sys)</code> with tuple destructuring to name the
-entities in each group instead of indexing <code>sys.entity_ids[i+1]</code>.</p>
+entities, plus <code>get_state</code> / <code>get_param</code> / <code>add_deriv!</code> for readable access.</p>
 <hr />
 <h2 id="smooth-contact-helper">Smooth contact helper</h2>
 <pre><code class="language-julia">const STOP_DELTA = 1e-6  # 1 µm — matches Python _STOP_DELTA
@@ -1420,18 +1421,18 @@ function orifice_flow_dynamics!(
     dx :: AbstractVector{T}, x :: AbstractVector{S}, p :: Vector{Float64},
     t  :: Real, spec :: CompiledSpec, sys :: CompiledSystemSpec,
 ) where {T &lt;: Real, S &lt;: Real}
-    for (id_a, id_o, id_b) in groups(sys)
-        P_a = x[state_idx(spec, &quot;$id_a.control_volume.pressure&quot;)]
-        P_b = x[state_idx(spec, &quot;$id_b.control_volume.pressure&quot;)]
-        T_a = p[param_idx(spec, &quot;$id_a.control_volume.temperature&quot;)]
-        R_a = p[param_idx(spec, &quot;$id_a.control_volume.R_specific&quot;)]
-        V_a = p[param_idx(spec, &quot;$id_a.control_volume.volume&quot;)]
-        T_b = p[param_idx(spec, &quot;$id_b.control_volume.temperature&quot;)]
-        R_b = p[param_idx(spec, &quot;$id_b.control_volume.R_specific&quot;)]
-        V_b = p[param_idx(spec, &quot;$id_b.control_volume.volume&quot;)]
-        Cd  = p[param_idx(spec, &quot;$id_o.orifice.Cd&quot;)]
-        A   = p[param_idx(spec, &quot;$id_o.orifice.area&quot;)]
-        gam = p[param_idx(spec, &quot;$id_o.orifice.gamma&quot;)]
+    for (cv_a, orifice, cv_b) in groups(sys)
+        P_a = get_state(spec, x, cv_a, &quot;control_volume.pressure&quot;)
+        P_b = get_state(spec, x, cv_b, &quot;control_volume.pressure&quot;)
+        T_a = get_param(spec, p, cv_a, &quot;control_volume.temperature&quot;)
+        T_b = get_param(spec, p, cv_b, &quot;control_volume.temperature&quot;)
+        R_a = get_param(spec, p, cv_a, &quot;control_volume.R_specific&quot;)
+        R_b = get_param(spec, p, cv_b, &quot;control_volume.R_specific&quot;)
+        V_a = get_param(spec, p, cv_a, &quot;control_volume.volume&quot;)
+        V_b = get_param(spec, p, cv_b, &quot;control_volume.volume&quot;)
+        Cd  = get_param(spec, p, orifice, &quot;orifice.Cd&quot;)
+        A   = get_param(spec, p, orifice, &quot;orifice.area&quot;)
+        gam = get_param(spec, p, orifice, &quot;orifice.gamma&quot;)
 
         # Direction check — always call orifice_mdot with P_up ≥ P_dn
         if P_a &gt;= P_b
@@ -1441,8 +1442,8 @@ function orifice_flow_dynamics!(
         end
 
         # dP/dt = (R·T/V) · ṁ_net  (isothermal ideal gas)
-        dx[state_idx(spec, &quot;$id_a.control_volume.pressure&quot;)] += -(R_a * T_a / V_a) * mdot
-        dx[state_idx(spec, &quot;$id_b.control_volume.pressure&quot;)] +=  (R_b * T_b / V_b) * mdot
+        add_deriv!(spec, dx, cv_a, &quot;control_volume.pressure&quot;, -(R_a * T_a / V_a) * mdot)
+        add_deriv!(spec, dx, cv_b, &quot;control_volume.pressure&quot;,  (R_b * T_b / V_b) * mdot)
     end
 end
 </code></pre>
@@ -1453,26 +1454,26 @@ function poppet_flow_dynamics!(
     dx :: AbstractVector{T}, x :: AbstractVector{S}, p :: Vector{Float64},
     t  :: Real, spec :: CompiledSpec, sys :: CompiledSystemSpec,
 ) where {T &lt;: Real, S &lt;: Real}
-    for (id_a, id_p, id_b) in groups(sys)
-        pos           = x[state_idx(spec, &quot;$id_p.poppet.position&quot;)]
-        max_travel    = p[param_idx(spec, &quot;$id_p.poppet.max_travel&quot;)]
-        max_flow_area = p[param_idx(spec, &quot;$id_p.poppet.max_flow_area&quot;)]
-        Cd            = p[param_idx(spec, &quot;$id_p.poppet.Cd&quot;)]
-        gam           = p[param_idx(spec, &quot;$id_p.poppet.gamma&quot;)]
+    for (cv_a, poppet, cv_b) in groups(sys)
+        pos           = get_state(spec, x, poppet, &quot;poppet.position&quot;)
+        max_travel    = get_param(spec, p, poppet, &quot;poppet.max_travel&quot;)
+        max_flow_area = get_param(spec, p, poppet, &quot;poppet.max_flow_area&quot;)
+        Cd            = get_param(spec, p, poppet, &quot;poppet.Cd&quot;)
+        gam           = get_param(spec, p, poppet, &quot;poppet.gamma&quot;)
 
         # Flow area scales linearly with position (0 → fully closed, max_travel → fully open)
         opening = clamp(pos / max_travel, zero(S), one(S))
         A       = max_flow_area * opening
         A &lt;= 0.0 &amp;&amp; continue    # poppet sealed — no flow
 
-        P_a = x[state_idx(spec, &quot;$id_a.control_volume.pressure&quot;)]
-        P_b = x[state_idx(spec, &quot;$id_b.control_volume.pressure&quot;)]
-        T_a = p[param_idx(spec, &quot;$id_a.control_volume.temperature&quot;)]
-        R_a = p[param_idx(spec, &quot;$id_a.control_volume.R_specific&quot;)]
-        V_a = p[param_idx(spec, &quot;$id_a.control_volume.volume&quot;)]
-        T_b = p[param_idx(spec, &quot;$id_b.control_volume.temperature&quot;)]
-        R_b = p[param_idx(spec, &quot;$id_b.control_volume.R_specific&quot;)]
-        V_b = p[param_idx(spec, &quot;$id_b.control_volume.volume&quot;)]
+        P_a = get_state(spec, x, cv_a, &quot;control_volume.pressure&quot;)
+        P_b = get_state(spec, x, cv_b, &quot;control_volume.pressure&quot;)
+        T_a = get_param(spec, p, cv_a, &quot;control_volume.temperature&quot;)
+        R_a = get_param(spec, p, cv_a, &quot;control_volume.R_specific&quot;)
+        V_a = get_param(spec, p, cv_a, &quot;control_volume.volume&quot;)
+        T_b = get_param(spec, p, cv_b, &quot;control_volume.temperature&quot;)
+        R_b = get_param(spec, p, cv_b, &quot;control_volume.R_specific&quot;)
+        V_b = get_param(spec, p, cv_b, &quot;control_volume.volume&quot;)
 
         if P_a &gt;= P_b
             mdot = orifice_mdot(P_a, P_b, T_a, R_a, Cd, A, gam)
@@ -1480,13 +1481,14 @@ function poppet_flow_dynamics!(
             mdot = -orifice_mdot(P_b, P_a, T_b, R_b, Cd, A, gam)
         end
 
-        dx[state_idx(spec, &quot;$id_a.control_volume.pressure&quot;)] += -(R_a * T_a / V_a) * mdot
-        dx[state_idx(spec, &quot;$id_b.control_volume.pressure&quot;)] +=  (R_b * T_b / V_b) * mdot
+        add_deriv!(spec, dx, cv_a, &quot;control_volume.pressure&quot;, -(R_a * T_a / V_a) * mdot)
+        add_deriv!(spec, dx, cv_b, &quot;control_volume.pressure&quot;,  (R_b * T_b / V_b) * mdot)
     end
 end
 </code></pre>
 <p>Note <code>A = max_flow_area * opening</code> — <code>A</code> is derived from state <code>pos</code>, so it
-may be a <code>Dual</code> number during Jacobian evaluation. <code>orifice_mdot</code> accepts <code>A::Real</code> for exactly this reason.</p>
+may be a <code>Dual</code> number during Jacobian evaluation. <code>orifice_mdot</code> accepts
+<code>A::Real</code> for exactly this reason.</p>
 <hr />
 <h2 id="poppetkinematicssystem">PoppetKinematicsSystem</h2>
 <pre><code class="language-julia">&quot;&quot;&quot;group_size = 1 — ẋ = v for each poppet entity.&quot;&quot;&quot;
@@ -1494,10 +1496,9 @@ function poppet_kinematics_dynamics!(
     dx :: AbstractVector{T}, x :: AbstractVector{S}, p :: Vector{Float64},
     t  :: Real, spec :: CompiledSpec, sys :: CompiledSystemSpec,
 ) where {T &lt;: Real, S &lt;: Real}
-    for (id_p,) in groups(sys)
-        i_pos = state_idx(spec, &quot;$id_p.poppet.position&quot;)
-        i_vel = state_idx(spec, &quot;$id_p.poppet.velocity&quot;)
-        dx[i_pos] += x[i_vel]
+    for (poppet,) in groups(sys)
+        vel = get_state(spec, x, poppet, &quot;poppet.velocity&quot;)
+        add_deriv!(spec, dx, poppet, &quot;poppet.position&quot;, vel)
     end
 end
 </code></pre>
@@ -1514,35 +1515,35 @@ function poppet_mechanics_dynamics!(
     dx :: AbstractVector{T}, x :: AbstractVector{S}, p :: Vector{Float64},
     t  :: Real, spec :: CompiledSpec, sys :: CompiledSystemSpec,
 ) where {T &lt;: Real, S &lt;: Real}
-    for (id_inlet, id_p, id_outlet) in groups(sys)
-        pos  = x[state_idx(spec, &quot;$id_p.poppet.position&quot;)]
-        vel  = x[state_idx(spec, &quot;$id_p.poppet.velocity&quot;)]
-        P_in = x[state_idx(spec, &quot;$id_inlet.control_volume.pressure&quot;)]
-        P_out= x[state_idx(spec, &quot;$id_outlet.control_volume.pressure&quot;)]
+    for (cv_inlet, poppet, cv_outlet) in groups(sys)
+        pos   = get_state(spec, x, poppet,    &quot;poppet.position&quot;)
+        vel   = get_state(spec, x, poppet,    &quot;poppet.velocity&quot;)
+        P_in  = get_state(spec, x, cv_inlet,  &quot;control_volume.pressure&quot;)
+        P_out = get_state(spec, x, cv_outlet, &quot;control_volume.pressure&quot;)
 
-        mass           = p[param_idx(spec, &quot;$id_p.poppet.mass&quot;)]
-        spring_k       = p[param_idx(spec, &quot;$id_p.poppet.spring_k&quot;)]
-        spring_preload = p[param_idx(spec, &quot;$id_p.poppet.spring_preload&quot;)]
-        seat_area      = p[param_idx(spec, &quot;$id_p.poppet.seat_area&quot;)]
-        max_travel     = p[param_idx(spec, &quot;$id_p.poppet.max_travel&quot;)]
-        k_stop         = p[param_idx(spec, &quot;$id_p.poppet.stop_stiffness&quot;)]
-        c_stop         = p[param_idx(spec, &quot;$id_p.poppet.stop_damping&quot;)]
+        mass           = get_param(spec, p, poppet, &quot;poppet.mass&quot;)
+        spring_k       = get_param(spec, p, poppet, &quot;poppet.spring_k&quot;)
+        spring_preload = get_param(spec, p, poppet, &quot;poppet.spring_preload&quot;)
+        seat_area      = get_param(spec, p, poppet, &quot;poppet.seat_area&quot;)
+        max_travel     = get_param(spec, p, poppet, &quot;poppet.max_travel&quot;)
+        k_stop         = get_param(spec, p, poppet, &quot;poppet.stop_stiffness&quot;)
+        c_stop         = get_param(spec, p, poppet, &quot;poppet.stop_damping&quot;)
 
         F_pressure = (P_in - P_out) * seat_area
         F_spring   = -(spring_k * pos + spring_preload)
 
         # Smooth stops at pos=0 (closed seat) and pos=max_travel (fully open)
-        pen_close   = soft_pen(-pos)
-        pen_open    = soft_pen(pos - max_travel)
-        alpha_close = clamp(-pos / STOP_DELTA, zero(S), one(S))
-        alpha_open  = clamp((pos - max_travel) / STOP_DELTA, zero(S), one(S))
+        pen_close    = soft_pen(-pos)
+        pen_open     = soft_pen(pos - max_travel)
+        alpha_close  = clamp(-pos / STOP_DELTA, zero(S), one(S))
+        alpha_open   = clamp((pos - max_travel) / STOP_DELTA, zero(S), one(S))
         v_damp_close = max(zero(S), -vel) * alpha_close
         v_damp_open  = max(zero(S),  vel) * alpha_open
         F_stop = (k_stop * pen_close + c_stop * v_damp_close
                  - k_stop * pen_open  - c_stop * v_damp_open)
 
-        dx[state_idx(spec, &quot;$id_p.poppet.velocity&quot;)] +=
-            (F_pressure + F_spring + F_stop) / mass
+        add_deriv!(spec, dx, poppet, &quot;poppet.velocity&quot;,
+                   (F_pressure + F_spring + F_stop) / mass)
     end
 end
 </code></pre>

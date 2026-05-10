@@ -1322,7 +1322,8 @@ stiff relative to the mechanical motion.</p>
 <h2 id="full-source">Full source</h2>
 <pre><code class="language-julia">module PneumaticDashpotDynamics
 
-import Main: CompiledSpec, CompiledSystemSpec, state_idx, param_idx, groups
+import Main: CompiledSpec, CompiledSystemSpec, groups,
+             get_state, get_param, add_deriv!
 
 const STOP_DELTA = 1e-6
 
@@ -1388,31 +1389,25 @@ function pneumatic_dashpot_dynamics!(
     sys :: CompiledSystemSpec,
 ) where {T &lt;: Real, S &lt;: Real}
     for (eid,) in groups(sys)
-        # Index lookups
-        i_pos   = state_idx(spec, &quot;$eid.pneumatic_dashpot.position&quot;)
-        i_vel   = state_idx(spec, &quot;$eid.pneumatic_dashpot.velocity&quot;)
-        i_pl    = state_idx(spec, &quot;$eid.pneumatic_dashpot.p_left&quot;)
-        i_pr    = state_idx(spec, &quot;$eid.pneumatic_dashpot.p_right&quot;)
-        i_bore  = param_idx(spec, &quot;$eid.pneumatic_dashpot.bore_area&quot;)
-        i_hs    = param_idx(spec, &quot;$eid.pneumatic_dashpot.half_stroke&quot;)
-        i_clr   = param_idx(spec, &quot;$eid.pneumatic_dashpot.clearance&quot;)
-        i_ao    = param_idx(spec, &quot;$eid.pneumatic_dashpot.orifice_area&quot;)
-        i_cd    = param_idx(spec, &quot;$eid.pneumatic_dashpot.cd&quot;)
-        i_mass  = param_idx(spec, &quot;$eid.pneumatic_dashpot.mass&quot;)
-        i_fric  = param_idx(spec, &quot;$eid.pneumatic_dashpot.friction&quot;)
-        i_kstop = param_idx(spec, &quot;$eid.pneumatic_dashpot.k_stop&quot;)
-        i_pamb  = param_idx(spec, &quot;$eid.pneumatic_dashpot.p_ambient&quot;)
-        i_temp  = param_idx(spec, &quot;$eid.pneumatic_dashpot.temp&quot;)
-        i_R     = param_idx(spec, &quot;$eid.pneumatic_dashpot.R_gas&quot;)
-        i_gamma = param_idx(spec, &quot;$eid.pneumatic_dashpot.gamma&quot;)
+        # State
+        pos = get_state(spec, x, eid, &quot;pneumatic_dashpot.position&quot;)
+        vel = get_state(spec, x, eid, &quot;pneumatic_dashpot.velocity&quot;)
+        P_L = get_state(spec, x, eid, &quot;pneumatic_dashpot.p_left&quot;)
+        P_R = get_state(spec, x, eid, &quot;pneumatic_dashpot.p_right&quot;)
 
-        pos   = x[i_pos];  vel   = x[i_vel]
-        P_L   = x[i_pl];   P_R   = x[i_pr]
-        bore  = p[i_bore]; hs    = p[i_hs];  clr   = p[i_clr]
-        A_o   = p[i_ao];   Cd    = p[i_cd]
-        mass  = p[i_mass]; fric  = p[i_fric]; kstop = p[i_kstop]
-        P_amb = p[i_pamb]; T_gas = p[i_temp]
-        R     = p[i_R];    gamma = p[i_gamma]
+        # Parameters
+        bore  = get_param(spec, p, eid, &quot;pneumatic_dashpot.bore_area&quot;)
+        hs    = get_param(spec, p, eid, &quot;pneumatic_dashpot.half_stroke&quot;)
+        clr   = get_param(spec, p, eid, &quot;pneumatic_dashpot.clearance&quot;)
+        A_o   = get_param(spec, p, eid, &quot;pneumatic_dashpot.orifice_area&quot;)
+        Cd    = get_param(spec, p, eid, &quot;pneumatic_dashpot.cd&quot;)
+        mass  = get_param(spec, p, eid, &quot;pneumatic_dashpot.mass&quot;)
+        fric  = get_param(spec, p, eid, &quot;pneumatic_dashpot.friction&quot;)
+        kstop = get_param(spec, p, eid, &quot;pneumatic_dashpot.k_stop&quot;)
+        P_amb = get_param(spec, p, eid, &quot;pneumatic_dashpot.p_ambient&quot;)
+        T_gas = get_param(spec, p, eid, &quot;pneumatic_dashpot.temp&quot;)
+        R     = get_param(spec, p, eid, &quot;pneumatic_dashpot.R_gas&quot;)
+        gamma = get_param(spec, p, eid, &quot;pneumatic_dashpot.gamma&quot;)
 
         # Chamber volumes (clamped to avoid V=0 singularity)
         V_L  = max(bore * (hs + pos + clr), 1e-12)
@@ -1425,18 +1420,21 @@ function pneumatic_dashpot_dynamics!(
         mdot_R = signed_orifice_flow(P_R, P_amb, T_gas, R, gamma, Cd, A_o)
 
         # Pressure ODEs (isothermal: dP/dt = R·T/V · ṁ - P/V · dV/dt)
-        dx[i_pl] += (R * T_gas / V_L) * mdot_L - (P_L / V_L) * dV_L
-        dx[i_pr] += (R * T_gas / V_R) * mdot_R - (P_R / V_R) * dV_R
+        add_deriv!(spec, dx, eid, &quot;pneumatic_dashpot.p_left&quot;,
+                   (R * T_gas / V_L) * mdot_L - (P_L / V_L) * dV_L)
+        add_deriv!(spec, dx, eid, &quot;pneumatic_dashpot.p_right&quot;,
+                   (R * T_gas / V_R) * mdot_R - (P_R / V_R) * dV_R)
 
         # Piston equation of motion
-        F_pneu   = (P_L - P_R) * bore
-        F_fric   = -fric * vel
+        F_pneu    = (P_L - P_R) * bore
+        F_fric    = -fric * vel
         pen_left  = -(pos + hs)   # &gt; 0 inside left stop
         pen_right = pos - hs      # &gt; 0 inside right stop
         F_stop    = kstop * (soft_pen(pen_left) - soft_pen(pen_right))
 
-        dx[i_pos] += vel
-        dx[i_vel] += (F_pneu + F_fric + F_stop) / mass
+        add_deriv!(spec, dx, eid, &quot;pneumatic_dashpot.position&quot;, vel)
+        add_deriv!(spec, dx, eid, &quot;pneumatic_dashpot.velocity&quot;,
+                   (F_pneu + F_fric + F_stop) / mass)
     end
 end
 
@@ -1447,16 +1445,20 @@ end  # module PneumaticDashpotDynamics
 <p><strong><code>signed_orifice_flow</code> helper</strong> — wraps <code>orifice_mdot</code> so callers don't need
 to check pressure direction. Returns positive flow into the chamber, negative
 flow out. Using a helper keeps the main dynamics function readable.</p>
-<p><strong>Isothermal pressure ODE</strong> — <code>dP/dt = (R·T/V)·ṁ_net - (P/V)·(dV/dt)</code>.
-The first term comes from mass flowing in; the second comes from the piston
-compressing or expanding the volume. Both terms use <code>+=</code> so any additional
+<p><strong>Isothermal pressure ODE</strong> — <code>dP/dt = (R·T/V)·ṁ_net - (P/V)·(dV/dt)</code>. The
+first term comes from mass flowing in; the second from the piston compressing
+or expanding the volume. <code>add_deriv!</code> accumulates with <code>+=</code>, so any additional
 system could contribute.</p>
 <p><strong>Volume clamp</strong> — <code>max(bore * (...), 1e-12)</code> prevents division by zero if
 the piston reaches the end of stroke. The smooth stop force should prevent this
-in practice, but the clamp is a safety net.</p>
+in practice; the clamp is a safety net.</p>
 <p><strong>Stiff solver</strong> — use <code>method="Rodas5P"</code> with this example. The pressure
 dynamics are stiff relative to the mechanical motion (especially for small
 orifice areas), and explicit solvers like Tsit5 will take very small steps.</p>
+<p><strong>Performance note</strong> — under <code>Rodas5P</code>, dynamics is called many times per step
+during Jacobian evaluation. For very tight inner loops you can drop to the
+low-level <code>state_idx</code> / <code>param_idx</code> form (cache the index, reuse for read+write).
+See the <a href="../../julia/">Julia Reference</a> for the trade-off.</p>
 <hr />
 <h2 id="running-with-the-stiff-solver">Running with the stiff solver</h2>
 <pre><code class="language-python">from numen.bridge.runtime import JuliaBackend
@@ -1469,8 +1471,9 @@ result = JuliaBackend(
 ).solve(spec, tspan=(0.0, 1.0))
 </code></pre>
 <p><code>Rodas5P</code> uses <code>ForwardDiff</code> to evaluate the state Jacobian ∂f/∂x via the
-sparse <code>jac_prototype</code> pattern that <code>compile_spec()</code> builds. The <code>{T &lt;: Real, S &lt;: Real}</code>
-signature in every dynamics function is what makes this work without modification.</p>
+sparse <code>jac_prototype</code> pattern that <code>compile_spec()</code> builds. The
+<code>{T &lt;: Real, S &lt;: Real}</code> signature in every dynamics function is what makes
+this work without modification.</p>
 
 
 
