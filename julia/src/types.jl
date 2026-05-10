@@ -28,6 +28,12 @@ struct CompiledSpec
     differential_mask::Vector{Float64}           # 1.0 = integrated slot, 0.0 = algebraic slot
     systems::Vector{CompiledSystemSpec}
     callbacks::Vector{CompiledCallbackSpec}
+    # COO-format sparsity pattern for the Jacobian ∂f/∂x, computed by compile_spec().
+    # 0-based indices from Python; solver.jl converts to 1-based before constructing
+    # the SparseMatrixCSC jac_prototype passed to ODEFunction.
+    # Conservative: all states for entities in the same system group are fully coupled.
+    jac_sparsity_rows::Vector{Int}
+    jac_sparsity_cols::Vector{Int}
 end
 
 StructTypes.StructType(::Type{CompiledSpec}) = StructTypes.Struct()

@@ -123,8 +123,12 @@ function table_excitation_dynamics!(
     # Signal slice — param_range returns a Julia UnitRange{Int} (1-based)
     sig_r = param_range(spec, eid * ".signal")
 
-    # Clamp t to table bounds and compute interpolation indices
-    tc    = clamp(Float64(t) - t0, 0.0, (n - 1) * dt)
+    # Clamp t to table bounds and compute interpolation indices.
+    # ForwardDiff.Dual doesn't support Float64(t), so use real(t) to extract
+    # the primal value for the discrete index computation.  The interpolation
+    # weight alpha keeps the time dependence for accurate time-gradient AD.
+    t_val = Float64(real(t))   # real(::Dual) returns the primal value; no-op for Float64
+    tc    = clamp(t_val - t0, 0.0, (n - 1) * dt)
     frac  = tc / dt
     k     = clamp(Int(floor(frac)) + 1, 1, n)   # lower sample index (1-based within slice)
     k1    = clamp(k + 1, 1, n)                    # upper sample index

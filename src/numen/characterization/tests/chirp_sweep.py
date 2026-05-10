@@ -19,6 +19,8 @@ def run_continuous_chirp(
     exc_spec: Any,
     exc_entity_id: str,
     exc_port_name: str,
+    exc_component_kind: str,
+    exc_target_field: str,
     output_state_key: str,
     backend: Any,
 ) -> ChirpResult:
@@ -33,26 +35,20 @@ def run_continuous_chirp(
       2. Computing H(f) = S_xy(f) / S_xx(f) via FFT cross-spectrum.
 
     Args:
-        test:             Validated ContinuousChirpSpec.
-        exc_spec:         CompiledSpec with excitation injected (sinusoidal).
-                          The chirp system will be injected on top of this spec
-                          (the placeholder sinusoidal excitation remains but its
-                          amp defaults to 0, so it contributes nothing).
-        exc_entity_id:    Entity owning the ExcitationPort.
-        exc_port_name:    ExcitationPort field name.
-        output_state_key: Dot-key for the state to measure.
-        backend:          Open solver backend.
+        test:               Validated ContinuousChirpSpec.
+        exc_spec:           CompiledSpec with excitation injected (sinusoidal).
+        exc_entity_id:      Entity owning the ExcitationPort.
+        exc_port_name:      ExcitationPort field name.
+        exc_component_kind: Component kind that owns the ExcitationPort.
+        exc_target_field:   IntegratedField driven by excitation (e.g. "velocity").
+        output_state_key:   3-part dot-key for the state to measure.
+        backend:            Open solver backend.
 
     Returns:
         ChirpResult with raw time series and cross-spectrum FRF estimate.
     """
-    # Look up the ExcitationPort target field from the param map
-    chirp_prefix = f"_exc_{exc_entity_id}_{exc_port_name}"
-    target_field  = _find_target_field(exc_spec, exc_entity_id, chirp_prefix)
-
     # Read effective DC from the sinusoidal excitation parameters already in exc_spec.
-    # This honours whatever the outer sweep set (or what the runner pre-applied for
-    # standalone tests) rather than unconditionally using test.dc_offset.
+    chirp_prefix = f"_exc_{exc_entity_id}_{exc_port_name}"
     _dc_key = f"{chirp_prefix}.dc"
     if _dc_key in exc_spec.param_index_map:
         effective_dc = float(exc_spec.p[exc_spec.param_index_map[_dc_key][0]])
@@ -62,9 +58,10 @@ def run_continuous_chirp(
     # Inject chirp excitation on top of the existing (zero-amplitude) sinusoidal system
     spec_chirp = inject_chirp_excitation(
         exc_spec,
-        entity_id  = exc_entity_id,
-        port_name  = exc_port_name,
-        target_field = target_field,
+        entity_id      = exc_entity_id,
+        component_kind = exc_component_kind,
+        port_name      = exc_port_name,
+        target_field   = exc_target_field,
         amp        = test.amplitude,
         f_start    = test.f_start,
         f_end      = test.f_end,
@@ -109,37 +106,3 @@ def run_continuous_chirp(
     )
 
 
-def _find_target_field(spec: Any, entity_id: str, exc_prefix: str) -> str:
-    """Infer the target state field name from the injected excitation system.
-
-    The chirp system needs to write to the same target field as the sinusoidal
-    excitation that was already injected.  We recover the field by inspecting
-    the dynamics closure of the existing excitation system.
-
-    Falls back to looking for ``{entity_id}.velocity`` then ``{entity_id}.position``
-    if the closure inspection fails.
-    """
-    # Try to find the target key from the excitation system's closure
-    for sys in spec.systems:
-        if (
-            hasattr(sys, "entity_ids")
-            and sys.entity_ids
-            and sys.entity_ids[0] == exc_prefix
-            and sys.python_fn is not None
-        ):
-            fn = sys.python_fn
-            if hasattr(fn, "__code__"):
-                for const in fn.__code__.co_consts:
-                    if isinstance(const, str) and const.startswith(entity_id + "."):
-                        return const.split(".", 1)[1]
-
-    # Heuristic fallback — try common field names
-    for candidate in ("velocity", "position", "angle", "flow"):
-        key = f"{entity_id}.{candidate}"
-        if key in spec.state_index_map:
-            return candidate
-
-    raise RuntimeError(
-        f"Could not determine chirp target field for entity '{entity_id}'. "
-        f"Pass target_field explicitly to inject_chirp_excitation()."
-    )

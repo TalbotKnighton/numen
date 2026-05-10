@@ -141,13 +141,17 @@ end
 ```
 
 **Why two type parameters?**  Rosenbrock stiff solvers (Rodas5P, Rodas4, …) call
-the ODE function in three distinct passes during each step:
+the ODE function in two distinct AD passes during each step:
 1. Normal evaluation: `T=S=Float64`, `t=Float64`
 2. Jacobian (∂f/∂x): `T=S=Dual{...}`, `t=Float64`
-3. Time gradient (∂f/∂t): `T=Dual{...}`, `S=Float64`, `t=Dual{...}`
 
-Pass 3 is why a single shared `T` parameter fails — `dx` and `x` have different
-element types. Using `{T, S}` with `t::Real` handles all three patterns.
+In pass 2, `dx` and `x` both carry `Dual` elements, so a single `T` works for them —
+but using two separate parameters `{T, S}` is still correct and required for helper
+functions where `dx`-derived and `x`-derived values may have different types.
+
+The time gradient (∂f/∂t) is computed by the framework via central finite differences
+and never calls user dynamics with `t::Dual`.  `t::Real` is still good practice for
+forward-compatibility and clarity.
 
 **Helper functions** that return a value derived from state must also be generic:
 
@@ -187,6 +191,13 @@ collector = SnapshotCollector(world, spec, result)
 t, pos = collector.field_series("entity_id", "mass", "position")   # time series
 snap   = collector.at(t=1.5)                                # typed snapshot
 ```
+
+---
+
+## Architecture and design decisions
+
+See **[DESIGN.md](DESIGN.md)** for framework architecture, the Julia solver internals
+(sparse Jacobian, tgrad, DAE path), and the section to record project-specific decisions.
 
 ---
 

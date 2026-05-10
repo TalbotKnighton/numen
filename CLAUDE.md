@@ -301,21 +301,45 @@ highest-frequency content you care about.
 
 ### Stiff solvers (Rodas5P, Rodas4, Rosenbrock23, …)
 
-Rosenbrock-type stiff solvers use ForwardDiff to compute exact Jacobians by
-calling the ODE function with `Dual`-number arrays instead of `Float64`.  Numen
-dynamics functions use `AbstractVector{T} where T <: Real` so Julia specialises
-them for both `Vector{Float64}` (normal solves) and `Vector{Dual{…}}` (Jacobian
-evaluation), with no extra per-step function calls.
+Rosenbrock-type stiff solvers need both a state Jacobian ∂f/∂x and a time
+gradient ∂f/∂t.  Numen handles both automatically:
 
-**Why two type parameters `{T, S}`:** stiff solvers compute both a Jacobian
-(`dx=Dual, x=Dual, t=Float64`) and a time gradient (`dx=Dual, x=Float64, t=Dual`).
-In the time-gradient case `dx` and `x` carry *different* element types, so they
-need separate parameters.  `t :: Real` covers both `Float64` (Jacobian pass) and
-`Dual` (time-gradient pass).
+**State Jacobian** — OrdinaryDiffEq uses ForwardDiff with a sparse
+`jac_prototype` built from the ECS entity-group graph.  `compile_spec()` computes
+the Jacobian sparsity pattern: within each system's entity group all state slots
+are treated as fully coupled (dense block); states from different groups are
+independent.  Julia passes this as a `SparseMatrixCSC` to `ODEFunction`, and
+OrdinaryDiffEq applies SparseDiffTools matrix coloring.  The effective color count
+equals the maximum coupled-state width per group — typically 4–16 — regardless of
+how many entities the system has.  This makes Jacobian cost O(1) in the number of
+entities for models with bounded per-group coupling.
 
-**Convention for scalar helpers** (soft_pen, orifice flow, etc.): scalars
-extracted from `x` are type `S`; use `where T <: Real` (or `where S <: Real`)
-and `return zero(T)` instead of `return 0.0` for early-exit zero returns.
+**Time gradient** — OrdinaryDiffEq normally computes ∂f/∂t by calling the
+dynamics function with `t::ForwardDiff.Dual`.  This fails because the solver wraps
+the dynamics closure in a `FunctionWrapper{…, Float64}` at problem-construction
+time (inferred from `tspan::Tuple{Float64,Float64}`), which rejects Dual `t` at
+runtime.  Numen provides an explicit `tgrad!` built by `build_tgrad()` in
+`solver.jl` using central finite differences: two Float64 RHS calls per step,
+constant cost regardless of state size.  This leaves the ForwardDiff Jacobian path
+untouched while fully bypassing the FunctionWrapper restriction.
+
+**User dynamics signatures** — the two-parameter convention `{T, S}` is still
+required for scalar helper functions:
+
+```julia
+function soft_pen(x::T) where T <: Real
+    x <= 0.0 && return zero(T)
+    ...
+end
+```
+
+`t :: Real` in user dynamics functions covers both `Float64` (normal/Jacobian
+calls) and `ForwardDiff.Dual` (any future path where Dual `t` is needed).
+
+**Why NOT `autodiff=AutoFiniteDiff()`** — this switches the Jacobian to finite
+differences too.  For n states it costs n RHS evaluations per Jacobian vs.
+O(color_count) with sparse ForwardDiff.  For large models this is catastrophically
+slower.  Always use the `jac_prototype` + explicit `tgrad!` combination instead.
 
 ---
 

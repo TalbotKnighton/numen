@@ -295,15 +295,24 @@ For each Python `System`, write a matching Julia function in a `.jl` file:
 module MyDynamics
 import Main: CompiledSpec, CompiledSystemSpec, state_idx, param_idx
 
-function gravity_dynamics!(dx, x, p, t, spec, sys)
+function gravity_dynamics!(
+    dx  :: AbstractVector{T},
+    x   :: AbstractVector{S},
+    p   :: Vector{Float64},
+    t   :: Real,
+    spec:: CompiledSpec,
+    sys :: CompiledSystemSpec,
+) where {T <: Real, S <: Real}
     for id_ball in sys.entity_ids
-        dx[state_idx(spec, id_ball * ".position")] += x[state_idx(spec, id_ball * ".velocity")]
-        dx[state_idx(spec, id_ball * ".velocity")] += -9.81
+        dx[state_idx(spec, id_ball * ".ball.velocity")] += -9.81
+        dx[state_idx(spec, id_ball * ".ball.position")] += x[state_idx(spec, id_ball * ".ball.velocity")]
     end
 end
 
 end  # module MyDynamics
 ```
+
+The `{T, S}` signature is required for stiff solvers (Rodas5P): during Jacobian evaluation OrdinaryDiffEq calls the function with `x::Vector{Dual}`, and both type parameters must be present so helper functions can correctly type their return values.
 
 ```python
 from numen.bridge.runtime import JuliaBackend

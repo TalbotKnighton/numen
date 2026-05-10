@@ -185,9 +185,13 @@ import Main: CompiledSpec, CompiledSystemSpec, state_idx, param_idx
 
 
 function kinematics_dynamics!(
-    dx::Vector{Float64}, x::Vector{Float64}, p::Vector{Float64},
-    t::Float64, spec::CompiledSpec, sys::CompiledSystemSpec,
-)
+    dx  :: AbstractVector{T},
+    x   :: AbstractVector{S},
+    p   :: Vector{Float64},
+    t   :: Real,
+    spec:: CompiledSpec,
+    sys :: CompiledSystemSpec,
+) where {T <: Real, S <: Real}
     for id_body in sys.entity_ids
         i_pos = state_idx(spec, id_body * ".body.position")
         i_vel = state_idx(spec, id_body * ".body.velocity")
@@ -197,9 +201,13 @@ end
 
 
 function spring_dynamics!(
-    dx::Vector{Float64}, x::Vector{Float64}, p::Vector{Float64},
-    t::Float64, spec::CompiledSpec, sys::CompiledSystemSpec,
-)
+    dx  :: AbstractVector{T},
+    x   :: AbstractVector{S},
+    p   :: Vector{Float64},
+    t   :: Real,
+    spec:: CompiledSpec,
+    sys :: CompiledSystemSpec,
+) where {T <: Real, S <: Real}
     gs = sys.group_size  # 3
     for i in 1:gs:length(sys.entity_ids)
         id_a = sys.entity_ids[i]
@@ -210,11 +218,11 @@ function spring_dynamics!(
         pos_b = x[state_idx(spec, id_b * ".body.position")]
         vel_a = x[state_idx(spec, id_a * ".body.velocity")]
         vel_b = x[state_idx(spec, id_b * ".body.velocity")]
-        mass_a     = p[param_idx(spec, id_a * ".body.mass")]
-        mass_b     = p[param_idx(spec, id_b * ".body.mass")]
-        stiffness  = p[param_idx(spec, id_s * ".spring.stiffness")]
-        rest_len   = p[param_idx(spec, id_s * ".spring.rest_length")]
-        damping    = p[param_idx(spec, id_s * ".spring.damping")]
+        mass_a    = p[param_idx(spec, id_a * ".body.mass")]
+        mass_b    = p[param_idx(spec, id_b * ".body.mass")]
+        stiffness = p[param_idx(spec, id_s * ".spring.stiffness")]
+        rest_len  = p[param_idx(spec, id_s * ".spring.rest_length")]
+        damping   = p[param_idx(spec, id_s * ".spring.damping")]
 
         stretch = (pos_b - pos_a) - rest_len
         rel_vel = vel_b - vel_a
@@ -401,27 +409,33 @@ module {{MODEL_NAME}}Dynamics
 import Main: CompiledSpec, CompiledSystemSpec, state_idx, param_idx
 
 
+# Helper: isentropic orifice mass flow.  P_up/P_dn are type T so ForwardDiff
+# can differentiate through them for the state Jacobian.
 function orifice_mdot(
-    P_up::Float64, P_dn::Float64, T_up::Float64,
+    P_up::T, P_dn::T, T_up::Float64,
     R::Float64, Cd::Float64, A::Float64, gamma::Float64,
-)::Float64
-    (P_up <= 0.0 || A <= 0.0) && return 0.0
-    beta      = max(0.0, P_dn) / P_up
+)::T where T <: Real
+    (P_up <= 0.0 || A <= 0.0) && return zero(T)
+    beta      = max(zero(T), P_dn) / P_up
     beta_crit = (2.0 / (gamma + 1.0))^(gamma / (gamma - 1.0))
     if beta <= beta_crit
         choke_exp = (gamma + 1.0) / (2.0 * (gamma - 1.0))
         return Cd * A * P_up * sqrt(gamma / (R * T_up)) * (2.0/(gamma+1.0))^choke_exp
     else
         arg = beta^(2.0/gamma) - beta^((gamma+1.0)/gamma)
-        return Cd * A * P_up * sqrt(max(0.0, 2.0*gamma/((gamma-1.0)*R*T_up)*arg))
+        return Cd * A * P_up * sqrt(max(zero(T), 2.0*gamma/((gamma-1.0)*R*T_up)*arg))
     end
 end
 
 
 function orifice_flow_dynamics!(
-    dx::Vector{Float64}, x::Vector{Float64}, p::Vector{Float64},
-    t::Float64, spec::CompiledSpec, sys::CompiledSystemSpec,
-)
+    dx  :: AbstractVector{T},
+    x   :: AbstractVector{S},
+    p   :: Vector{Float64},
+    t   :: Real,
+    spec:: CompiledSpec,
+    sys :: CompiledSystemSpec,
+) where {T <: Real, S <: Real}
     gs = sys.group_size
     for i in 1:gs:length(sys.entity_ids)
         id_a = sys.entity_ids[i]
@@ -586,9 +600,13 @@ import Main: CompiledSpec, CompiledSystemSpec, state_idx, param_idx
 
 
 function my_dynamics!(
-    dx::Vector{Float64}, x::Vector{Float64}, p::Vector{Float64},
-    t::Float64, spec::CompiledSpec, sys::CompiledSystemSpec,
-)
+    dx  :: AbstractVector{T},
+    x   :: AbstractVector{S},
+    p   :: Vector{Float64},
+    t   :: Real,
+    spec:: CompiledSpec,
+    sys :: CompiledSystemSpec,
+) where {T <: Real, S <: Real}
     for id_e in sys.entity_ids
         i_state = state_idx(spec, id_e * ".my.state")
         # TODO: dx[i_state] += ...

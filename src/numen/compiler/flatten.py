@@ -211,6 +211,15 @@ class CompiledSpec:
     systems:            list[CompiledSystem]   = field(default_factory=list)
     compiled_callbacks: list[CompiledCallback] = field(default_factory=list)
     required_features:  frozenset[str]         = field(default_factory=frozenset)
+    # COO-format Jacobian sparsity pattern (0-based indices into x).
+    # Computed by compile_spec() from the ECS entity-group graph.
+    # Conservative: all state slots for entities in the same system group are
+    # treated as fully coupled (dense block per group, zero across groups).
+    # Julia converts to 1-based and constructs a SparseMatrixCSC jac_prototype
+    # for ODEFunction, enabling sparse matrix coloring with O(max_group_width)
+    # Jacobian evaluations instead of O(state_size / chunk) for dense ForwardDiff.
+    jac_sparsity_rows:  list[int]        = field(default_factory=list)
+    jac_sparsity_cols:  list[int]        = field(default_factory=list)
     # Features: "vector_fields", "discrete_fields", "continuous_fields",
     #           "control_callbacks", "dae_constraints"
     # Populated by compile_spec(); checked by each backend before solving.
@@ -274,6 +283,8 @@ class CompiledSpec:
                 {"name": c.name, "dt": c.dt, "julia_fn": c.julia_fn, "params": c.params}
                 for c in self.compiled_callbacks
             ],
+            "jac_sparsity_rows": self.jac_sparsity_rows,
+            "jac_sparsity_cols": self.jac_sparsity_cols,
         }
 
 
@@ -319,6 +330,45 @@ def _validate_group(
                 f"System '{dynamics_fn}': slot for {expected.__name__!r} "
                 f"received entity '{eid}' with components {found!r}"
             )
+
+
+def _compute_jac_sparsity(
+    state_index_map: dict[str, tuple[int, int]],
+    systems: list[CompiledSystem],
+) -> tuple[list[int], list[int]]:
+    """Compute Jacobian sparsity pattern from the ECS entity-group graph.
+
+    Strategy: for each system, collect all state indices for every entity in
+    each group and mark every (row, col) pair within that set as potentially
+    nonzero.  This is conservative — it over-includes when a system only reads
+    a subset of an entity's fields — but it is always safe (never misses a
+    real nonzero entry for well-formed dynamics).
+
+    Entities with no state variables (e.g. synthetic excitation entities) contribute
+    nothing, so the excitation systems correctly add no Jacobian entries.
+
+    Returns 0-based (rows, cols) lists for direct inclusion in the JSON payload
+    (Julia converts to 1-based before constructing the SparseMatrixCSC).
+    """
+    nonzero: set[tuple[int, int]] = set()
+    for sys in systems:
+        gs = sys.group_size
+        eids = sys.entity_ids
+        for g_start in range(0, len(eids), gs):
+            group = eids[g_start : g_start + gs]
+            idxs: list[int] = []
+            for eid in group:
+                prefix = eid + "."
+                for key, (s, e) in state_index_map.items():
+                    if key.startswith(prefix):
+                        idxs.extend(range(s, e))
+            for row in idxs:
+                for col in idxs:
+                    nonzero.add((row, col))
+    if not nonzero:
+        return [], []
+    pairs = sorted(nonzero)
+    return [r for r, _ in pairs], [c for _, c in pairs]
 
 
 def compile_spec(world: Any) -> CompiledSpec:
@@ -458,6 +508,8 @@ def compile_spec(world: Any) -> CompiledSpec:
     if compiled_callbacks:
         features.add("control_callbacks")
 
+    jac_rows, jac_cols = _compute_jac_sparsity(state_index_map, systems)
+
     return CompiledSpec(
         state_size=state_cursor,
         param_size=param_cursor,
@@ -470,4 +522,6 @@ def compile_spec(world: Any) -> CompiledSpec:
         systems=systems,
         compiled_callbacks=compiled_callbacks,
         required_features=frozenset(features),
+        jac_sparsity_rows=jac_rows,
+        jac_sparsity_cols=jac_cols,
     )

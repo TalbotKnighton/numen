@@ -276,7 +276,10 @@ class CharacterizationRunner:
         if isinstance(test, ContinuousChirpSpec):
             from numen.characterization.tests.chirp_sweep import run_continuous_chirp
             exc_s = set_excitation_params(self._exc_spec, e_id, e_port, dc=test.dc_offset)
-            return run_continuous_chirp(test, exc_s, e_id, e_port, out, backend)
+            return run_continuous_chirp(
+                test, exc_s, e_id, e_port,
+                self._exc_component_kind, self._exc_target_field, out, backend,
+            )
 
         if isinstance(test, TwoToneSpec):
             from numen.characterization.tests.two_tone import run_two_tone
@@ -341,7 +344,9 @@ class CharacterizationRunner:
                 return run_amplitude_sweep(sub_spec_obj, spec_v, e_id, e_port, out, backend)
             if isinstance(sub_spec_obj, ContinuousChirpSpec):
                 from numen.characterization.tests.chirp_sweep import run_continuous_chirp
-                return run_continuous_chirp(sub_spec_obj, spec_v, e_id, e_port, out, backend)
+                ck  = self._exc_component_kind
+                tgt = self._exc_target_field
+                return run_continuous_chirp(sub_spec_obj, spec_v, e_id, e_port, ck, tgt, out, backend)
             if isinstance(sub_spec_obj, TwoToneSpec):
                 from numen.characterization.tests.two_tone import run_two_tone
                 ck  = self._exc_component_kind

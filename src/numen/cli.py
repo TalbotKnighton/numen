@@ -255,6 +255,7 @@ def init(
 
     claude_md    = target / "CLAUDE.md"
     char_md      = target / "CHARACTERIZATION.md"
+    design_md    = target / "DESIGN.md"
 
     if claude_md.exists() and not force:
         console.print(f"  [bold #f59e0b]⚠[/]  CLAUDE.md already exists. Use [bold]--force[/bold] to overwrite.")
@@ -271,14 +272,19 @@ def init(
             raise typer.Exit(code=1)
         model_path.mkdir(parents=True, exist_ok=True)
         model_name = model.replace("-", "_").replace(" ", "_").title().replace("_", "")
+        subs = get_substitutions(model_name, "scipy")
         tmpl = TEMPLATES.get(domain, TEMPLATES["generic"])
         for filename, content in tmpl.items():
-            (model_path / filename).write_text(content.replace("{{MODEL_NAME}}", model_name), encoding="utf-8")
+            for key, val in subs.items():
+                content = content.replace(key, val)
+            (model_path / filename).write_text(content, encoding="utf-8")
 
     project_name = target.name
     _write_init_data("CLAUDE.md", claude_md,
                      substitutions={"project_name": project_name}, force=force)
     _write_init_data("CHARACTERIZATION.md", char_md, force=force)
+    _write_init_data("DESIGN.md", design_md,
+                     substitutions={"project_name": project_name}, force=force)
 
     console.print(_logo_panel())
     _header("Project Initialized")
@@ -288,6 +294,7 @@ def init(
     console.print("  [dim]Created:[/dim]")
     _file("CLAUDE.md",            "AI assistant context — loaded automatically by Claude Code")
     _file("CHARACTERIZATION.md",  "Complete characterization framework guide")
+    _file("DESIGN.md",            "Architecture reference + project decision log")
     if model_path:
         _file(f"{model}/", f"{domain} model scaffold")
     console.print()
@@ -331,13 +338,35 @@ def new(
             content = content.replace(key, val)
         (outdir / filename).write_text(content, encoding="utf-8")
 
-    _header(f"Scaffolded: {name}  [{domain}]  [backend: {backend}]")
+    # Write CLAUDE.md / CHARACTERIZATION.md into the project root (outdir's parent)
+    # if they aren't already there — silently skip if present.
+    project_dir  = outdir.parent.resolve()
+    project_name = project_dir.name
+    claude_written = _write_init_data(
+        "CLAUDE.md", project_dir / "CLAUDE.md",
+        substitutions={"project_name": project_name}, force=force,
+    )
+    char_written = _write_init_data(
+        "CHARACTERIZATION.md", project_dir / "CHARACTERIZATION.md", force=force,
+    )
+    design_written = _write_init_data(
+        "DESIGN.md", project_dir / "DESIGN.md",
+        substitutions={"project_name": project_name}, force=force,
+    )
+
+    _header(f"Scaffolded: {name}  [{domain}, {backend}]")
     _file("components.py",  "Component classes (IntegratedField, ParameterField)")
     _file("dynamics.py",    "Physics functions — JAX-compatible, use jnp.*")
     _file("dynamics.jl",    "Julia mirror for JuliaBackend / JuliaServerBackend")
     _file("world.py",       "World assembly and make_world()")
-    _file("run.py",         f"Solve and plot  [{backend} backend active; others commented]")
-    _file("test_plan.yaml", f"Characterization campaign  [{backend} backend active; others commented]")
+    _file("run.py",         f"Solve and plot  ({backend} active; others commented)")
+    _file("test_plan.yaml", f"Characterization campaign  ({backend} active; others commented)")
+    if claude_written:
+        _file("../CLAUDE.md",            "AI assistant context (project root)")
+    if char_written:
+        _file("../CHARACTERIZATION.md",  "Characterization framework guide (project root)")
+    if design_written:
+        _file("../DESIGN.md",            "Architecture reference + project decision log (project root)")
     console.print()
     console.print("  [dim]Next steps:[/dim]")
     _step(1, f"Edit [bold]{outdir}/components.py[/bold]  — define state and parameter fields")
