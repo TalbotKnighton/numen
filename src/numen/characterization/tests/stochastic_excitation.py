@@ -28,6 +28,7 @@ from numen.characterization.schema import (
 )
 from numen.characterization.signal_gen import (
     _make_rng,
+    build_gate_signal,
     generate_psd_signal,
     load_psd_file,
     load_time_series_file,
@@ -72,6 +73,14 @@ def run_stochastic_excitation(
     """
     effective_seed = resolve_seed(test.seed, global_seed)
     signal_arr, seed_used = _build_signal(test, effective_seed, plan_dir)
+
+    if test.gate is not None:
+        gate_arr   = build_gate_signal(test.gate, len(signal_arr), test.dt_sig)
+        signal_arr = signal_arr * gate_arr
+        _log.info(
+            "stochastic '%s': gate=%s applied (gate_on_fraction=%.3f)",
+            test.name, test.gate.type, float(np.mean(gate_arr > 0.0)),
+        )
 
     N = len(signal_arr)
     _log.info(

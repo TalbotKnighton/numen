@@ -469,6 +469,34 @@ File formats: two-column CSV `frequency,psd` (header optional); JSON
 - `numen characterize test_plan.yaml --seed 42` → global CLI override that
   sets the seed for every stochastic test in the plan.
 
+**Gating (on/off envelope):** add a `gate:` block to switch the signal on and
+off in time.  The gate is multiplied element-wise into the pre-computed signal
+before injection — the ODE solve is unchanged.
+
+`intervals` gate — explicit ON windows:
+```yaml
+  gate:
+    type: intervals
+    on_intervals:
+      - [0.0,  5.0]    # ON 0–5 s
+      - [10.0, 15.0]   # OFF 5–10 s, ON 10–15 s, OFF afterwards
+    ramp_s: 0.05       # half-cosine taper on each edge (0 → hard gate)
+```
+
+`square` gate — periodic duty cycle:
+```yaml
+  gate:
+    type: square
+    period: 2.0        # 2 s cycle
+    duty:   0.5        # ON half of each cycle
+    phase:  0.0        # ON-phase starts at t=0
+    ramp_s: 0.02       # smooths the rising/falling edges
+```
+
+Use a small `ramp_s` (a few sample periods) whenever you care about spectral
+purity — a hard square edge injects energy at every harmonic of the switching
+frequency.
+
 **Outputs:** `StochasticExcitationResult` with:
 - Response PSD (Welch estimate)
 - Input PSD (estimated from generated signal)

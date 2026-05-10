@@ -316,6 +316,44 @@ AnySignalSpec = Annotated[
 ]
 
 
+# ---------------------------------------------------------------------------
+# Stochastic excitation — gating (element-wise modulator on the signal)
+# ---------------------------------------------------------------------------
+
+class IntervalsGateSpec(BaseModel):
+    """Gate the stochastic signal ON inside the listed time windows, OFF elsewhere.
+
+    Lets you compose burst tests such as ``"random vibe ON 0–5 s, OFF 5–10 s,
+    ON 10–15 s"`` by element-wise multiplication on the pre-computed signal.
+
+    ``ramp_s`` applies a half-cosine taper of that duration to each ON-window
+    edge; suppresses the spectral splatter of a hard square edge.  Set to 0
+    for a hard gate.
+    """
+    type:         Literal["intervals"]
+    on_intervals: list[tuple[float, float]]   # [(t_on, t_off), …] in seconds
+    ramp_s:       float = 0.0                  # half-cosine ramp on each edge [s]
+
+
+class SquareGateSpec(BaseModel):
+    """Periodic square-wave gate: ON for ``duty`` of every ``period`` seconds.
+
+    ``phase`` shifts the start of the ON segment as a fraction of the period
+    (0 → ON starts at t=0; 0.5 → ON delayed by half a period).
+    """
+    type:    Literal["square"]
+    period:  float                              # full cycle length [s]
+    duty:    float = 0.5                        # ON fraction in [0, 1]
+    phase:   float = 0.0                        # phase offset in [0, 1)
+    ramp_s:  float = 0.0                        # half-cosine ramp on each edge [s]
+
+
+AnyGateSpec = Annotated[
+    Union[IntervalsGateSpec, SquareGateSpec],
+    Field(discriminator="type"),
+]
+
+
 class StochasticExcitationSpec(BaseModel):
     """Broadband random vibration test.
 
@@ -344,6 +382,7 @@ class StochasticExcitationSpec(BaseModel):
     transient_fraction:  float       = 0.2        # fraction discarded from PSD/BLA estimate
     n_welch_segments:    int         = 8          # Welch periodogram segments
     dc_offset:           float       = 0.0
+    gate:                AnyGateSpec | None = None  # optional on/off modulator multiplied into the signal
 
 
 TestSpec = Annotated[

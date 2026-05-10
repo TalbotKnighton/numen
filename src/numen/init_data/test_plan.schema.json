@@ -918,6 +918,44 @@
       "title": "HarmonicDistortionSweepSpec",
       "type": "object"
     },
+    "IntervalsGateSpec": {
+      "description": "Gate the stochastic signal ON inside the listed time windows, OFF elsewhere.\n\nLets you compose burst tests such as ``\"random vibe ON 0\u20135 s, OFF 5\u201310 s,\nON 10\u201315 s\"`` by element-wise multiplication on the pre-computed signal.\n\n``ramp_s`` applies a half-cosine taper of that duration to each ON-window\nedge; suppresses the spectral splatter of a hard square edge.  Set to 0\nfor a hard gate.",
+      "properties": {
+        "type": {
+          "const": "intervals",
+          "title": "Type",
+          "type": "string"
+        },
+        "on_intervals": {
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "On Intervals",
+          "type": "array"
+        },
+        "ramp_s": {
+          "default": 0.0,
+          "title": "Ramp S",
+          "type": "number"
+        }
+      },
+      "required": [
+        "type",
+        "on_intervals"
+      ],
+      "title": "IntervalsGateSpec",
+      "type": "object"
+    },
     "ModelSpec": {
       "description": "How to construct the Numen world under test.",
       "properties": {
@@ -1458,6 +1496,41 @@
       "title": "PlotsSpec",
       "type": "object"
     },
+    "SquareGateSpec": {
+      "description": "Periodic square-wave gate: ON for ``duty`` of every ``period`` seconds.\n\n``phase`` shifts the start of the ON segment as a fraction of the period\n(0 \u2192 ON starts at t=0; 0.5 \u2192 ON delayed by half a period).",
+      "properties": {
+        "type": {
+          "const": "square",
+          "title": "Type",
+          "type": "string"
+        },
+        "period": {
+          "title": "Period",
+          "type": "number"
+        },
+        "duty": {
+          "default": 0.5,
+          "title": "Duty",
+          "type": "number"
+        },
+        "phase": {
+          "default": 0.0,
+          "title": "Phase",
+          "type": "number"
+        },
+        "ramp_s": {
+          "default": 0.0,
+          "title": "Ramp S",
+          "type": "number"
+        }
+      },
+      "required": [
+        "type",
+        "period"
+      ],
+      "title": "SquareGateSpec",
+      "type": "object"
+    },
     "StochasticExcitationSpec": {
       "description": "Broadband random vibration test.\n\nGenerates a pre-computed forcing time series from a PSD specification\n(or an external file) and replays it via table interpolation during the\nODE solve.  The response PSD, RMS, and crest factor are extracted.  A\nBest Linear Approximation (BLA) is computed from the input/output cross-\nspectrum \u2014 coherence below 1 identifies nonlinear or noise contributions.\n\nSeed management:\n    ``seed: null`` draws from os.urandom and the used seed is stored in\n    the result so the realisation is always replayable.  The CLI\n    ``--seed`` flag overrides all per-test seeds in the plan.\n\nNote:\n    JAX backends are not supported (variable-length parameter vector).\n    Use ``julia_server`` or ``scipy`` backends.",
       "properties": {
@@ -1535,6 +1608,32 @@
           "default": 0.0,
           "title": "Dc Offset",
           "type": "number"
+        },
+        "gate": {
+          "anyOf": [
+            {
+              "discriminator": {
+                "mapping": {
+                  "intervals": "#/$defs/IntervalsGateSpec",
+                  "square": "#/$defs/SquareGateSpec"
+                },
+                "propertyName": "type"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/IntervalsGateSpec"
+                },
+                {
+                  "$ref": "#/$defs/SquareGateSpec"
+                }
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Gate"
         }
       },
       "required": [
@@ -1778,7 +1877,7 @@
       "type": "object"
     }
   },
-  "description": "JSON Schema for Numen characterization test plans (test_plan.yaml). Generated from numen.characterization.schema.CharacterizationConfig. IMPORTANT: All model parameter keys (sweep_param, params keys, etc.) must use the full three-level path \"entity_id.component_kind.field_name\" \u2014 never two-level \"entity_id.field_name\". Excitation parameter paths use the prefix excitation.* (e.g. excitation.dc_offset, excitation.amplitude, excitation.frequency).",
+  "description": "JSON Schema for Numen characterization test plans (test_plan.yaml). Generated from numen.characterization.schema.CharacterizationConfig. IMPORTANT: All model parameter keys (sweep_param, params keys) must use the full three-level path \"entity_id.component_kind.field_name\" \u2014 never two-level \"entity_id.field_name\". Excitation parameter paths use the excitation.* prefix (e.g. excitation.dc_offset, excitation.amplitude, excitation.frequency).",
   "properties": {
     "version": {
       "default": "1.0",

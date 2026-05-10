@@ -263,6 +263,75 @@ def load_time_series_file(
 
 
 # ---------------------------------------------------------------------------
+# Gating — element-wise modulator multiplied into the stochastic signal
+# ---------------------------------------------------------------------------
+
+def build_gate_signal(gate: Any, n_samples: int, dt_sig: float) -> np.ndarray:
+    """Build a gate envelope of shape (n_samples,) with values in [0, 1].
+
+    Used by ``run_stochastic_excitation`` to switch a random-vibe signal on
+    and off in time by element-wise multiplication.  The ODE solve sees a
+    pre-computed product signal — no extra runtime cost.
+
+    Accepts an ``IntervalsGateSpec`` (explicit list of ON windows) or a
+    ``SquareGateSpec`` (periodic duty cycle).  Both honour ``ramp_s`` for a
+    half-cosine taper at each ON/OFF edge.
+    """
+    # Local import avoids the schema → signal_gen circularity.
+    from numen.characterization.schema import IntervalsGateSpec, SquareGateSpec
+
+    t = np.arange(n_samples) * dt_sig
+
+    if isinstance(gate, IntervalsGateSpec):
+        g = np.zeros(n_samples, dtype=float)
+        for t_on, t_off in gate.on_intervals:
+            g = np.maximum(g, _window(t, float(t_on), float(t_off), gate.ramp_s))
+        return g
+
+    if isinstance(gate, SquareGateSpec):
+        if gate.period <= 0.0:
+            raise ValueError(f"SquareGateSpec.period must be > 0; got {gate.period}")
+        duty = float(np.clip(gate.duty, 0.0, 1.0))
+        cyc  = ((t / gate.period) - gate.phase) % 1.0
+        if gate.ramp_s <= 0.0:
+            return (cyc < duty).astype(float)
+        rf = min(gate.ramp_s / gate.period, 0.5 * duty)   # ramp fraction
+        g  = np.zeros(n_samples, dtype=float)
+        rise = (cyc >= 0.0)         & (cyc < rf)
+        flat = (cyc >= rf)          & (cyc < duty - rf)
+        fall = (cyc >= duty - rf)   & (cyc < duty)
+        if rf > 0.0:
+            g[rise] = 0.5 * (1.0 - np.cos(np.pi * cyc[rise] / rf))
+            g[fall] = 0.5 * (1.0 + np.cos(np.pi * (cyc[fall] - (duty - rf)) / rf))
+        g[flat] = 1.0
+        return g
+
+    raise ValueError(f"Unknown gate spec type: {type(gate).__name__}")
+
+
+def _window(t: np.ndarray, t_on: float, t_off: float, ramp_s: float) -> np.ndarray:
+    """Rectangular window 1 on [t_on, t_off), with half-cosine ramps of width ramp_s."""
+    if t_off <= t_on:
+        return np.zeros_like(t)
+    if ramp_s <= 0.0:
+        return ((t >= t_on) & (t < t_off)).astype(float)
+
+    # Clamp ramp to half the window so rising and falling tapers don't cross.
+    ramp = min(ramp_s, 0.5 * (t_off - t_on))
+    rise_end   = t_on + ramp
+    fall_start = t_off - ramp
+
+    g = np.zeros_like(t)
+    rise = (t >= t_on)       & (t < rise_end)
+    flat = (t >= rise_end)   & (t < fall_start)
+    fall = (t >= fall_start) & (t < t_off)
+    g[rise] = 0.5 * (1.0 - np.cos(np.pi * (t[rise] - t_on) / ramp))
+    g[flat] = 1.0
+    g[fall] = 0.5 * (1.0 + np.cos(np.pi * (t[fall] - fall_start) / ramp))
+    return g
+
+
+# ---------------------------------------------------------------------------
 # Seed helpers
 # ---------------------------------------------------------------------------
 

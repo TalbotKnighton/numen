@@ -47,13 +47,18 @@ This creates:
 
 ```
 my_project/
-├── CLAUDE.md           (AI assistant context)
+├── CLAUDE.md                  (AI assistant context)
+├── CHARACTERIZATION.md        (test campaign reference)
+├── DESIGN.md                  (architecture decisions log)
+├── JULIA.md                   (Julia dynamics conventions)
+├── test_plan.schema.json      (JSON Schema for IDE autocomplete)
 └── first_model/
-    ├── components.py   (define state and parameter fields)
-    ├── dynamics.py     (write physics — JAX-compatible)
-    ├── dynamics.jl     (Julia translation for fast backend)
-    ├── world.py        (set initial conditions and topology)
-    └── run.py          (solve and plot)
+    ├── components.py          (define state and parameter fields)
+    ├── dynamics.py            (write physics — JAX-compatible)
+    ├── dynamics.jl            (Julia translation for fast backend)
+    ├── world.py               (set initial conditions and topology)
+    ├── test_plan.yaml         (characterization campaign)
+    └── run.py                 (solve and plot)
 ```
 
 Run it immediately:
@@ -61,6 +66,23 @@ Run it immediately:
 ```bash
 cd my_project/first_model
 python run.py
+```
+
+### Recommended: install the Red Hat YAML extension
+
+For live autocomplete and validation in `test_plan.yaml`, install the
+**[YAML extension by Red Hat](https://marketplace.visualstudio.com/items?itemName=redhat.vscode-yaml)**
+in VS Code or Cursor. The scaffolded test plans already include the
+`# yaml-language-server: $schema=test_plan.schema.json` header — once the
+extension is installed, your editor will:
+
+- Autocomplete every test type, plot panel type, and field name
+- Catch invalid `sweep_param` paths and unknown options as you type
+- Show inline docstrings from the Pydantic schema on hover
+
+To regenerate the schema after upgrading Numen:
+```bash
+numen schema -o test_plan.schema.json
 ```
 
 ## Your first model: 1D oscillator

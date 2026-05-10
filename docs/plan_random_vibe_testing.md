@@ -494,6 +494,30 @@ units throughout.
 
 ---
 
+## 10b. Gating (composition by multiplication) — shipped
+
+`StochasticExcitationSpec` accepts an optional `gate:` block.  The gate is
+built on the Python side as an array of values in `[0, 1]` and multiplied
+element-wise into the pre-computed signal before `inject_table_excitation` is
+called — no Julia or scipy runtime change.
+
+Two gate types are supported:
+
+- `intervals` — explicit list of ON windows `[(t_on, t_off), …]`
+- `square`    — periodic duty cycle (`period`, `duty`, `phase`)
+
+Both honour `ramp_s` for a half-cosine taper at each ON/OFF edge.  This is the
+minimum-viable "compose excitations by multiplication" feature; the random
+vibe → gate path proves out the pattern.  General composition (multiply two
+arbitrary excitations, AM modulation, envelope filters) is deferred until the
+second concrete use case shows up.
+
+Code: `signal_gen.build_gate_signal`; applied in
+`tests/stochastic_excitation.run_stochastic_excitation` immediately after
+`_build_signal`.
+
+---
+
 ## 11. Implementation phases
 
 ### Phase 1 (implement now)
