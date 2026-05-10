@@ -195,7 +195,36 @@ def _soft_pen(x):
 
 ## Killer feature: characterization without Python
 
-Most simulation frameworks make you write a Python script every time you want to sweep a parameter, run a frequency response, or build a Bode plot. Numen has a domain-agnostic characterization engine you drive from a YAML file:
+Most simulation frameworks make you write a Python script every time you want to sweep a parameter, run a frequency response, or build a Bode plot. Numen has a domain-agnostic characterization engine you drive from a YAML file.
+
+### Step 1 — Mark an excitation port on your component
+
+Add an `ExcitationPort` field to whichever component receives the test signal. It declares which integrated field's derivative the framework should add `F(t)` into. The port itself is metadata only — it isn't compiled into `x` or `p` and you never reference it from the dynamics function:
+
+```python
+# components.py
+from typing import Annotated, Literal
+from numen.spec.component import Component
+from numen.fields import IntegratedField, ParameterField, ExcitationPort
+
+class PistonComponent(Component):
+    kind:     Literal["pneumatic_dashpot"] = "pneumatic_dashpot"
+    position: Annotated[float, IntegratedField()] = 0.0
+    velocity: Annotated[float, IntegratedField()] = 0.0
+    mass:     Annotated[float, ParameterField()]  = 0.5
+
+    # Excitation input port — effort source (force).
+    # targets="velocity": F(t) is added to d(velocity)/dt during the solve.
+    force: Annotated[float, ExcitationPort(
+        targets   = "velocity",   # IntegratedField whose derivative receives F(t)
+        port_type = "effort",     # "effort" (force/pressure/voltage) or "flow"
+        units     = "N",
+    )] = 0.0
+```
+
+That's the entire change — no edit to the dynamics function. The framework injects `F(t) = amp·sin(2π·f·t) + dc` (or a chirp, two-tone, stochastic PSD, etc.) into the targeted derivative for you.
+
+### Step 2 — Write the test plan
 
 ```yaml
 # yaml-language-server: $schema=test_plan.schema.json
@@ -212,10 +241,10 @@ model:
   factory: make_world
 
 excitation:
-  entity: piston
-  component: pneumatic_dashpot
-  port: force                    # an ExcitationPort field on the component
-  output_state: position
+  entity: piston                       # entity_id in your World
+  component: pneumatic_dashpot         # component kind that owns the port
+  port: force                          # ExcitationPort field name
+  output_state: position               # state field to measure (response)
 
 tests:
   - name: chirp_survey
@@ -238,7 +267,13 @@ plots:
       test: frf_vs_orifice
 ```
 
-Run with `numen characterize test_plan.yaml`. The framework:
+### Step 3 — Run it
+
+```bash
+numen characterize test_plan.yaml
+```
+
+The framework:
 
 1. Adds force excitation `F(t) = amp·sin(2π·f·t) + dc` to the entity's port
 2. Sweeps the orifice area across five decades using 4 parallel pre-warmed Julia workers
