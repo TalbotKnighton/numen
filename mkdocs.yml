@@ -35,6 +35,7 @@ plugins:
 
 nav:
   - Home: index.md
+  - Guided Tour: tour.md
   - Getting Started: getting-started.md
   - User Guide:
     - Components & Fields: guide/components.md

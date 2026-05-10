@@ -3,7 +3,18 @@
 
 Numen is an ECS-style (Entity-Component-System) physics simulation framework.
 Models are **defined in Python** using Pydantic components, then solved by
-Python (scipy), JAX (diffrax), or Julia (OrdinaryDiffEq) backends.
+Python (scipy, dev/debug), Julia (OrdinaryDiffEq, **production**), or JAX
+(diffrax, autodiff/batched) backends.
+
+**Backend strategy.** Julia is the strategic backend for production engineering
+work — it's a thin wrapper over the full [`OrdinaryDiffEq.jl`](https://docs.sciml.ai/OrdinaryDiffEq/stable/)
+ecosystem (~150+ solvers selectable by string), supports stiff problems
+(`Rodas5P`, `FBDF`, `KenCarp4`), DAEs (mass-matrix path with
+`ContinuousField(algebraic=True)`), and sparse Jacobian with auto-coloring.
+Use `JuliaServerBackend` to amortise JIT across the session and `JuliaServerPool`
+for parallel parameter sweeps. JAX is only the right answer when you need
+autodiff *through* the solve — its explicit solvers diverge on stiff systems
+that real engineering models routinely produce.
 
 The `numen` CLI helps you explore, verify, scaffold, and characterize models:
 
@@ -31,9 +42,9 @@ Component  (data)                compile_spec()  →  CompiledSpec
                                    ├─ state_index_map
 System  (dynamics)                 └─ systems    [CompiledSystem]
   ├─ python_fn    (scipy / JAX)
-  └─ dynamics_fn  (Julia name)   Backends: ScipyBackend
-                                            JAXBackend
-World  (components + systems)              JuliaBackend
+  └─ dynamics_fn  (Julia name)   Backends: JuliaServerBackend ★ production
+                                            ScipyBackend       dev/debug
+World  (components + systems)              JAXBackend          autodiff/batch
 ```
 
 ---

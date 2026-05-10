@@ -1,15 +1,27 @@
 # {project_name} — Numen Physics Simulation Project
 
 This project uses the **Numen** framework for engineering dynamics simulation.
-Models are defined in Python and solved by scipy, JAX, or Julia backends.
+Models are defined in Python and solved by Python (scipy, dev/debug), Julia
+(OrdinaryDiffEq, **production**), or JAX (diffrax, autodiff/batched) backends.
 
 ```bash
-numen check                   # verify scipy + JAX + Julia
-numen info                    # framework quick-reference
+numen check                              # verify scipy + JAX + Julia
+numen info                               # framework quick-reference
 numen characterize test_plan.yaml        # run tests + plot
 numen characterize test_plan.yaml -c     # characterize only
 numen characterize test_plan.yaml -p     # plot only
 ```
+
+> **Backend strategy.** For production work, prefer the **Julia backend** —
+> specifically `JuliaServerBackend` (single hot process, JIT amortised across
+> session) or `JuliaServerPool` (N pre-warmed workers for parameter sweeps).
+> Julia is a thin wrapper over the full `OrdinaryDiffEq.jl` solver ecosystem
+> (any of ~150 solvers selectable by string name) and is the only backend that
+> supports stiff problems (`Rodas5P`, `FBDF`) and DAEs (mass-matrix path with
+> `ContinuousField(algebraic=True)`). JAX is the right call only when you need
+> autodiff through the solve — its explicit solvers diverge on stiff systems
+> that real engineering models routinely produce. See [JULIA.md](JULIA.md) for
+> the dynamics-writing reference.
 
 ---
 
@@ -22,9 +34,9 @@ Component  (Pydantic data)          compile_spec(world) → CompiledSpec
   ├─ ExcitationPort  → *(not compiled)*          └─ systems [CompiledSystem]
   └─ ContinuousField → state x (output/alg)
 
-System  (stateless dynamics)        Backends:  ScipyBackend  (dev)
-  └─ python_fn / dynamics_fn                   JAXBackend    (~1500× warm)
-                                               JuliaBackend  (~600× warm)
+System  (stateless dynamics)        Backends:  JuliaServerBackend ★ production
+  └─ python_fn / dynamics_fn                   ScipyBackend         dev / debug
+                                               JAXBackend           autodiff
 World  (components + systems)
 ```
 
