@@ -123,11 +123,19 @@ Stiff problems: use `method="Rodas5P"` (Julia) or `solver="Kvaerno5"` (JAX).
 
 ---
 
-## Writing Julia dynamics  ⚠️ signature convention
+## Writing Julia dynamics
 
-Every Julia dynamics function **must** use two separate type parameters for `dx` and `x`:
+See **[JULIA.md](JULIA.md)** for the full reference — high-level helper API
+(`get_state` / `get_param` / `add_deriv!`), the low-level form for hot loops,
+performance trade-offs, and `groups(sys)` destructuring.
+
+Quick template:
 
 ```julia
+module MyDynamics
+import Main: CompiledSpec, CompiledSystemSpec, groups,
+             get_state, get_param, add_deriv!
+
 function my_dynamics!(
     dx  :: AbstractVector{T},
     x   :: AbstractVector{S},
@@ -136,49 +144,20 @@ function my_dynamics!(
     spec:: CompiledSpec,
     sys :: CompiledSystemSpec,
 ) where {T <: Real, S <: Real}
-    ...
+    for (eid,) in groups(sys)
+        pos = get_state(spec, x, eid, "ball.position")
+        vel = get_state(spec, x, eid, "ball.velocity")
+        add_deriv!(spec, dx, eid, "ball.position", vel)
+        add_deriv!(spec, dx, eid, "ball.velocity", -9.81)
+    end
 end
+end  # module
 ```
 
-**Why two type parameters?**  Rosenbrock stiff solvers (Rodas5P, Rodas4, …) call
-the ODE function in two distinct AD passes during each step:
-1. Normal evaluation: `T=S=Float64`, `t=Float64`
-2. Jacobian (∂f/∂x): `T=S=Dual{...}`, `t=Float64`
-
-In pass 2, `dx` and `x` both carry `Dual` elements, so a single `T` works for them —
-but using two separate parameters `{T, S}` is still correct and required for helper
-functions where `dx`-derived and `x`-derived values may have different types.
-
-The time gradient (∂f/∂t) is computed by the framework via central finite differences
-and never calls user dynamics with `t::Dual`.  `t::Real` is still good practice for
-forward-compatibility and clarity.
-
-**Helper functions** that return a value derived from state must also be generic:
-
-```julia
-const STOP_DELTA = 1e-6
-
-function soft_pen(x::T)::T where T <: Real
-    x <= 0.0 && return zero(T)                   # zero(T), not 0.0
-    x >= STOP_DELTA && return x - 0.5 * STOP_DELTA
-    return 0.5 * x * x / STOP_DELTA
-end
-```
-
-Use `zero(T)` (not `0.0`) in early-return paths to preserve the inferred return type.
-
-**Parameter-derived vs state-derived values in helpers:**
-If an argument to a helper is read from the parameter vector `p` (type `Float64`),
-annotate it `:: Float64`.  If it is derived from the state vector `x` (type `S`),
-annotate it `:: Real` (or `:: S` if already in scope):
-
-```julia
-# A from p → Float64; A from x (e.g. poppet position) → Real
-function orifice_mdot(
-    P_up::T, P_dn::T, T_up::Float64,
-    R::Float64, Cd::Float64, A::Real, gamma::Float64,
-) where T <: Real
-```
+The two type parameters `{T, S}` cover both `Float64` (normal solve) and
+`ForwardDiff.Dual` (Jacobian evaluation under stiff solvers like Rodas5P).
+**See [JULIA.md](JULIA.md) for the full helper API, performance notes, and
+helper-function type-signature rules.**
 
 ---
 

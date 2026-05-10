@@ -65,6 +65,58 @@ state_idx(spec::CompiledSpec, key::String) = first(state_range(spec, key))
 param_idx(spec::CompiledSpec, key::String) = first(param_range(spec, key))
 
 """
+    get_state(spec, x, eid, path) -> scalar
+
+Read the scalar state value at `"\$eid.\$path"`.  Equivalent to
+`x[state_idx(spec, "\$eid.\$path")]` but reads more like a struct accessor.
+
+    P_a = get_state(spec, x, cv_a, "control_volume.pressure")
+"""
+@inline get_state(spec::CompiledSpec, x::AbstractVector, eid::AbstractString, path::AbstractString) =
+    x[state_idx(spec, "$eid.$path")]
+
+"""
+    get_param(spec, p, eid, path) -> Float64
+
+Read the scalar parameter value at `"\$eid.\$path"`.
+
+    R = get_param(spec, p, cv_a, "control_volume.R_specific")
+"""
+@inline get_param(spec::CompiledSpec, p::AbstractVector, eid::AbstractString, path::AbstractString) =
+    p[param_idx(spec, "$eid.$path")]
+
+"""
+    get_state_vec(spec, x, eid, path) -> SubArray
+
+Read a vector state field (e.g. an `IntegratedField(size=N)`) as a view into `x`.
+
+    disp = get_state_vec(spec, x, node, "beam.displacement")   # 8-element view
+"""
+@inline get_state_vec(spec::CompiledSpec, x::AbstractVector, eid::AbstractString, path::AbstractString) =
+    view(x, state_range(spec, "$eid.$path"))
+
+"""
+    get_param_vec(spec, p, eid, path) -> SubArray
+
+Read a vector parameter field (e.g. a `ParameterField(size=N)`) as a view into `p`.
+"""
+@inline get_param_vec(spec::CompiledSpec, p::AbstractVector, eid::AbstractString, path::AbstractString) =
+    view(p, param_range(spec, "$eid.$path"))
+
+"""
+    add_deriv!(spec, dx, eid, path, value) -> nothing
+
+Accumulate `value` into the derivative slot at `"\$eid.\$path"`.  Equivalent to
+`dx[state_idx(spec, "\$eid.\$path")] += value`.
+
+    add_deriv!(spec, dx, cv_a, "control_volume.pressure", -(R*T/V) * mdot)
+"""
+@inline function add_deriv!(spec::CompiledSpec, dx::AbstractVector, eid::AbstractString, path::AbstractString, value)
+    dx[state_idx(spec, "$eid.$path")] += value
+    return nothing
+end
+
+"""
     groups(sys::CompiledSystemSpec)
 
 Iterate the entity groups of a system. Each iteration yields a slice of

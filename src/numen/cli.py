@@ -256,6 +256,7 @@ def init(
     claude_md    = target / "CLAUDE.md"
     char_md      = target / "CHARACTERIZATION.md"
     design_md    = target / "DESIGN.md"
+    julia_md     = target / "JULIA.md"
 
     if claude_md.exists() and not force:
         console.print(f"  [bold #f59e0b]⚠[/]  CLAUDE.md already exists. Use [bold]--force[/bold] to overwrite.")
@@ -285,6 +286,7 @@ def init(
     _write_init_data("CHARACTERIZATION.md", char_md, force=force)
     _write_init_data("DESIGN.md", design_md,
                      substitutions={"project_name": project_name}, force=force)
+    _write_init_data("JULIA.md", julia_md, force=force)
 
     console.print(_logo_panel())
     _header("Project Initialized")
@@ -295,6 +297,7 @@ def init(
     _file("CLAUDE.md",            "AI assistant context — loaded automatically by Claude Code")
     _file("CHARACTERIZATION.md",  "Complete characterization framework guide")
     _file("DESIGN.md",            "Architecture reference + project decision log")
+    _file("JULIA.md",             "Julia dynamics conventions + performance notes")
     if model_path:
         _file(f"{model}/", f"{domain} model scaffold")
     console.print()
@@ -353,6 +356,9 @@ def new(
         "DESIGN.md", project_dir / "DESIGN.md",
         substitutions={"project_name": project_name}, force=force,
     )
+    julia_written = _write_init_data(
+        "JULIA.md", project_dir / "JULIA.md", force=force,
+    )
 
     _header(f"Scaffolded: {name}  [{domain}, {backend}]")
     _file("components.py",  "Component classes (IntegratedField, ParameterField)")
@@ -367,6 +373,8 @@ def new(
         _file("../CHARACTERIZATION.md",  "Characterization framework guide (project root)")
     if design_written:
         _file("../DESIGN.md",            "Architecture reference + project decision log (project root)")
+    if julia_written:
+        _file("../JULIA.md",             "Julia dynamics conventions + performance notes (project root)")
     console.print()
     console.print("  [dim]Next steps:[/dim]")
     _step(1, f"Edit [bold]{outdir}/components.py[/bold]  — define state and parameter fields")

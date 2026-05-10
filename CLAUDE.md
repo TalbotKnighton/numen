@@ -380,37 +380,40 @@ at DEBUG level in real time (not just on failure).
 
 ## Writing Julia dynamics
 
-For the Julia backend, each Python `System` has a corresponding Julia function.
-The naming convention is `ModuleName.function_name!` (matching `dynamics_fn` on the System).
+See **[src/numen/init_data/JULIA.md](src/numen/init_data/JULIA.md)** for the
+complete reference: high-level helper API (`get_state`, `get_param`,
+`add_deriv!`), low-level form for hot loops, performance trade-offs, and
+`groups(sys)` destructuring.
+
+Quick template (single-entity gravity):
 
 ```julia
 # dynamics.jl
 module MyDynamics
-import Main: CompiledSpec, CompiledSystemSpec, state_idx, param_idx, groups
+import Main: CompiledSpec, CompiledSystemSpec, groups,
+             get_state, get_param, add_deriv!
 
 function gravity_dynamics!(
     dx :: AbstractVector{T}, x :: AbstractVector{S}, p :: Vector{Float64},
     t  :: Real, spec :: CompiledSpec, sys :: CompiledSystemSpec,
 ) where {T <: Real, S <: Real}
     for (id_ball,) in groups(sys)
-        i_pos = state_idx(spec, "$id_ball.ball.position")
-        i_vel = state_idx(spec, "$id_ball.ball.velocity")
-        dx[i_pos] += x[i_vel]
-        dx[i_vel] += -9.81
+        vel = get_state(spec, x, id_ball, "ball.velocity")
+        add_deriv!(spec, dx, id_ball, "ball.position", vel)
+        add_deriv!(spec, dx, id_ball, "ball.velocity", -9.81)
     end
 end
 
 end  # module MyDynamics
 ```
 
-Use ``groups(sys)`` with tuple destructuring to name the entities in each
-group, mirroring Python's ``for entity_group in system.entity_groups:``. For a
-multi-entity system with ``EntityGroup(MassComponent, SpringComponent, MassComponent)``
-the loop becomes ``for (id_a, id_s, id_b) in groups(sys)``.
+Multi-entity coupled system: use tuple destructuring on `groups(sys)`. For
+``EntityGroup(MassComponent, SpringComponent, MassComponent)`` write
+``for (id_a, id_s, id_b) in groups(sys)``.
 
-Julia uses the same `state_idx` / `param_idx` helpers that index into the flat
-`x` and `p` vectors. The index maps are serialized in the `CompiledSpec` JSON
-that the subprocess receives.
+The lower-level helpers `state_idx` / `param_idx` / `state_range` /
+`param_range` are also available — use them in performance-critical inner loops
+where a single index can be cached and reused for both reads and writes.
 
 **Julia smooth contact helper** (mirror the Python `_soft_pen`):
 

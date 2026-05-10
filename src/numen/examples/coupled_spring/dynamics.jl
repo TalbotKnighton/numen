@@ -1,6 +1,7 @@
 module SpringDynamics
 
-import Main: CompiledSpec, CompiledSystemSpec, state_idx, param_idx, groups
+import Main: CompiledSpec, CompiledSystemSpec, groups,
+             get_state, get_param, add_deriv!
 
 """
     mass_kinematics_dynamics!(dx, x, p, t, spec, sys)
@@ -16,9 +17,8 @@ function mass_kinematics_dynamics!(
     sys :: CompiledSystemSpec,
 ) where {T <: Real, S <: Real}
     for (eid,) in groups(sys)
-        pos_idx = state_idx(spec, "$eid.mass.position")
-        vel_idx = state_idx(spec, "$eid.mass.velocity")
-        dx[pos_idx] += x[vel_idx]
+        vel = get_state(spec, x, eid, "mass.velocity")
+        add_deriv!(spec, dx, eid, "mass.position", vel)
     end
 end
 
@@ -38,20 +38,18 @@ function spring_force_dynamics!(
     sys :: CompiledSystemSpec,
 ) where {T <: Real, S <: Real}
     for (id_a, id_s, id_b) in groups(sys)
-        pos_a    = state_idx(spec, "$id_a.mass.position")
-        pos_b    = state_idx(spec, "$id_b.mass.position")
-        vel_a    = state_idx(spec, "$id_a.mass.velocity")
-        vel_b    = state_idx(spec, "$id_b.mass.velocity")
-        mass_a   = param_idx(spec, "$id_a.mass.mass")
-        mass_b   = param_idx(spec, "$id_b.mass.mass")
-        k_idx    = param_idx(spec, "$id_s.spring.k")
-        rest_idx = param_idx(spec, "$id_s.spring.rest_length")
+        pos_a  = get_state(spec, x, id_a, "mass.position")
+        pos_b  = get_state(spec, x, id_b, "mass.position")
+        mass_a = get_param(spec, p, id_a, "mass.mass")
+        mass_b = get_param(spec, p, id_b, "mass.mass")
+        k      = get_param(spec, p, id_s, "spring.k")
+        rest   = get_param(spec, p, id_s, "spring.rest_length")
 
-        stretch = (x[pos_b] - x[pos_a]) - p[rest_idx]
-        force   = p[k_idx] * stretch
+        stretch = (pos_b - pos_a) - rest
+        force   = k * stretch
 
-        dx[vel_a] +=  force / p[mass_a]
-        dx[vel_b] += -force / p[mass_b]
+        add_deriv!(spec, dx, id_a, "mass.velocity",  force / mass_a)
+        add_deriv!(spec, dx, id_b, "mass.velocity", -force / mass_b)
     end
 end
 

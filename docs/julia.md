@@ -60,17 +60,17 @@ the file once, then resolves function names from `dynamics_fn` strings like
 ```julia
 # dynamics.jl
 module MyDynamics
-import Main: CompiledSpec, CompiledSystemSpec, state_idx, param_idx, groups
+import Main: CompiledSpec, CompiledSystemSpec, groups,
+             get_state, get_param, add_deriv!
 
 function gravity_dynamics!(
     dx :: AbstractVector{T}, x :: AbstractVector{S}, p :: Vector{Float64},
     t  :: Real, spec :: CompiledSpec, sys :: CompiledSystemSpec,
 ) where {T <: Real, S <: Real}
     for (eid,) in groups(sys)
-        i_pos = state_idx(spec, "$eid.ball.position")
-        i_vel = state_idx(spec, "$eid.ball.velocity")
-        dx[i_pos] += x[i_vel]
-        dx[i_vel] += -9.81
+        vel = get_state(spec, x, eid, "ball.velocity")
+        add_deriv!(spec, dx, eid, "ball.position", vel)
+        add_deriv!(spec, dx, eid, "ball.velocity", -9.81)
     end
 end
 
@@ -81,57 +81,99 @@ In Python, set `dynamics_fn = "MyDynamics.gravity_dynamics!"` on the `System`.
 
 ---
 
-## Helpers available in dynamics files
+## Two API levels
 
-These five functions are always available via `import Main: ...`:
+Numen provides two layers of helpers. Pick one based on the situation.
 
-| Function | Returns | Description |
-|---|---|---|
-| `state_idx(spec, key)` | `Int` (1-based) | First Julia index for a state field |
-| `param_idx(spec, key)` | `Int` (1-based) | First Julia index for a parameter field |
-| `state_range(spec, key)` | `UnitRange{Int}` | Full slice for vector state fields (`size=N`) |
-| `param_range(spec, key)` | `UnitRange{Int}` | Full slice for vector parameter fields |
-| `groups(sys)` | iterator | Yields entity-id groups for destructuring |
+### High-level (default — readable)
 
-Keys use the full path `"entity_id.component_kind.field_name"`, matching Python's `spec.state_index_map`.
+These take the entity ID and a `"kind.field"` path; they read like Python's
+`spec.view(eid, ComponentType, x, p).field`.
+
+| Function | Description |
+|---|---|
+| `get_state(spec, x, eid, "kind.field")` | Read a scalar state value |
+| `get_param(spec, p, eid, "kind.field")` | Read a scalar parameter |
+| `get_state_vec(spec, x, eid, "kind.field")` | Read a vector state field as a `SubArray` |
+| `get_param_vec(spec, p, eid, "kind.field")` | Read a vector parameter field |
+| `add_deriv!(spec, dx, eid, "kind.field", value)` | Accumulate `value` into `dx` |
+| `groups(sys)` | Iterate entity groups for tuple destructuring |
 
 ```julia
-# Scalar field
-i_pos = state_idx(spec, "osc.oscillator.position")
-
-# Vector field (size=8)
-r = state_range(spec, "node.beam.displacement")   # UnitRange 1:8
-x[r]                                               # 8-element view
+# group_size = 3 — coupled triplet [cv_a, orifice, cv_b]
+for (cv_a, orifice, cv_b) in groups(sys)
+    P_a = get_state(spec, x, cv_a,    "control_volume.pressure")
+    A   = get_param(spec, p, orifice, "orifice.area")
+    P_b = get_state(spec, x, cv_b,    "control_volume.pressure")
+    # ...
+    add_deriv!(spec, dx, cv_a, "control_volume.pressure", -(R_a*T_a/V_a) * mdot)
+end
 ```
+
+### Low-level (performance-tuned)
+
+When you need to minimise dictionary lookups inside a hot inner loop, drop down
+to the raw index helpers and cache the index for reuse:
+
+| Function | Description |
+|---|---|
+| `state_idx(spec, key)` | First 1-based Julia index for a state field |
+| `param_idx(spec, key)` | First 1-based Julia index for a parameter field |
+| `state_range(spec, key)` | `UnitRange{Int}` — full slice for vector fields (`size=N`) |
+| `param_range(spec, key)` | `UnitRange{Int}` — full slice for vector parameter fields |
+
+Keys use the full path `"entity_id.component_kind.field_name"`.
+
+```julia
+i_pos = state_idx(spec, "$eid.oscillator.position")
+i_vel = state_idx(spec, "$eid.oscillator.velocity")
+pos = x[i_pos];  vel = x[i_vel]
+dx[i_pos] += vel
+dx[i_vel] += -omega^2 * pos - 2 * damping * omega * vel
+```
+
+### Performance trade-off
+
+The high-level helpers do a `Dict{String, ...}` lookup on every call. Caching
+the index (low-level form) and reusing it for read+write is roughly 2× faster
+per state field per RHS call.
+
+**Default to the high-level helpers** — the cost is microseconds and is dwarfed
+by ODE solver work on any realistic problem. Drop to the low-level form only
+when:
+
+1. You're solving a stiff problem (Rodas5P, Rosenbrock23, FBDF) where Jacobian
+   evaluation calls dynamics `O(state_size × color_count)` times per step
+2. You've measured a meaningful speedup with `BenchmarkTools.@btime`
+
+Don't pre-optimise. Write the readable form first, profile if it's slow.
 
 ---
 
 ## Iterating entity groups
 
-Use `groups(sys)` and tuple-destructure each group — this mirrors the Python
-`for entity_group in system.entity_groups:` pattern and gives semantic names to
-the entities in each group:
+`groups(sys)` mirrors the Python `for entity_group in system.entity_groups:`
+pattern. Each iteration yields a slice of `sys.entity_ids` of length
+`sys.group_size`, suitable for tuple destructuring:
 
 ```julia
-# group_size = 1 — one entity per group
+# group_size = 1 — one entity per group (note the trailing comma!)
 for (eid,) in groups(sys)
-    i_pos = state_idx(spec, "$eid.oscillator.position")
+    pos = get_state(spec, x, eid, "oscillator.position")
     # ...
 end
 
-# group_size = 3 — coupled triplet [cv_a, orifice, cv_b]
+# group_size = 3 — three entities per group
 for (cv_a, orifice, cv_b) in groups(sys)
-    P_a = x[state_idx(spec, "$cv_a.control_volume.pressure")]
-    A   = p[param_idx(spec, "$orifice.orifice.area")]
-    P_b = x[state_idx(spec, "$cv_b.control_volume.pressure")]
     # ...
 end
 ```
 
+The destructured names should match the slot order declared in the Python
+`System` via `entity_slots = EntityGroup(...)`.
+
 Internally, `groups(sys) === Iterators.partition(sys.entity_ids, sys.group_size)`
-— a zero-allocation iterator over fixed-size slices of `sys.entity_ids`.
-Destructure into whatever names match your topology's slot order (defined by the
-`entity_slots = EntityGroup(...)` declaration on the Python `System` class).
+— a zero-allocation iterator over fixed-size slices.
 
 ---
 

@@ -14,7 +14,8 @@ Model: three masses (`m1`, `m2`, `m3`) connected by two springs (`s1`, `s2`).
 ```julia
 module SpringDynamics
 
-import Main: CompiledSpec, CompiledSystemSpec, state_idx, param_idx, groups
+import Main: CompiledSpec, CompiledSystemSpec, groups,
+             get_state, get_param, add_deriv!
 
 # -------------------------------------------------------------------
 # MassKinematicsSystem  (group_size = 1)
@@ -34,9 +35,8 @@ function mass_kinematics_dynamics!(
     sys :: CompiledSystemSpec,
 ) where {T <: Real, S <: Real}
     for (eid,) in groups(sys)
-        pos_idx = state_idx(spec, "$eid.mass.position")
-        vel_idx = state_idx(spec, "$eid.mass.velocity")
-        dx[pos_idx] += x[vel_idx]
+        vel = get_state(spec, x, eid, "mass.velocity")
+        add_deriv!(spec, dx, eid, "mass.position", vel)
     end
 end
 
@@ -60,20 +60,18 @@ function spring_force_dynamics!(
     sys :: CompiledSystemSpec,
 ) where {T <: Real, S <: Real}
     for (id_a, id_s, id_b) in groups(sys)
-        pos_a    = state_idx(spec, "$id_a.mass.position")
-        pos_b    = state_idx(spec, "$id_b.mass.position")
-        vel_a    = state_idx(spec, "$id_a.mass.velocity")
-        vel_b    = state_idx(spec, "$id_b.mass.velocity")
-        mass_a   = param_idx(spec, "$id_a.mass.mass")
-        mass_b   = param_idx(spec, "$id_b.mass.mass")
-        k_idx    = param_idx(spec, "$id_s.spring.k")
-        rest_idx = param_idx(spec, "$id_s.spring.rest_length")
+        pos_a  = get_state(spec, x, id_a, "mass.position")
+        pos_b  = get_state(spec, x, id_b, "mass.position")
+        mass_a = get_param(spec, p, id_a, "mass.mass")
+        mass_b = get_param(spec, p, id_b, "mass.mass")
+        k      = get_param(spec, p, id_s, "spring.k")
+        rest   = get_param(spec, p, id_s, "spring.rest_length")
 
-        stretch = (x[pos_b] - x[pos_a]) - p[rest_idx]
-        force   = p[k_idx] * stretch
+        stretch = (pos_b - pos_a) - rest
+        force   = k * stretch
 
-        dx[vel_a] +=  force / p[mass_a]
-        dx[vel_b] += -force / p[mass_b]
+        add_deriv!(spec, dx, id_a, "mass.velocity",  force / mass_a)
+        add_deriv!(spec, dx, id_b, "mass.velocity", -force / mass_b)
     end
 end
 
@@ -84,20 +82,18 @@ end  # module SpringDynamics
 
 ## Key points
 
-**Tuple destructuring in `groups(sys)`** — the spring system declares
+**Tuple destructuring with `groups(sys)`** — the spring system declares
 `entity_slots = EntityGroup(MassComponent, SpringComponent, MassComponent)` on
-the Python side, so each group tuple has three entries in slot order. Naming
-them `(id_a, id_s, id_b)` makes the topology explicit at the loop header
-instead of buried in `entity_ids[i+1]` arithmetic.
+the Python side, so each group has three entries in slot order. Naming them
+`(id_a, id_s, id_b)` makes the topology explicit at the loop header.
 
 **Two systems with different `group_size`** — `mass_kinematics_dynamics!` uses
 `group_size=1` (each mass independent); `spring_force_dynamics!` uses
-`group_size=3` (each group is `[mass_a, spring, mass_b]`). The loop header
-makes the difference obvious at a glance.
+`group_size=3`. The `for` headers show this at a glance.
 
 **Force accumulation at shared masses** — mass `m2` appears in *both* spring
-groups (`[m1, s1, m2]` and `[m2, s2, m3]`). Because we use `+=`, both springs
-contribute to `dx[m2.mass.velocity]` correctly.
+groups (`[m1, s1, m2]` and `[m2, s2, m3]`). Because `add_deriv!` uses `+=`,
+both springs contribute to `m2`'s velocity correctly.
 
 ---
 

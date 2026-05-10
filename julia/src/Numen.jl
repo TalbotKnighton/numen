@@ -10,6 +10,7 @@ include("solver.jl")
 include("events.jl")
 
 export solve, CompiledSpec, CompiledSystemSpec, CompiledCallbackSpec, SolvePayload,
-       state_idx, param_idx, state_range, param_range, groups
+       state_idx, param_idx, state_range, param_range, groups,
+       get_state, get_param, get_state_vec, get_param_vec, add_deriv!
 
 end
