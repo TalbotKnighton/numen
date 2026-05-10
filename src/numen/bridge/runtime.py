@@ -1,3 +1,16 @@
+"""Julia subprocess solver backend and SolveResult container.
+
+``JuliaBackend`` spawns a fresh Julia process per ``solve()`` call.  The
+process loads OrdinaryDiffEq.jl, parses the ``CompiledSpec`` JSON payload,
+includes the user's ``dynamics.jl`` file, and returns the solution as JSON.
+
+Cold start (Julia boot + JIT): ~6–7 s.  Warm solve (no startup): ~14 ms.
+
+For repeated solves, use ``JuliaServerBackend`` (persistent process) or
+``JuliaServerPool`` (parallel workers) from ``numen.bridge.server_backend``.
+
+``SolveResult`` is the common return type for all backends.
+"""
 from __future__ import annotations
 
 import json
@@ -22,12 +35,24 @@ _RUNNER_JL = _JULIA_PKG_DIR / "src" / "runner.jl"
 
 @dataclass
 class SolveResult:
-    t: np.ndarray           # shape (n_steps,)
-    x: np.ndarray           # shape (state_size, n_steps)
+    """Output from any backend ``solve()`` call.
+
+    Attributes:
+        t:          Time points, shape ``(n_steps,)``.
+        x:          State matrix, shape ``(state_size, n_steps)``.
+                    Row ``i`` is the time series for state slot ``i``.
+        timings_ms: Per-solve wall times in ms (Julia backends only).
+                    ``timings_ms[0]`` = first solve (JIT + dynamics);
+                    ``timings_ms[1:]`` = warm solves when ``reps > 1``.
+
+    Properties:
+        startup_ms: Wall time minus sum of ``timings_ms`` (subprocess + package load).
+        jit_ms:     First timing (includes JIT), or ``None`` if not available.
+        warm_ms:    Minimum of warm timings, or ``None`` if fewer than 2 reps.
+    """
+    t: np.ndarray
+    x: np.ndarray
     timings_ms: list[float] = field(default_factory=list)
-    # timings_ms[0]  = first solve  (JIT + dynamics), if reps >= 1
-    # timings_ms[1:] = warm solves  (dynamics only),  if reps >  1
-    # startup_ms     = wall time − sum(timings_ms)    (subprocess + package load)
 
     @property
     def startup_ms(self) -> float:

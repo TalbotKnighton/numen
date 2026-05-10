@@ -1,3 +1,12 @@
+"""Base class for all Numen ECS components.
+
+Components are frozen Pydantic models that declare fields using Annotated
+type hints with field annotations from ``numen.fields``.  They carry only
+data — no topology, no solver knowledge.
+
+The ``kind`` field (a ``Literal`` string) is used as the Pydantic
+discriminator and to build index-map keys in ``compile_spec``.
+"""
 from pydantic import BaseModel
 
 

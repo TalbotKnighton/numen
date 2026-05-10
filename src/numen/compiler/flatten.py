@@ -1,3 +1,28 @@
+"""Compiler that flattens a GenericWorld into a flat CompiledSpec for solvers.
+
+The central function ``compile_spec(world)`` performs a single pass over the
+world's entities and systems to produce a ``CompiledSpec`` — the canonical
+representation passed to every backend:
+
+- Builds flat ``state_index_map`` and ``param_index_map`` dictionaries mapping
+  ``"entity_id.component_kind.field_name"`` keys to ``(start, end)`` index pairs.
+- Allocates initial state vector ``x0`` and parameter vector ``p``.
+- Computes the ``differential_mask`` (1.0 for integrated slots, 0.0 for
+  algebraic ``ContinuousField`` slots).
+- Detects required features (``vector_fields``, ``discrete_fields``,
+  ``continuous_fields``, ``dae_constraints``, ``control_callbacks``).
+- Validates system entity groups against declared slot types.
+- Computes a conservative Jacobian sparsity pattern (COO format) from the
+  ECS entity-group graph for sparse ForwardDiff in Julia.
+
+Key classes:
+    ``CompiledSpec``    — the compiled flat representation
+    ``CompiledSystem``  — per-system compiled data (entity ids, group size, python_fn)
+    ``DxBuffer``        — derivative accumulator for both NumPy and JAX
+    ``ComponentView``   — read-only accessor for entity fields inside dynamics
+    ``DerivativeView``  — write accessor for derivative slots inside dynamics
+"""
+
 from __future__ import annotations
 
 import typing
@@ -177,11 +202,25 @@ class DerivativeView:
 
 @dataclass
 class CompiledSystem(Generic[GroupT]):
+    """Compiled representation of one ECS system, ready for solver dispatch.
+
+    Attributes:
+        dynamics_fn:   Julia function reference string, e.g. ``"Module.fn!"``.
+        entity_ids:    Flat list of entity IDs operated on by this system.
+                       For multi-slot systems: [a0, s0, b0, a1, s1, b1, …]
+                       where ``group_size`` = 3.
+        group_size:    Number of entity IDs per dynamics invocation. 1 for
+                       single-entity systems; > 1 for coupled systems declared
+                       with ``entity_slots``.
+        entity_groups: Pre-grouped tuple of entity ID tuples, derived from
+                       ``entity_ids`` and ``group_size``. Not serialized to JSON.
+        python_fn:     Python callable for scipy/JAX backends. Not serialized.
+    """
     dynamics_fn:   str
     entity_ids:    list[str]
-    group_size:    int                    = 1   # entities per dynamics invocation
-    entity_groups: tuple[GroupT, ...]     = ()  # pre-grouped, immutable; not serialized
-    python_fn:     Any                    = field(default=None, repr=False)  # not serialized
+    group_size:    int                    = 1
+    entity_groups: tuple[GroupT, ...]     = ()
+    python_fn:     Any                    = field(default=None, repr=False)
 
 
 @dataclass
@@ -196,33 +235,46 @@ class CompiledCallback:
 
 @dataclass
 class CompiledSpec:
+    """Flat representation of a compiled world, consumed by all solver backends.
+
+    Produced by ``compile_spec(world)``. Never construct manually.
+
+    Attributes:
+        state_size:        Total number of state slots in ``x``.
+        param_size:        Total number of parameter slots in ``p``.
+        state_index_map:   Maps ``"entity.kind.field"`` to ``(start, end)`` in ``x``.
+        param_index_map:   Maps ``"entity.kind.field"`` to ``(start, end)`` in ``p``.
+        discrete_dts:      Sorted list of unique ``DiscreteField.dt`` values.
+        x0:                Initial state vector (length ``state_size``).
+        p:                 Parameter vector (length ``param_size``).
+        differential_mask: 1.0 for ``IntegratedField``/``DiscreteField`` slots;
+                           0.0 for ``ContinuousField(algebraic=True)`` slots.
+                           Length equals ``state_size``. All-ones means pure ODE.
+                           Julia passes ``Diagonal(differential_mask)`` as the
+                           mass matrix to ``ODEFunction`` for DAE problems.
+        systems:           Compiled systems in world-definition order.
+        compiled_callbacks: Compiled controller callbacks.
+        required_features: Feature strings set by ``compile_spec`` based on the
+                           field types present. Checked against each backend's
+                           ``supported_features`` before solving.
+        jac_sparsity_rows: Row indices of the Jacobian sparsity pattern (0-based,
+                           COO format). Julia converts to 1-based SparseMatrixCSC
+                           for ``ODEFunction`` sparse coloring.
+        jac_sparsity_cols: Column indices of the Jacobian sparsity pattern.
+    """
     state_size:         int
     param_size:         int
-    state_index_map:    dict[str, tuple[int, int]]   # "entity.kind.field" → (start, end) into x
-    param_index_map:    dict[str, tuple[int, int]]   # "entity.kind.field" → (start, end) into p
+    state_index_map:    dict[str, tuple[int, int]]
+    param_index_map:    dict[str, tuple[int, int]]
     discrete_dts:       list[float]
     x0:                 list[float]
     p:                  list[float]
     differential_mask:  list[float]      = field(default_factory=list)
-    # 1.0 for IntegratedField/DiscreteField slots, 0.0 for ContinuousField(algebraic=True).
-    # Always length == state_size.  All-ones ↔ pure ODE (no DAE structure).
-    # Julia passes Diagonal(differential_mask) as mass_matrix to ODEFunction.
-    # See docs/architecture.md — "The differential_mask convention".
     systems:            list[CompiledSystem]   = field(default_factory=list)
     compiled_callbacks: list[CompiledCallback] = field(default_factory=list)
     required_features:  frozenset[str]         = field(default_factory=frozenset)
-    # COO-format Jacobian sparsity pattern (0-based indices into x).
-    # Computed by compile_spec() from the ECS entity-group graph.
-    # Conservative: all state slots for entities in the same system group are
-    # treated as fully coupled (dense block per group, zero across groups).
-    # Julia converts to 1-based and constructs a SparseMatrixCSC jac_prototype
-    # for ODEFunction, enabling sparse matrix coloring with O(max_group_width)
-    # Jacobian evaluations instead of O(state_size / chunk) for dense ForwardDiff.
     jac_sparsity_rows:  list[int]        = field(default_factory=list)
     jac_sparsity_cols:  list[int]        = field(default_factory=list)
-    # Features: "vector_fields", "discrete_fields", "continuous_fields",
-    #           "control_callbacks", "dae_constraints"
-    # Populated by compile_spec(); checked by each backend before solving.
 
     def view(
         self,
@@ -252,16 +304,48 @@ class CompiledSpec:
     # --- Low-level index accessors (for advanced use / Julia interop) ---
 
     def state_idx(self, key: str) -> int:
+        """Return the start index for a state field.
+
+        Args:
+            key: Full path ``"entity_id.component_kind.field_name"``.
+
+        Returns:
+            Integer index into the flat state vector ``x``.
+        """
         return self.state_index_map[key][0]
 
     def param_idx(self, key: str) -> int:
+        """Return the start index for a parameter field.
+
+        Args:
+            key: Full path ``"entity_id.component_kind.field_name"``.
+
+        Returns:
+            Integer index into the flat parameter vector ``p``.
+        """
         return self.param_index_map[key][0]
 
     def state_slice(self, key: str) -> slice:
+        """Return a slice for a (possibly vector) state field.
+
+        Args:
+            key: Full path ``"entity_id.component_kind.field_name"``.
+
+        Returns:
+            ``slice(start, end)`` for use with ``x[spec.state_slice(key)]``.
+        """
         s, e = self.state_index_map[key]
         return slice(s, e)
 
     def param_slice(self, key: str) -> slice:
+        """Return a slice for a (possibly vector) parameter field.
+
+        Args:
+            key: Full path ``"entity_id.component_kind.field_name"``.
+
+        Returns:
+            ``slice(start, end)`` for use with ``p[spec.param_slice(key)]``.
+        """
         s, e = self.param_index_map[key]
         return slice(s, e)
 

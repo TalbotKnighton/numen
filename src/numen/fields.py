@@ -1,3 +1,27 @@
+"""Field annotation types for the Numen ECS framework.
+
+Each annotation declares how a component field maps into the flat solver arrays:
+
+- ``IntegratedField`` — state variable; solver integrates ``dx/dt = f(...)``
+- ``ParameterField`` — constant parameter in ``p``; never changes during a solve
+- ``ContinuousField`` — algebraic or output variable written each RHS call
+- ``DiscreteField`` — zero-order-hold variable; updated at a fixed rate
+- ``ExcitationPort`` — injectable forcing input for the characterization framework
+- ``EntityGroup`` — slot-type declaration for multi-entity coupled systems
+
+Usage example::
+
+    from typing import Annotated, Literal
+    from numen.spec.component import Component
+    from numen.fields import IntegratedField, ParameterField
+
+    class MassComponent(Component):
+        kind:     Literal["mass"] = "mass"
+        position: Annotated[float, IntegratedField()] = 0.0
+        velocity: Annotated[float, IntegratedField()] = 0.0
+        mass:     Annotated[float, ParameterField()]  = 1.0
+"""
+
 from dataclasses import dataclass
 
 
@@ -32,7 +56,19 @@ class EntityGroup:
 
 @dataclass(frozen=True)
 class IntegratedField:
-    """Continuous state variable; solver integrates dx/dt = f(...)."""
+    """Continuous state variable; solver integrates ``dx/dt = f(...)``.
+
+    Placed in the state vector ``x``. The ODE solver updates it every step.
+
+    Args:
+        size: Number of contiguous scalar slots. Default 1.
+              Use ``size=N`` for vector fields (e.g. frequency bins).
+
+    Example::
+
+        position: Annotated[float, IntegratedField()] = 0.0
+        frequencies: Annotated[list[float], IntegratedField(size=8)] = [0.0]*8
+    """
     size: int = 1
 
 
@@ -40,15 +76,19 @@ class IntegratedField:
 class ContinuousField:
     """Algebraic or output variable; computed from state each RHS call.
 
-    algebraic=False (default): output variable — dynamics fn writes a derived
-        quantity (force, power, flow rate).  differential_mask = 1.  All backends.
+    When ``algebraic=False`` (default): output variable — the dynamics function
+    writes a derived quantity each RHS call (e.g. force, power, flow rate).
+    The ``differential_mask`` is 1 for these slots; all backends support it.
 
-    algebraic=True: algebraic constraint — dynamics fn writes a residual g(x)=0.
-        differential_mask = 0 for these slots.  Julia-only (Rodas5P / FBDF / IDA).
-        An implicit solver is required; numen raises an error if an explicit
-        Julia solver is selected with algebraic constraints present.
+    When ``algebraic=True``: algebraic constraint — the dynamics function writes
+    a residual ``g(x)=0``. The ``differential_mask`` is 0 for these slots.
+    Julia-only (requires an implicit solver such as Rodas5P or FBDF).
 
-    See docs/architecture.md — "The differential_mask convention".
+    Args:
+        size:      Number of contiguous scalar slots.
+        algebraic: If True, marks this field as a DAE algebraic constraint
+                   (residual form). Julia-only; raises ``NumenFeatureError``
+                   on scipy and JAX backends.
     """
     size:      int  = 1
     algebraic: bool = False
@@ -56,14 +96,29 @@ class ContinuousField:
 
 @dataclass(frozen=True)
 class DiscreteField:
-    """Zero-order-hold variable; updated at a fixed rate. Injects required solver times."""
+    """Zero-order-hold variable updated at a fixed rate.
+
+    Occupies a slot in the state vector ``x``. Solver is given required stop
+    times at multiples of ``dt`` so the controller callback fires at exact times.
+
+    Args:
+        dt:   Update period in seconds. Must be > 0.
+        size: Number of contiguous scalar slots.
+    """
     dt: float = 0.0
     size: int = 1
 
 
 @dataclass(frozen=True)
 class ParameterField:
-    """Constant parameter; enters parameter vector p, not state vector x."""
+    """Constant parameter that enters the parameter vector ``p``.
+
+    Never updated during a solve. Appears in ``spec.param_index_map`` and
+    is accessible via ``spec.view(entity_id, ComponentType, x, p).field_name``.
+
+    Args:
+        size: Number of contiguous scalar slots. Use ``size=N`` for vector params.
+    """
     size: int = 1
 
 

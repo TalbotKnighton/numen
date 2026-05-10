@@ -1,3 +1,17 @@
+"""GenericWorld — the top-level ECS container for a Numen simulation.
+
+A world holds three catalogues, each keyed by a user-defined name:
+
+- ``components``: ``{entity_id: {component_kind: ComponentInstance}}``
+- ``systems``:    ``{system_name: SystemInstance}``
+- ``callbacks``:  ``{callback_name: CallbackInstance}``
+
+The generic type parameters ``CC``, ``SC``, ``BC`` are ``Annotated[Union[...], Field(discriminator="kind")]``
+types that enable Pydantic's discriminated union serialisation.
+
+After assembling a world, pass it to ``compile_spec(world)`` to produce
+a ``CompiledSpec`` that all backends can consume.
+"""
 from typing import Generic, TypeVar
 from pydantic import BaseModel
 

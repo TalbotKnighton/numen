@@ -1,3 +1,7 @@
+"""Low-level world snapshot reconstruction from a solver result.
+
+Called by ``SnapshotCollector.at()``; not typically used directly.
+"""
 from __future__ import annotations
 
 import numpy as np

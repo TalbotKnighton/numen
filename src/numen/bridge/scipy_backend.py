@@ -1,3 +1,19 @@
+"""Pure-Python solver backend using ``scipy.integrate.solve_ivp``.
+
+``ScipyBackend`` is the reference backend: readable, debuggable, and sufficient
+for development.  It supports all features except DAE constraints.
+
+For models with control callbacks, ``ScipyBackend`` uses a segment-solve
+strategy: it stops at each callback fire time, calls ``python_fn``, updates
+state, then restarts the integrator.  Segment boundaries from multiple
+callbacks at incommensurate rates are merged (tstops within 1 µs are
+collapsed to avoid near-zero segments).
+
+Performance: roughly 1000–10 000× slower than the JAX or Julia backends
+for warm solves, depending on problem stiffness and state size.  Use for
+development and debugging; switch to ``JAXBackend`` or ``JuliaServerBackend``
+for repeated or production solves.
+"""
 from __future__ import annotations
 
 import logging
@@ -60,7 +76,26 @@ def _build_tstops(discrete_dts: list[float], tspan: tuple[float, float]) -> list
 
 
 class ScipyBackend:
-    """Pure-Python solver backend using scipy solve_ivp. Good for development and testing."""
+    """Pure-Python solver backend using ``scipy.integrate.solve_ivp``.
+
+    Good for development, debugging, and models that require control callbacks.
+
+    Args:
+        method:        scipy solver method (``"RK45"``, ``"RK23"``, ``"DOP853"``,
+                       ``"LSODA"``). Default ``"RK45"``.
+        rtol:          Relative tolerance. Default ``1e-6``.
+        atol:          Absolute tolerance. Default ``1e-8``.
+        dtmax:         Maximum adaptive step size (passed as ``max_step``).
+        dtsave:        Save output every ``dtsave`` time units.
+                       Mutually exclusive with ``n_save_points``.
+        n_save_points: Save exactly this many uniformly-spaced output points.
+                       Mutually exclusive with ``dtsave``.
+
+    Example::
+
+        from numen.bridge.scipy_backend import ScipyBackend
+        result = ScipyBackend(rtol=1e-9, atol=1e-9).solve(spec, tspan=(0.0, 5.0))
+    """
 
     supported_features: ClassVar[frozenset[str]] = frozenset({
         "vector_fields",

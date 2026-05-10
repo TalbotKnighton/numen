@@ -16,3 +16,6 @@ src/numen/examples/**/*.png
 src/numen/examples/**/benchmark_results.txt
 src/numen/examples/**/.!*
 oscillator.png
+
+# MkDocs generated site (deployed to gh-pages, not committed to main)
+site/
