@@ -521,6 +521,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Start a new project">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#recommended-install-the-red-hat-yaml-extension" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Recommended: install the Red Hat YAML extension
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1418,17 +1435,36 @@ cd my_project
 </code></pre>
 <p>This creates:</p>
 <pre><code>my_project/
-├── CLAUDE.md           (AI assistant context)
+├── CLAUDE.md                  (AI assistant context)
+├── CHARACTERIZATION.md        (test campaign reference)
+├── DESIGN.md                  (architecture decisions log)
+├── JULIA.md                   (Julia dynamics conventions)
+├── test_plan.schema.json      (JSON Schema for IDE autocomplete)
 └── first_model/
-    ├── components.py   (define state and parameter fields)
-    ├── dynamics.py     (write physics — JAX-compatible)
-    ├── dynamics.jl     (Julia translation for fast backend)
-    ├── world.py        (set initial conditions and topology)
-    └── run.py          (solve and plot)
+    ├── components.py          (define state and parameter fields)
+    ├── dynamics.py            (write physics — JAX-compatible)
+    ├── dynamics.jl            (Julia translation for fast backend)
+    ├── world.py               (set initial conditions and topology)
+    ├── test_plan.yaml         (characterization campaign)
+    └── run.py                 (solve and plot)
 </code></pre>
 <p>Run it immediately:</p>
 <pre><code class="language-bash">cd my_project/first_model
 python run.py
+</code></pre>
+<h3 id="recommended-install-the-red-hat-yaml-extension">Recommended: install the Red Hat YAML extension</h3>
+<p>For live autocomplete and validation in <code>test_plan.yaml</code>, install the
+<strong><a href="https://marketplace.visualstudio.com/items?itemName=redhat.vscode-yaml">YAML extension by Red Hat</a></strong>
+in VS Code or Cursor. The scaffolded test plans already include the
+<code># yaml-language-server: $schema=test_plan.schema.json</code> header — once the
+extension is installed, your editor will:</p>
+<ul>
+<li>Autocomplete every test type, plot panel type, and field name</li>
+<li>Catch invalid <code>sweep_param</code> paths and unknown options as you type</li>
+<li>Show inline docstrings from the Pydantic schema on hover</li>
+</ul>
+<p>To regenerate the schema after upgrading Numen:</p>
+<pre><code class="language-bash">numen schema -o test_plan.schema.json
 </code></pre>
 <h2 id="your-first-model-1d-oscillator">Your first model: 1D oscillator</h2>
 <p>This walkthrough builds the oscillator example from scratch.</p>
