@@ -62,9 +62,12 @@ def _set_model_param(
     """
     resolved = _resolve_param_key(key, entity_id, port_name)
     if resolved not in spec.param_index_map:
+        # This path is normally unreachable: CharacterizationRunner validates
+        # all parameter keys at campaign start. Reaching here indicates a key
+        # was added via direct API usage (not a YAML campaign).
         raise KeyError(
-            f"Parameter '{key}' (resolved: '{resolved}') not in param_index_map. "
-            f"Model params: {[k for k in spec.param_index_map if not k.startswith('_exc_')]}"
+            f"Parameter '{key}' not found in compiled spec. Use the full "
+            f"three-level path 'entity.component_kind.field'."
         )
     new_p = list(spec.p)
     idx   = spec.param_index_map[resolved][0]

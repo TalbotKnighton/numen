@@ -178,6 +178,10 @@ class CharacterizationRunner:
         exc = config.excitation
         out_component = exc.output_component or exc.component
         self._output_key = f"{exc.entity}.{out_component}.{exc.output_state}"
+        # Validate every test's parameter references against the compiled spec.
+        # Failing here surfaces typos and stale two-level keys (entity.field) at
+        # campaign start instead of midway through a long sweep.
+        self._validate_test_parameter_keys(config.tests)
         # The ExcitationPort's target field (e.g. "velocity") and component kind —
         # used by runners that need to inject or override initial conditions.
         ports = find_excitation_ports(self._world, exc.entity, exc.component)
@@ -233,6 +237,50 @@ class CharacterizationRunner:
             self.config.excitation.port,
             amp=amp, freq=freq, dc=dc,
         )
+
+    # --- Validation ---
+
+    def _validate_test_parameter_keys(self, tests: list[TestSpec]) -> None:
+        """Fail fast if any test references a parameter that doesn't exist.
+
+        Walks every ``parameter_sweep``, ``parameter_grid``, and ``doe_sweep``
+        and verifies each ``sweep_param`` / ``params`` key resolves against the
+        compiled ``param_index_map``. ``excitation.*`` paths are translated the
+        same way the runners do at execution time.
+
+        Raises:
+            KeyError: with the offending test name, the bad key, and the full
+                list of valid model parameter keys.
+        """
+        from numen.characterization.tests.param_sweep import _resolve_param_key
+
+        exc      = self.config.excitation
+        valid    = set(self._exc_spec.param_index_map)
+        # Hide internal excitation slots from the error message — they're an
+        # implementation detail and would just clutter the suggestion.
+        model_params = sorted(k for k in valid if not k.startswith("_exc_"))
+
+        def _check(test_name: str, key: str) -> None:
+            resolved = _resolve_param_key(key, exc.entity, exc.port)
+            if resolved not in valid:
+                raise KeyError(
+                    f"Test '{test_name}': parameter '{key}' not found in the "
+                    f"compiled spec. Model parameter keys must use the full "
+                    f"three-level path 'entity.component_kind.field' (e.g. "
+                    f"'piston.pneumatic_dashpot.orifice_area', not "
+                    f"'piston.orifice_area').\n"
+                    f"Valid model parameters:\n  - "
+                    + "\n  - ".join(model_params)
+                )
+
+        for test in tests:
+            if not getattr(test, "enabled", True):
+                continue
+            if isinstance(test, ParameterSweepSpec):
+                _check(test.name, test.sweep_param)
+            elif isinstance(test, (ParameterGridSpec, DOESweepSpec)):
+                for key in test.params.keys():
+                    _check(test.name, key)
 
     # --- Internal dispatch ---
 

@@ -119,7 +119,7 @@ tests:
   # Inner test: chirp survey (fast); result: 5-curve Bode family.
   - name: frf_vs_orifice
     type: parameter_sweep
-    sweep_param: piston.orifice_area
+    sweep_param: piston.pneumatic_dashpot.orifice_area
     values: [1.0e-7, 1.0e-6, 1.0e-5, 1.0e-4, 5.0e-4]
     sub_test: chirp_survey
 
