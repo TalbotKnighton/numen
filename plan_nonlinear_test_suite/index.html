@@ -1,0 +1,1324 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Hybrid Python/Julia physics simulation framework">
+      
+      
+      
+        <link rel="canonical" href="https://TalbotKnighton.github.io/numen/plan_nonlinear_test_suite/">
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>Plan: Extended Nonlinear Characterization Test Suite - Numen</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/_mkdocstrings.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#plan-extended-nonlinear-characterization-test-suite" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="Numen" class="md-header__button md-logo" aria-label="Numen" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Numen
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Plan: Extended Nonlinear Characterization Test Suite
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/TalbotKnighton/numen" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    TalbotKnighton/numen
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href=".." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../getting-started/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Getting Started
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../guide/components/" class="md-tabs__link">
+          
+  
+  
+  User Guide
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../examples/oscillator/" class="md-tabs__link">
+          
+  
+  
+  Examples
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../api/fields/" class="md-tabs__link">
+          
+  
+  
+  API Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../julia/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Julia Reference
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="Numen" class="md-nav__button md-logo" aria-label="Numen" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Numen
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/TalbotKnighton/numen" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    TalbotKnighton/numen
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User Guide
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    User Guide
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/components/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Components & Fields
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/systems/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Systems & Dynamics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/backends/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Backends
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/characterization/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Characterization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Examples
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Examples
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../examples/oscillator/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Oscillator
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../examples/coupled_spring/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Coupled Spring
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../examples/fluid_poppet/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Fluid Poppet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    API Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/fields/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Fields
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/compiler/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Compiler
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/backends/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Backends
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/reconstruction/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reconstruction
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../julia/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Julia Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="plan-extended-nonlinear-characterization-test-suite">Plan: Extended Nonlinear Characterization Test Suite</h1>
+<p><strong>Status:</strong> Planned
+<strong>Reference:</strong> <a href="../nonlinear_characterization_methods/">nonlinear_characterization_methods.md</a></p>
+<p>This plan adds five new test types and three new plot panels to the Numen
+characterization framework, targeting nonlinear system identification tasks
+beyond the current FRF/chirp/amplitude-sweep baseline.</p>
+<hr />
+<h2 id="new-test-types-priority-order">New test types (priority order)</h2>
+<h3 id="1-two_tone">1. <code>two_tone</code></h3>
+<p><strong>What it does:</strong><br />
+Apply two simultaneous sinusoids at f₁ and f₂, run to steady state, FFT the
+output, and extract:
+- Fundamental components at f₁, f₂
+- Harmonic distortion components at 2f₁, 2f₂, 3f₁, 3f₂, …
+- Intermodulation products at |m·f₁ ± n·f₂| for m+n ≤ <code>max_order</code> (default 3)
+- Third-order intercept point (IP3): extrapolate fundamental (slope 1) and 3rd-order
+  IM product (slope 3) on log-log; intersection is IP3
+- Intermodulation Distortion ratio: IMD₃ = IM₃ / H₁ (dB)</p>
+<p><strong>YAML schema:</strong></p>
+<pre><code class="language-yaml">- name: two_tone_near_resonance
+  type: two_tone
+  f1: 10.0          # Hz — lower tone
+  f2: 11.0          # Hz — upper tone
+  amplitude1: 0.5   # ExcitationPort amplitude for tone 1
+  amplitude2: 0.5
+  n_cycles: 30      # simulate for 30 periods of f1 to reach steady state
+  max_order: 3      # extract IM products up to order 3
+  output_field: &quot;osc.position&quot;
+  dc_offset: 0.0
+</code></pre>
+<p><strong>Result type:</strong> <code>TwoToneResult</code></p>
+<pre><code class="language-python">@dataclass
+class TwoToneResult:
+    f1: float
+    f2: float
+    spectrum_freq: np.ndarray      # full one-sided FFT frequency axis
+    spectrum_mag: np.ndarray       # full one-sided FFT magnitude
+    fundamentals: dict[str, float] # {&quot;f1&quot;: mag, &quot;f2&quot;: mag}
+    harmonics: dict[str, float]    # {&quot;2f1&quot;: mag, &quot;3f1&quot;: mag, &quot;2f2&quot;: mag, ...}
+    im_products: dict[str, float]  # {&quot;2f1-f2&quot;: mag, &quot;2f2-f1&quot;: mag, ...}
+    thd: float                     # Total Harmonic Distortion (%)
+    imd3: float                    # 3rd-order IMD ratio (dB)
+    ip3_estimate: float | None     # extrapolated IP3 amplitude (None if slope fit fails)
+</code></pre>
+<p><strong>Implementation notes:</strong>
+- Build excitation as <code>A₁·sin(2πf₁t) + A₂·sin(2πf₂t)</code>.  The ExcitationPort
+  currently handles one sinusoid.  Two-tone needs either: (a) a new dual-port
+  injection path, or (b) a raw <code>force_override</code> that bypasses ExcitationPort
+  and supplies <code>p[excitation_idx]</code> directly from the test runner.
+  Option (b) is simpler and does not require new component machinery.
+- Extract tone amplitudes from the FFT using a window-corrected peak-search
+  (Hann window + zero-padding to 4× signal length for interpolated peak).
+- IP3 fit: run the test at 3–5 amplitude levels (inner loop), fit log-log slope
+  to confirm it is ~1 for fundamental and ~3 for IM₃, then extrapolate intersection.
+  Alternatively compute analytically from the Volterra kernel approximation.</p>
+<p><strong>Supported backends:</strong> all (scipy, JAX, Julia)</p>
+<hr />
+<h3 id="2-harmonic_distortion_sweep">2. <code>harmonic_distortion_sweep</code></h3>
+<p><strong>What it does:</strong><br />
+At each frequency in a stepped grid, apply a single sinusoid, run to steady state,
+and measure the THD and individual harmonic magnitudes (H₂, H₃, H₄, …).  The
+result is THD(f) across the sweep band, and H₂(f), H₃(f) individually.</p>
+<p>This localises the nonlinearity in frequency: a stiffness nonlinearity produces
+large H₃ near resonance; an asymmetric geometry produces large H₂; velocity-
+squared drag produces large H₂ wherever velocity is large.</p>
+<p><strong>YAML schema:</strong></p>
+<pre><code class="language-yaml">- name: thd_sweep
+  type: harmonic_distortion_sweep
+  freq_min: 1.0
+  freq_max: 50.0
+  n_freqs: 40
+  amplitude: 0.3
+  n_cycles: 20        # cycles per frequency
+  max_harmonic: 4     # measure H2, H3, H4
+  output_field: &quot;osc.position&quot;
+  dc_offset: 0.0
+</code></pre>
+<p><strong>Result type:</strong> <code>HarmonicDistortionResult</code></p>
+<pre><code class="language-python">@dataclass
+class HarmonicDistortionResult:
+    freqs: np.ndarray           # shape (n_freqs,)
+    H1: np.ndarray              # fundamental amplitude at each freq
+    Hn: np.ndarray              # shape (max_harmonic-1, n_freqs): H2, H3, ...
+    thd: np.ndarray             # THD(%) at each freq = sqrt(sum H2..Hn²) / H1
+</code></pre>
+<p><strong>Implementation notes:</strong>
+- Structurally identical to <code>discrete_frequency_sweep</code> but the post-processing
+  extracts multiple harmonics instead of only H₁.
+- Reuse the existing <code>FreqSweepRunner</code>; add a <code>harmonic_mode=True</code> flag that
+  returns the full spectrum at each frequency instead of only the fundamental peak.
+- Parallelises trivially across Julia server pool (same as FRF sweep).</p>
+<hr />
+<h3 id="3-free_decay">3. <code>free_decay</code></h3>
+<p><strong>What it does:</strong><br />
+Set the system to an initial displacement (or velocity) and let it ring down from
+that initial condition with zero forcing.  Apply the Hilbert transform to the
+output time series to extract:
+- Instantaneous amplitude envelope A(t)
+- Instantaneous frequency f(t) = (1/2π) dφ/dt
+- Instantaneous damping ratio ζ(t) from log-decrement of A(t)
+- Backbone curve: plot f vs A (frequency as a function of amplitude)
+- Damping curve: plot ζ vs A (damping ratio as a function of amplitude)</p>
+<p><strong>YAML schema:</strong></p>
+<pre><code class="language-yaml">- name: free_decay_large_amplitude
+  type: free_decay
+  initial_displacement: 2.0    # initial condition on the output_field's position
+  initial_velocity: 0.0
+  t_end: 10.0                  # simulate for this long (seconds)
+  output_field: &quot;osc.position&quot;
+  bandpass:                    # optional pre-HT bandpass filter
+    f_low: 5.0
+    f_high: 25.0
+</code></pre>
+<p><strong>Result type:</strong> <code>FreeDecayResult</code></p>
+<pre><code class="language-python">@dataclass
+class FreeDecayResult:
+    t: np.ndarray
+    x: np.ndarray               # raw displacement time series
+    envelope: np.ndarray        # instantaneous amplitude A(t)
+    inst_freq: np.ndarray       # instantaneous frequency f(t) in Hz
+    inst_damping: np.ndarray    # instantaneous damping ratio ζ(t)
+    backbone_amplitude: np.ndarray   # A values (sorted, decreasing)
+    backbone_frequency: np.ndarray   # f(A) — backbone curve
+    damping_amplitude: np.ndarray    # A values
+    damping_ratio: np.ndarray        # ζ(A)
+</code></pre>
+<p><strong>Implementation notes:</strong>
+- Uses <code>scipy.signal.hilbert</code> for the analytic signal.  No Julia needed for
+  post-processing — the simulation runs on whichever backend is configured.
+- Differentiate instantaneous phase with <code>np.gradient</code> (not <code>np.diff</code>) for
+  uniform-spacing accuracy.
+- The <code>initial_displacement</code> field needs to override the component's initial
+  state before compiling; the runner should call <code>world.components[eid].position
+  = initial_displacement</code> before <code>compile_spec</code>.
+- Bandpass filter: apply a Butterworth or Hann-windowed FIR before the Hilbert
+  transform to isolate one mode.</p>
+<p><strong>Supported backends:</strong> all</p>
+<hr />
+<h3 id="4-phase_portrait">4. <code>phase_portrait</code></h3>
+<p><strong>What it does:</strong><br />
+For a periodic forcing scenario, run to steady state and then record N cycles of
+the limit cycle in state space (x, ẋ).  Optionally record a Poincaré section
+(stroboscopic samples at multiples of T = 1/f_forcing).</p>
+<p><strong>YAML schema:</strong></p>
+<pre><code class="language-yaml">- name: limit_cycle_portrait
+  type: phase_portrait
+  frequency: 12.5
+  amplitude: 0.8
+  n_transient_cycles: 50      # discard this many cycles at the start
+  n_record_cycles: 10         # record these cycles
+  output_field: &quot;osc.position&quot;
+  velocity_field: &quot;osc.velocity&quot;   # optional — computed by diff if omitted
+  dc_offset: 0.0
+  poincare: true              # also record stroboscopic section
+</code></pre>
+<p><strong>Result type:</strong> <code>PhasePortraitResult</code></p>
+<pre><code class="language-python">@dataclass
+class PhasePortraitResult:
+    x: np.ndarray               # displacement (limit cycle only)
+    xdot: np.ndarray            # velocity
+    t: np.ndarray
+    poincare_x: np.ndarray | None      # stroboscopic points
+    poincare_xdot: np.ndarray | None
+</code></pre>
+<p><strong>Implementation notes:</strong>
+- Straightforward: run a long simulation, discard transient, return the
+  (position, velocity) trajectory.
+- Poincaré section: collect state at t = t_start + n/f_forcing for integer n.
+  Either run with <code>tstops</code> at all multiples, or interpolate from the dense
+  output.
+- A <code>phase_portrait_amplitude_family</code> compound test (multiple amplitudes overlaid)
+  is a natural extension — see §Plot panels below.</p>
+<hr />
+<h3 id="5-broadband_noise">5. <code>broadband_noise</code></h3>
+<p><strong>What it does:</strong><br />
+Apply a bandlimited white noise excitation and record a long output time series.
+Post-process to estimate:
+- Best Linear Approximation (BLA) — the linear FRF that minimises the mean-square
+  difference between the linear prediction and the actual output (Schoukens et al.)
+- Nonlinear distortion spectrum — variance of output not explained by the BLA,
+  plotted vs. frequency
+- Optionally: bicoherence (normalized bispectrum) to identify quadratic coupling</p>
+<p><strong>YAML schema:</strong></p>
+<pre><code class="language-yaml">- name: broadband_bla
+  type: broadband_noise
+  f_low: 1.0
+  f_high: 100.0
+  amplitude: 0.2
+  t_total: 60.0
+  n_averages: 10          # split into segments for averaging
+  output_field: &quot;osc.position&quot;
+  compute_bicoherence: false   # expensive; set true to diagnose quadratic NL
+</code></pre>
+<p><strong>Result type:</strong> <code>BroadbandResult</code></p>
+<pre><code class="language-python">@dataclass
+class BroadbandResult:
+    freq: np.ndarray
+    bla_magnitude: np.ndarray    # best linear approximation |H_BLA(f)|
+    bla_phase: np.ndarray
+    nl_distortion: np.ndarray    # stochastic NL distortion level (same units)
+    snr: np.ndarray              # signal-to-noise ratio (dB)
+    bicoherence: np.ndarray | None   # shape (n_freq, n_freq) if computed
+</code></pre>
+<p><strong>Implementation notes:</strong>
+- Generate noise in Python with <code>numpy.random</code>; feed as a precomputed array
+  into the ExcitationPort (requires a lookup-table excitation mode — new feature
+  needed on the ExcitationPort path or a separate <code>table_excitation</code> port type).
+- BLA estimation: segment the record, Welch-average cross-spectrum and
+  auto-spectrum: <code>H_BLA(f) = Syu(f) / Suu(f)</code>.
+- Bicoherence: scipy has no built-in; use <code>pyspectrum</code> or implement the FFT
+  accumulation directly.  Mark as optional/experimental.</p>
+<hr />
+<h2 id="new-plot-panel-types">New plot panel types</h2>
+<h3 id="two_tone_spectrum"><code>two_tone_spectrum</code></h3>
+<p>Full FFT of the two-tone output with labelled tone, harmonic, and IM product
+components.  Log-scale magnitude vs. frequency.</p>
+<pre><code class="language-yaml">- type: two_tone_spectrum
+  test: two_tone_near_resonance
+  db_floor: -120
+  annotate_products: true
+</code></pre>
+<h3 id="backbone_curve"><code>backbone_curve</code></h3>
+<p>Overlays the backbone curve (frequency vs. amplitude from free decay) on the
+amplitude-sweep FRF family.  The backbone should intersect each FRF curve at
+its peak — this is the visual confirmation that the identification is consistent.</p>
+<pre><code class="language-yaml">- type: backbone_curve
+  decay_test: free_decay_large_amplitude
+  frf_family_test: frf_vs_amplitude    # a parameter_sweep over amplitude
+  frequency_axis: [5, 25]
+</code></pre>
+<h3 id="phase_portrait_family"><code>phase_portrait_family</code></h3>
+<p>Multiple phase portraits (limit cycles) overlaid in (x, ẋ) space, coloured by
+amplitude or frequency parameter.  Poincaré dots plotted if available.</p>
+<pre><code class="language-yaml">- type: phase_portrait_family
+  tests: [portrait_amp_01, portrait_amp_03, portrait_amp_06]
+  color_by: amplitude
+</code></pre>
+<h3 id="thd_spectrum"><code>thd_spectrum</code></h3>
+<p>THD(f) and individual harmonic magnitudes H₂(f), H₃(f) vs. frequency — the
+result of a <code>harmonic_distortion_sweep</code>.</p>
+<pre><code class="language-yaml">- type: thd_spectrum
+  test: thd_sweep
+  show_harmonics: [2, 3]
+</code></pre>
+<hr />
+<h2 id="implementation-priority-and-dependencies">Implementation priority and dependencies</h2>
+<pre><code>Phase 1 — no new framework machinery required (all four implemented)
+  ├── two_tone                    (inject_excitation called twice with different port
+  │                                names; both accumulate via += into the same target
+  │                                slot — architecture already supports this natively)
+  ├── harmonic_distortion_sweep   (variant of existing freq_sweep runner)
+  ├── free_decay                  (new runner; scipy.signal.hilbert only)
+  └── phase_portrait              (new runner; trivial post-processing)
+
+Phase 2 — superseded by dedicated plan
+  └── broadband_noise             → see docs/plan_random_vibe_testing.md
+</code></pre>
+<p>Phase 1 tests are self-contained in the <code>characterization/</code> runner module;
+no changes needed to the Julia backend, the compiler, or the ExcitationPort
+infrastructure.</p>
+<p><code>two_tone</code> works because <code>inject_excitation</code> appends an independent <code>CompiledSystem</code>
+to <code>spec.systems</code> and accumulates with <code>+=</code> into the target derivative slot.  Two
+calls with different <code>port_name</code> values (e.g., <code>"force"</code> and <code>"force_tone2"</code>)
+produce two separate synthetic entities (<code>_exc_osc_force</code> and <code>_exc_osc_force_tone2</code>),
+both writing to the same velocity slot.  No code changes required.</p>
+<p>The <code>broadband_noise</code> / random vibe test type has been broken out into its own
+design plan (<code>docs/plan_random_vibe_testing.md</code>) because it requires a new
+<code>inject_table_excitation</code> function and covers a much wider set of input formats
+(PSD profiles, external files, multisine, time-series replay) than originally
+sketched here.  The table excitation approach stores the pre-computed signal
+directly in <code>p</code> — no new <code>ExcitationPort</code> field type required.</p>
+<hr />
+<h2 id="test-file-additions">Test file additions</h2>
+<p>Each new test type should have a full entry in the <code>nonlinear_oscillator/test_plan.yaml</code>
+example (which is the canonical reference for the characterization framework).  The
+pneumatic_dashpot example can also use <code>free_decay</code> once Phase 1 is implemented.</p>
+<hr />
+<h2 id="open-questions">Open questions</h2>
+<ol>
+<li>
+<p><strong>Two-tone injection</strong>: resolved — call <code>inject_excitation</code> twice with different
+   <code>port_name</code> values.  Each call appends an independent <code>CompiledSystem</code>; both
+   accumulate via <code>+=</code>.  No new API needed.  N-tone generalises trivially.</p>
+</li>
+<li>
+<p><strong>Hilbert transform accuracy</strong>: for lightly-damped systems (Q &gt; 50), the HT
+   instantaneous frequency estimate is noisy.  Consider offering an EMD (Empirical
+   Mode Decomposition) pre-filter, or the wavelet ridge method (Staszewski 1997)
+   as an alternative to HT.</p>
+</li>
+<li>
+<p><strong>IP3 from a single two-tone run</strong>: the single-run estimate requires that the
+   system is weakly nonlinear (small perturbation regime).  For strongly nonlinear
+   systems the extrapolation breaks down; the multi-amplitude inner loop gives a
+   more reliable estimate.  Document this in the YAML schema as <code>ip3_mode: single |
+   multi_amplitude</code>.</p>
+</li>
+</ol>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tabs", "navigation.sections", "toc.integrate", "search.suggest"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>

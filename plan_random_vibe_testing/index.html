@@ -1,0 +1,1621 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Hybrid Python/Julia physics simulation framework">
+      
+      
+      
+        <link rel="canonical" href="https://TalbotKnighton.github.io/numen/plan_random_vibe_testing/">
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>Random Vibration Testing — Design Plan - Numen</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/_mkdocstrings.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#random-vibration-testing-design-plan" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="Numen" class="md-header__button md-logo" aria-label="Numen" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Numen
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Random Vibration Testing — Design Plan
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/TalbotKnighton/numen" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    TalbotKnighton/numen
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href=".." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../getting-started/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Getting Started
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../guide/components/" class="md-tabs__link">
+          
+  
+  
+  User Guide
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../examples/oscillator/" class="md-tabs__link">
+          
+  
+  
+  Examples
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../api/fields/" class="md-tabs__link">
+          
+  
+  
+  API Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../julia/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Julia Reference
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="Numen" class="md-nav__button md-logo" aria-label="Numen" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Numen
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/TalbotKnighton/numen" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    TalbotKnighton/numen
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User Guide
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    User Guide
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/components/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Components & Fields
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/systems/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Systems & Dynamics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/backends/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Backends
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/characterization/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Characterization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Examples
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Examples
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../examples/oscillator/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Oscillator
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../examples/coupled_spring/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Coupled Spring
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../examples/fluid_poppet/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Fluid Poppet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    API Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/fields/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Fields
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/compiler/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Compiler
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/backends/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Backends
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/reconstruction/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reconstruction
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../julia/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Julia Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="random-vibration-testing-design-plan">Random Vibration Testing — Design Plan</h1>
+<p><strong>Status:</strong> Planned (Phase 1 ready for implementation)</p>
+<hr />
+<h2 id="1-motivation">1. Motivation</h2>
+<p>Real test environments subject hardware to broadband stochastic excitation described
+by a Power Spectral Density (PSD) specification (e.g. MIL-STD-810, DO-160, customer
+vibration envelope). Being able to run a simulation under the same spec — and compare
+the simulated response PSD to measured data — closes the gap between characterization
+campaigns and acceptance testing.</p>
+<p>Three distinct signal-input formats are needed:</p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Type</th>
+<th>When to use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td><code>psd_profile</code> / <code>psd_file</code></td>
+<td>Standard test spec: log-log breakpoints in Hz vs g²/Hz</td>
+</tr>
+<tr>
+<td>2</td>
+<td><code>multisine</code></td>
+<td>Deterministic multi-sine (phase-optimised crest factor); defer impl.</td>
+</tr>
+<tr>
+<td>3</td>
+<td><code>time_series_file</code></td>
+<td>Replay a measured or pre-synthesised waveform from a file</td>
+</tr>
+</tbody>
+</table>
+<p>All three produce a <strong>pre-computed time series on the Python side</strong> that is stored in
+the parameter vector and interpolated by the ODE right-hand side during integration.
+No new solver infrastructure is needed.</p>
+<hr />
+<h2 id="2-high-level-approach-table-excitation">2. High-level approach — "Table excitation"</h2>
+<h3 id="why-pre-compute-in-python">Why pre-compute in Python</h3>
+<p>The ODE RHS must be a pure function of <code>(t, x, p)</code>. Generating random numbers inside
+the RHS is incompatible with deterministic replay and Julia's threading model. Instead:</p>
+<ol>
+<li>Python generates the signal array <code>f_sig[0..N-1]</code> at uniform time steps <code>dt_sig</code>.</li>
+<li>The array is appended to the parameter vector <code>p</code> via a new <code>inject_table_excitation</code>
+   call that mirrors the existing <code>inject_excitation</code> / <code>inject_chirp_excitation</code> API.</li>
+<li>The Julia (and Python) ODE function does <strong>linear table interpolation</strong> at each call.</li>
+</ol>
+<h3 id="parameter-layout-in-p">Parameter layout in <code>p</code></h3>
+<p>New entries appended by <code>inject_table_excitation</code>:</p>
+<pre><code>_table_{entity_id}_{port_name}.n_samples   → int stored as float (cast back to Int on Julia side)
+_table_{entity_id}_{port_name}.t_start     → first sample time [s]
+_table_{entity_id}_{port_name}.dt_sig      → uniform time step [s]
+_table_{entity_id}_{port_name}.target_idx  → state index of driven field (float, same as existing pattern)
+_table_{entity_id}_{port_name}.signal[0]   → f_sig[0]
+_table_{entity_id}_{port_name}.signal[1]   → f_sig[1]
+…
+_table_{entity_id}_{port_name}.signal[N-1] → f_sig[N-1]
+</code></pre>
+<p><code>param_index_map</code> stores these as a range:</p>
+<pre><code class="language-python">new_param_map[f&quot;{exc_eid}.signal&quot;] = (start, start + N)   # slice, not scalar
+</code></pre>
+<h3 id="julia-interpolation">Julia interpolation</h3>
+<pre><code class="language-julia">function table_excitation_dynamics!(
+    dx :: AbstractVector{T}, x :: AbstractVector{S}, p :: Vector{Float64},
+    t  :: Real, spec :: CompiledSpec, sys :: CompiledSystemSpec,
+) where {T &lt;: Real, S &lt;: Real}
+    exc_eid = only(sys.entity_ids)
+    n      = Int(p[param_idx(spec, exc_eid * &quot;.n_samples&quot;)])
+    t0     = p[param_idx(spec, exc_eid * &quot;.t_start&quot;)]
+    dt     = p[param_idx(spec, exc_eid * &quot;.dt_sig&quot;)]
+    tgt_i  = Int(p[param_idx(spec, exc_eid * &quot;.target_idx&quot;)]) + 1   # 1-based
+    sig_r  = param_slice(spec, exc_eid * &quot;.signal&quot;)                  # UnitRange{Int}
+
+    # Clamp t to table bounds
+    tc     = clamp(float(t) - t0, 0.0, (n - 1) * dt)
+    frac   = tc / dt
+    k      = clamp(Int(floor(frac)) + 1, 1, n)
+    k1     = clamp(k + 1, 1, n)
+    alpha  = frac - floor(frac)
+
+    F = p[sig_r[k]] * (1 - alpha) + p[sig_r[k1]] * alpha
+    dx[tgt_i] += F
+end
+</code></pre>
+<p>The Python closure mirrors this with <code>np.interp</code>.</p>
+<hr />
+<h2 id="3-signal-input-formats">3. Signal input formats</h2>
+<h3 id="31-psd_profile-inline-yaml-breakpoints">3.1 <code>psd_profile</code> — inline YAML breakpoints</h3>
+<pre><code class="language-yaml">- name: mil_std_810_cat10
+  type: stochastic_excitation
+  duration: 60.0
+  dt_sig: 0.001          # 1 kHz sample rate — 10× f_max
+  seed: 42               # reproducible realisation; null → system clock
+  transient_fraction: 0.2   # discard first 20% of response for PSD estimate
+  signal:
+    type: psd_profile
+    breakpoints:
+      # [frequency Hz, psd_level g²/Hz]
+      - [20.0,   0.01]
+      - [80.0,   0.04]
+      - [350.0,  0.04]
+      - [2000.0, 0.007]
+    units: g_rms       # g²/Hz → divide by g² before ifft; result in g
+</code></pre>
+<p><strong>Generation algorithm:</strong></p>
+<pre><code>df   = 1 / duration
+freqs = 0, df, 2df, …, f_max              (rfft grid)
+S(f)  = piecewise log-log interp of breakpoints (S=0 outside range)
+amp(f) = sqrt(2 · S(f) · df)             (one-sided → two-sided, Parseval)
+phase  = rng.uniform(0, 2π, len(freqs))   (seeded RNG)
+X(f)   = amp(f) · exp(j·phase(f))
+f_sig  = irfft(X)                          (real-valued time series)
+normalise: f_sig *= target_grms / rms(f_sig)   # if target_grms specified
+</code></pre>
+<p>The last normalisation step is optional and only triggered when <code>target_grms</code> is
+given; otherwise the PSD breakpoints fully determine the signal power.</p>
+<p><code>units</code> may be <code>g_rms</code> (g² in spec, signal in g) or <code>m_s2</code> (m²/s⁴, signal in m/s²).</p>
+<h3 id="32-psd_file-external-file">3.2 <code>psd_file</code> — external file</h3>
+<pre><code class="language-yaml">signal:
+  type: psd_file
+  path: specs/mil_std_810_cat10.csv    # resolved relative to test_plan.yaml
+  # CSV format: two columns, no header OR header &quot;frequency,psd&quot;
+  # JSON format: {&quot;breakpoints&quot;: [[f0, psd0], [f1, psd1], …], &quot;units&quot;: &quot;g_rms&quot;}
+  units: g_rms
+</code></pre>
+<p>The file is loaded and parsed into the same breakpoint list as <code>psd_profile</code>, then
+processed identically. Supported formats: <code>.csv</code>, <code>.json</code>, <code>.npy</code> (two-column).</p>
+<h3 id="33-multisine-deterministic-multi-sine-phase-2-defer-implementation">3.3 <code>multisine</code> — deterministic multi-sine (Phase 2, defer implementation)</h3>
+<pre><code class="language-yaml">signal:
+  type: multisine
+  # Option A: inline table
+  tones:
+    - {frequency: 10.0,  amplitude: 0.05, phase: 0.0}
+    - {frequency: 42.7,  amplitude: 0.10, phase: 1.57}
+    - {frequency: 100.0, amplitude: 0.05, phase: 3.14}
+  # Option B: external file (same schema as inline, CSV or JSON)
+  # file: tones.csv
+
+  optimize_phase: false   # if true: Schroeder phase optimisation (future)
+</code></pre>
+<p><strong>Why defer:</strong> Multi-sine is fully deterministic — no seed needed. The signal
+generation is trivial (<code>sum of sinusoids</code>), but crest-factor optimisation
+(Schroeder / random phase) is a separate design question. The YAML schema and
+result type are designed to accommodate it; the runner simply returns
+<code>NotImplementedError</code> until Phase 2.</p>
+<p><strong>Design note:</strong> The discriminated union on <code>signal.type</code> keeps the outer test
+spec unchanged; adding <code>multisine</code> is a purely additive change.</p>
+<h3 id="34-time_series_file-arbitrary-pre-computed-waveform">3.4 <code>time_series_file</code> — arbitrary pre-computed waveform</h3>
+<pre><code class="language-yaml">signal:
+  type: time_series_file
+  path: measured_input.csv
+  # CSV: two columns [time_s, force_N], or single column (uniform dt inferred)
+  # JSON: {&quot;t&quot;: [...], &quot;f&quot;: [...]}  or  {&quot;dt&quot;: 0.001, &quot;f&quot;: [...]}
+  # NPY: shape (N,) for uniform dt (requires dt_sig on outer spec) or (2, N) for [t; f]
+  resample: true          # interpolate to outer spec's dt_sig grid (default true)
+</code></pre>
+<p>When <code>resample: false</code>, the file's native <code>dt</code> is used and <code>dt_sig</code> on the outer
+spec is ignored (but must be consistent within ~0.1% or a warning is emitted).</p>
+<hr />
+<h2 id="4-seed-management">4. Seed management</h2>
+<h3 id="per-test-yaml">Per-test (YAML)</h3>
+<pre><code class="language-yaml">- name: vibe_run_1
+  type: stochastic_excitation
+  seed: 42       # reproducible
+  …
+
+- name: vibe_run_2
+  type: stochastic_excitation
+  seed: null     # null → os.urandom-seeded; recorded in result for replay
+  …
+</code></pre>
+<p><code>seed: null</code> samples one 64-bit integer from <code>os.urandom</code> and records the used
+seed in the result JSON so the run can always be replayed.</p>
+<h3 id="global-cli-override">Global CLI override</h3>
+<pre><code class="language-bash">numen characterize test_plan.yaml --seed 7
+</code></pre>
+<p><code>--seed</code> (integer) overrides the per-test seed for every stochastic test in the
+plan, identical in pattern to <code>--workers</code>:</p>
+<pre><code class="language-python"># cli.py  (characterize command)
+seed: int = typer.Option(-1, &quot;--seed&quot;,
+                         help=&quot;Override random seed for all stochastic tests (-1 = use YAML values)&quot;)
+
+# … after config load:
+if seed &gt;= 0:
+    for test in config.tests:
+        if isinstance(test, StochasticExcitationSpec):
+            config = replace_test_seed(config, test.name, seed)
+</code></pre>
+<p><code>replace_test_seed</code> returns a new <code>CharacterizationConfig</code> with the named test's
+seed replaced — same pure-function replace pattern used for <code>n_workers</code>.</p>
+<hr />
+<h2 id="5-test-specification-schema">5. Test specification schema</h2>
+<pre><code class="language-python">class PSDProfileSignalSpec(BaseModel):
+    type:        Literal[&quot;psd_profile&quot;]
+    breakpoints: list[tuple[float, float]]   # [(f_hz, psd_level), …]
+    units:       Literal[&quot;g_rms&quot;, &quot;m_s2&quot;] = &quot;g_rms&quot;
+    target_grms: float | None = None         # optional RMS normalisation
+
+class PSDFileSignalSpec(BaseModel):
+    type:    Literal[&quot;psd_file&quot;]
+    path:    str
+    units:   Literal[&quot;g_rms&quot;, &quot;m_s2&quot;] = &quot;g_rms&quot;
+    target_grms: float | None = None
+
+class MultisineSignalSpec(BaseModel):
+    type:            Literal[&quot;multisine&quot;]
+    tones:           list[dict] | None = None    # [{frequency, amplitude, phase}, …]
+    file:            str | None = None
+    optimize_phase:  bool = False
+
+class TimeSeriesFileSignalSpec(BaseModel):
+    type:    Literal[&quot;time_series_file&quot;]
+    path:    str
+    resample: bool = True
+
+AnySignalSpec = Annotated[
+    Union[PSDProfileSignalSpec, PSDFileSignalSpec, MultisineSignalSpec, TimeSeriesFileSignalSpec],
+    Field(discriminator=&quot;type&quot;),
+]
+
+class StochasticExcitationSpec(BaseModel):
+    &quot;&quot;&quot;Broadband random vibration test.&quot;&quot;&quot;
+    name:                str
+    type:                Literal[&quot;stochastic_excitation&quot;]
+    duration:            float                          # simulation length [s]
+    dt_sig:              float                          # signal sample period [s]
+    signal:              AnySignalSpec
+    seed:                int | None = None              # null → os.urandom
+    transient_fraction:  float = 0.2                   # fraction discarded from PSD estimate
+    n_welch_segments:    int   = 8                      # segments for Welch estimate
+    dc_offset:           float = 0.0
+</code></pre>
+<hr />
+<h2 id="6-result-type">6. Result type</h2>
+<pre><code class="language-python">@dataclass
+class StochasticExcitationResult:
+    name:                str
+    seed_used:           int                  # always recorded, even if null was given
+
+    # Time domain
+    t:                   np.ndarray           # shape (n_response,)
+    response:            np.ndarray           # shape (n_response,) — after transient
+
+    # Input signal (first few seconds, for diagnostic)
+    t_input:             np.ndarray           # shape (n_preview,), capped at 5s
+    input_signal:        np.ndarray           # shape (n_preview,)
+
+    # PSD estimates (Welch)
+    input_psd_freq:      np.ndarray           # shape (n_fft,)
+    input_psd:           np.ndarray           # shape (n_fft,)  [input signal PSD]
+    response_psd_freq:   np.ndarray           # shape (n_fft,)
+    response_psd:        np.ndarray           # shape (n_fft,)  [output response PSD]
+
+    # Scalar metrics
+    input_rms:           float
+    response_rms:        float
+    crest_factor:        float                # peak / rms of response
+    bla_gain:            np.ndarray           # BLA: |Sxy(f)| / Sxx(f) (approximate FRF)
+    bla_coherence:       np.ndarray           # coherence γ²(f) = |Sxy|² / (Sxx·Syy)
+
+    # Metadata
+    duration:            float
+    dt_sig:              float
+    dc_offset:           float
+    signal_type:         str                  # &quot;psd_profile&quot;, &quot;psd_file&quot;, etc.
+</code></pre>
+<p><strong>BLA (Best Linear Approximation)</strong> is computed as:</p>
+<pre><code class="language-python">from scipy.signal import csd, welch
+f, Sxx = welch(input_signal, fs=1/dt_sig, nperseg=n_seg)
+f, Syy = welch(response,     fs=1/dt_sig, nperseg=n_seg)
+f, Sxy = csd(input_signal, response, fs=1/dt_sig, nperseg=n_seg)
+bla_gain      = np.abs(Sxy) / np.maximum(Sxx, 1e-300)
+bla_coherence = np.abs(Sxy)**2 / np.maximum(Sxx * Syy, 1e-300)
+</code></pre>
+<p>For a linear system the BLA equals the FRF exactly. Deviations in coherence
+identify nonlinear or noise contributions.</p>
+<hr />
+<h2 id="7-plot-panels">7. Plot panels</h2>
+<h3 id="stochastic_response-panel"><code>stochastic_response</code> panel</h3>
+<pre><code class="language-yaml">- type: stochastic_response
+  enabled: true
+  title: &quot;Random Vibe — MIL-STD-810 Cat 10&quot;
+  test: mil_std_810_cat10
+  show_bla: true
+  show_coherence: true
+  psd_db: false          # true → dB re 1 g²/Hz
+</code></pre>
+<p>Layout (3 or 4 rows):</p>
+<pre><code>┌──────────────────────────────────────────────────┐
+│ Row 1: Input signal preview (first 5 s)          │
+│        + text box: RMS, crest factor, seed       │
+├──────────────────────────────────────────────────┤
+│ Row 2: PSD — input spec (grey) vs response       │
+│        (blue);  if psd_file, overlay target      │
+├──────────────────────────────────────────────────┤
+│ Row 3: BLA gain [optional, if show_bla]          │
+├──────────────────────────────────────────────────┤
+│ Row 4: BLA coherence [optional, if show_coherence│
+└──────────────────────────────────────────────────┘
+</code></pre>
+<hr />
+<h2 id="8-changes-required">8. Changes required</h2>
+<h3 id="python">Python</h3>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>Change</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>characterization/schema.py</code></td>
+<td>Add <code>StochasticExcitationSpec</code>, signal specs, <code>StochasticResponsePanelSpec</code>; extend <code>TestSpec</code> and <code>AnyPanelSpec</code> unions</td>
+</tr>
+<tr>
+<td><code>characterization/results.py</code></td>
+<td>Add <code>StochasticExcitationResult</code> with <code>to_dict()</code> / <code>_dict_to_result()</code> round-trip</td>
+</tr>
+<tr>
+<td><code>characterization/excitation.py</code></td>
+<td>Add <code>inject_table_excitation(spec, entity_id, port_name, target_field, signal_array, dt_sig, t_start)</code></td>
+</tr>
+<tr>
+<td><code>characterization/tests/stochastic_excitation.py</code></td>
+<td>New file: <code>run_stochastic_excitation(test, base_spec, …)</code></td>
+</tr>
+<tr>
+<td><code>characterization/runner.py</code></td>
+<td>Dispatch <code>StochasticExcitationSpec</code>; pass <code>--seed</code> override</td>
+</tr>
+<tr>
+<td><code>characterization/plot_runner.py</code></td>
+<td>Add <code>_render_stochastic_response</code> renderer</td>
+</tr>
+<tr>
+<td><code>cli.py</code></td>
+<td>Add <code>--seed</code> option to <code>characterize</code> command; propagate to runner</td>
+</tr>
+<tr>
+<td><code>init_data/CHARACTERIZATION.md</code></td>
+<td>Add section 3.12 (stochastic_excitation) and 4.12 (stochastic_response panel)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="julia-numencharacterization-module">Julia (NumenCharacterization module)</h3>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>Change</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Julia characterization module</td>
+<td>Add <code>table_excitation_dynamics!</code> with linear interpolation from <code>p</code></td>
+</tr>
+</tbody>
+</table>
+<p>The table excitation function is loaded from the user's <code>dynamics.jl</code> if they define
+it there, or from the built-in <code>NumenCharacterization</code> module automatically — the same
+lookup logic used for <code>excitation_dynamics!</code> and <code>chirp_dynamics!</code>.</p>
+<h3 id="scaffold-templates">Scaffold templates</h3>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>Change</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>init_data/test_plan_generic.yaml</code></td>
+<td>Add stochastic section (commented out)</td>
+</tr>
+<tr>
+<td><code>init_data/test_plan_mechanical.yaml</code></td>
+<td>Add MIL-STD-810 profile example (commented out)</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="9-inject_table_excitation-api-sketch">9. <code>inject_table_excitation</code> API sketch</h2>
+<pre><code class="language-python">def inject_table_excitation(
+    spec:         CompiledSpec,
+    entity_id:    str,
+    port_name:    str,
+    target_field: str,
+    signal:       np.ndarray,   # pre-computed, shape (N,), uniform dt_sig
+    dt_sig:       float,
+    t_start:      float = 0.0,
+) -&gt; CompiledSpec:
+    &quot;&quot;&quot;Return a new CompiledSpec with a table-lookup forcing system added.
+
+    The signal is appended to the parameter vector in the layout:
+        _table_{entity_id}_{port_name}.n_samples  → N
+        _table_{entity_id}_{port_name}.t_start    → t_start
+        _table_{entity_id}_{port_name}.dt_sig     → dt_sig
+        _table_{entity_id}_{port_name}.target_idx → state index (float)
+        _table_{entity_id}_{port_name}.signal     → signal[0..N-1]
+
+    The Python dynamics closure uses np.interp (not jnp — stochastic tests
+    run on Julia or scipy backends only; JAX is not supported for this test
+    type due to the variable-length parameter layout).
+    &quot;&quot;&quot;
+</code></pre>
+<p><strong>JAX compatibility note:</strong> The table size N varies per test, making it incompatible
+with JAX's static-shape requirement at trace time. The runner raises
+<code>NumenFeatureError("variable_table_excitation")</code> when a JAX backend is requested
+for a stochastic test. Scipy and Julia backends support it fully.</p>
+<hr />
+<h2 id="10-psd-generation-worked-example">10. PSD generation — worked example</h2>
+<pre><code class="language-python">import numpy as np
+from numpy.fft import rfft, irfft, rfftfreq
+
+def generate_psd_signal(
+    breakpoints: list[tuple[float, float]],   # [(f_hz, psd_g2hz), …]
+    duration:    float,
+    dt_sig:      float,
+    seed:        int | None,
+    units:       str = &quot;g_rms&quot;,
+    target_grms: float | None = None,
+) -&gt; tuple[np.ndarray, int]:
+    &quot;&quot;&quot;Return (signal, seed_used).&quot;&quot;&quot;
+    rng = np.random.default_rng(seed)
+    seed_used = int(rng.bit_generator.state[&quot;state&quot;][&quot;state&quot;]) if seed is None else seed
+
+    N    = int(round(duration / dt_sig))
+    fs   = 1.0 / dt_sig
+    freq = rfftfreq(N, d=dt_sig)        # one-sided freq grid
+
+    # Log-log interpolate PSD onto freq grid
+    bkf = np.array([b[0] for b in breakpoints])
+    bkp = np.array([b[1] for b in breakpoints])
+    psd = np.zeros_like(freq)
+    mask = (freq &gt;= bkf[0]) &amp; (freq &lt;= bkf[-1])
+    psd[mask] = np.exp(np.interp(
+        np.log(freq[mask]), np.log(bkf), np.log(bkp)
+    ))
+
+    # PSD → amplitude spectrum  (one-sided, bin width = 1/duration)
+    df   = freq[1] - freq[0]            # = 1/duration
+    amp  = np.sqrt(2.0 * psd * df)      # factor 2: one-sided → two-sided energy
+    amp[0]  = 0.0                        # zero DC
+    amp[-1] = 0.0                        # zero Nyquist
+
+    # Random phases
+    phases = rng.uniform(0.0, 2.0 * np.pi, len(freq))
+    X      = amp * np.exp(1j * phases)
+    signal = irfft(X, n=N)              # real-valued time series
+
+    # Optional RMS normalisation
+    if target_grms is not None:
+        actual_rms = np.sqrt(np.mean(signal**2))
+        signal    *= target_grms / max(actual_rms, 1e-300)
+
+    # Unit conversion
+    G = 9.80665
+    if units == &quot;g_rms&quot;:
+        signal = signal / G             # g²/Hz spec → signal in g → convert to m/s²
+        # Actually keep in the unit the ODE expects (m/s²):
+        signal = signal * G             # signal was already in g, convert to m/s²
+        # (net: no-op if the PSD spec is already in g²/Hz and the ODE expects m/s²)
+        # Callers must match units to ODE force units — document this clearly.
+
+    return signal.astype(np.float64), seed_used
+</code></pre>
+<p><strong>Unit responsibility:</strong> The PSD spec and ODE force units must match. Document in
+CHARACTERIZATION.md that <code>units: g_rms</code> means the PSD spec is in g²/Hz and the
+generated signal is in m/s² (after ×9.80665), which is the SI unit expected by
+the dynamics function. <code>units: m_s2</code> means the spec and signal are both in SI
+units throughout.</p>
+<hr />
+<h2 id="11-implementation-phases">11. Implementation phases</h2>
+<h3 id="phase-1-implement-now">Phase 1 (implement now)</h3>
+<ul>
+<li><code>inject_table_excitation</code> in <code>excitation.py</code></li>
+<li><code>generate_psd_signal</code> in new <code>characterization/signal_gen.py</code></li>
+<li><code>StochasticExcitationSpec</code> with <code>psd_profile</code> and <code>psd_file</code> signal types</li>
+<li><code>StochasticExcitationResult</code> with BLA/coherence/crest factor</li>
+<li><code>run_stochastic_excitation</code> runner</li>
+<li><code>stochastic_response</code> plot panel</li>
+<li><code>table_excitation_dynamics!</code> Julia function</li>
+<li><code>--seed</code> CLI option</li>
+<li>Updated <code>CHARACTERIZATION.md</code></li>
+</ul>
+<h3 id="phase-2-defer">Phase 2 (defer)</h3>
+<ul>
+<li><code>multisine</code> signal type (Schroeder phase optimisation optional)</li>
+<li><code>time_series_file</code> signal type (file loading + resample)</li>
+<li>JAX-compatible static-size table excitation (pad to max_samples, clip at runtime)</li>
+</ul>
+<hr />
+<h2 id="12-open-questions">12. Open questions</h2>
+<ol>
+<li>
+<p><strong>Phase 2 — <code>time_series_file</code> priority:</strong> If a user has measured lab data they
+   want to replay, <code>time_series_file</code> is more urgent than <code>multisine</code>. Should these
+   swap priority?  Recommendation: implement <code>time_series_file</code> first in Phase 2
+   (same <code>inject_table_excitation</code> path, just different generation step), then <code>multisine</code>.</p>
+</li>
+<li>
+<p><strong>Max table size and memory:</strong> A 60-second signal at 10 kHz = 600,000 floats =
+   4.8 MB. This is appended to <code>p</code> and serialised to JSON for Julia. At 1 kHz
+   (60,000 floats, ~480 KB) it is comfortably small. Document the dt_sig guidance:
+   <code>dt_sig ≤ 1 / (10 · f_max)</code>, where f_max is the highest breakpoint frequency.</p>
+</li>
+<li>
+<p><strong>Multiple stochastic inputs:</strong> The table excitation appends a unique key
+   <code>_table_{entity_id}_{port_name}</code> so two stochastic excitations on different ports
+   are fully independent. Same call pattern as two-tone.</p>
+</li>
+<li>
+<p><strong>Parallel sweeps over seeds:</strong> A <code>parameter_sweep</code> over <code>seed</code> values (to
+   estimate response statistics) works naturally with the existing <code>n_workers</code> pool.
+   The <code>sweep_param: seed</code> path requires a thin adapter in the runner that calls
+   <code>replace(test, seed=int(val))</code> instead of modifying the compiled spec.</p>
+</li>
+</ol>
+<hr />
+<h2 id="13-example-yaml-complete">13. Example YAML (complete)</h2>
+<pre><code class="language-yaml">version: &quot;1.0&quot;
+output: results_vibe.json
+
+backend:
+  type: julia_server
+  julia_file: dynamics.jl
+  method: Tsit5
+  rtol: 1.0e-8
+  atol: 1.0e-9
+  n_save_points: 8000
+
+model:
+  module: world
+  factory: make_world
+  factory_kwargs:
+    x0: 0.0
+    v0: 0.0
+    omega: 62.832   # 10 Hz natural frequency
+    c0: 0.5
+    c1: 0.0         # linear system for baseline
+
+excitation:
+  entity: osc
+  port: force
+  output_state: position
+
+tests:
+  - name: mil_std_psd
+    type: stochastic_excitation
+    duration: 60.0
+    dt_sig: 0.0001       # 10 kHz — well above 2 kHz PSD ceiling
+    seed: 12345
+    transient_fraction: 0.25
+    n_welch_segments: 8
+    dc_offset: 0.0
+    signal:
+      type: psd_profile
+      breakpoints:
+        - [20.0,   0.01]
+        - [80.0,   0.04]
+        - [350.0,  0.04]
+        - [2000.0, 0.007]
+      units: g_rms
+
+  - name: psd_from_file
+    type: stochastic_excitation
+    duration: 60.0
+    dt_sig: 0.0001
+    seed: null          # random; seed recorded in result
+    signal:
+      type: psd_file
+      path: specs/customer_vibe_spec.csv
+      units: g_rms
+
+plots:
+  output: vibe_characterization.png
+  dpi: 150
+  figure:
+    title: &quot;Random Vibration Response&quot;
+    subtitle: &quot;MIL-STD-810 Cat 10 excitation — ω₀=10 Hz&quot;
+
+  panels:
+    - type: stochastic_response
+      enabled: true
+      title: &quot;PSD Response — MIL-STD-810&quot;
+      test: mil_std_psd
+      show_bla: true
+      show_coherence: true
+      psd_db: false
+</code></pre>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tabs", "navigation.sections", "toc.integrate", "search.suggest"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>

@@ -1,0 +1,1531 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Hybrid Python/Julia physics simulation framework">
+      
+      
+      
+        <link rel="canonical" href="https://TalbotKnighton.github.io/numen/plan_characterization_plots/">
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>Plan: First-class Characterization Plots - Numen</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/_mkdocstrings.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#plan-first-class-characterization-plots" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="Numen" class="md-header__button md-logo" aria-label="Numen" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Numen
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Plan: First-class Characterization Plots
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/TalbotKnighton/numen" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    TalbotKnighton/numen
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href=".." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../getting-started/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Getting Started
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../guide/components/" class="md-tabs__link">
+          
+  
+  
+  User Guide
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../examples/oscillator/" class="md-tabs__link">
+          
+  
+  
+  Examples
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../api/fields/" class="md-tabs__link">
+          
+  
+  
+  API Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../julia/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Julia Reference
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="Numen" class="md-nav__button md-logo" aria-label="Numen" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Numen
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/TalbotKnighton/numen" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    TalbotKnighton/numen
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User Guide
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    User Guide
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/components/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Components & Fields
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/systems/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Systems & Dynamics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/backends/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Backends
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/characterization/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Characterization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Examples
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Examples
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../examples/oscillator/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Oscillator
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../examples/coupled_spring/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Coupled Spring
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../examples/fluid_poppet/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Fluid Poppet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    API Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/fields/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Fields
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/compiler/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Compiler
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/backends/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Backends
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/reconstruction/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reconstruction
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../julia/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Julia Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="plan-first-class-characterization-plots">Plan: First-class Characterization Plots</h1>
+<p><strong>Status:</strong> In progress
+<strong>Goal:</strong> Make plot generation a first-class <code>numen characterize</code> feature driven by the same
+YAML file as the test campaign. Eliminate standalone plot scripts.</p>
+<hr />
+<h2 id="motivation">Motivation</h2>
+<p>The current workflow has two problems:</p>
+<ol>
+<li><code>--output results.json</code> is a CLI flag — the output path lives outside the YAML, making
+   the YAML incomplete as a self-contained experiment description.</li>
+<li>Plot generation is a one-off script (<code>characterize_plot.py</code>) that hardcodes which results
+   go in which panels. Changing what's shown requires editing Python.</li>
+</ol>
+<p>The new design: <strong>one YAML file</strong>, two top-level sections (<code>tests:</code> and <code>plots:</code>), one command
+with flags to select which phase to run.</p>
+<hr />
+<h2 id="cli">CLI</h2>
+<pre><code>numen characterize plan.yaml          # default: -c -p (run + plot)
+numen characterize plan.yaml -c       # characterise only → writes results.json
+numen characterize plan.yaml -p       # plot only → reads results.json, writes PNG
+numen characterize plan.yaml -c -p    # explicit both
+numen characterize plan.yaml --verbose
+</code></pre>
+<p><code>-c</code> and <code>-p</code> are independent boolean flags. When neither is given, both run.
+No backward compatibility required.</p>
+<hr />
+<h2 id="yaml-structure">YAML structure</h2>
+<pre><code class="language-yaml">version: &quot;1.0&quot;
+output: results.json          # where JSON is written (-c) / read (-p)
+                              # relative to YAML dir, or absolute
+
+backend:
+  type: scipy                 # scipy | jax | julia | julia_server
+  julia_file: null
+  method: null
+  rtol: 1.0e-8
+  atol: 1.0e-9
+
+model:
+  module: world
+  factory: make_world
+  factory_kwargs: {}
+
+excitation:
+  entity: osc
+  port: force
+  output_state: position
+
+tests:
+  - name: chirp_survey
+    enabled: true             # NEW: skip without deleting
+    type: continuous_chirp
+    ...
+
+  - name: baseline_frf
+    enabled: true
+    type: discrete_frequency_sweep
+    ...
+
+plots:                        # NEW top-level section
+  output: characterization_summary.png   # relative to YAML dir, or absolute
+  dpi: 150
+  figure:
+    title: &quot;My Model — Characterization&quot;
+    subtitle: null            # optional second line
+    size: null                # [width, height] in inches; auto if null
+
+  panels:                     # ordered list; layout is auto-computed
+    - type: bode
+      enabled: true
+      title: &quot;Bode — Stepped Sine vs Chirp&quot;
+      db: true
+      series:
+        - test: baseline_frf
+          label: stepped sine
+          show_phase: true
+        - test: chirp_survey
+          label: chirp (survey)
+          show_phase: false   # noisy for high-Q — toggle per-series
+
+    - type: chirp_timeseries
+      enabled: true
+      title: &quot;Chirp Time Series&quot;
+      test: chirp_survey
+
+    - type: amplitude_sweep
+      enabled: true
+      title: &quot;Amplitude Sweep — Nonlinearity&quot;
+      test: amplitude_sweep_resonance
+      show_phase: true
+
+    - type: dc_sweep
+      enabled: true
+      title: &quot;DC Sweep&quot;
+      test: dc_bias_sweep
+
+    - type: parameter_family
+      enabled: false
+      title: &quot;FRF Family&quot;
+      test: c1_family         # references a ParameterSweepResult
+      db: true
+      show_phase: true
+
+    - type: doe_scatter
+      enabled: false
+      title: &quot;Sensitivity — f₀ vs c₀&quot;
+      test: sensitivity_study
+      x_param: osc.c0         # dot-path parameter name
+      y_metric: f0            # f0 | Q | damping_ratio | peak_magnitude
+      color_param: osc.c1     # optional third dimension
+
+    - type: parameter_grid_heatmap
+      enabled: false
+      title: &quot;Grid — Peak |H|&quot;
+      test: c0_c1_grid
+      metric: peak_magnitude  # f0 | Q | damping_ratio | peak_magnitude
+</code></pre>
+<hr />
+<h2 id="schema-changes-schemapy">Schema changes (<code>schema.py</code>)</h2>
+<h3 id="root-config">Root config</h3>
+<pre><code class="language-python">class CharacterizationConfig(BaseModel):
+    version: str = &quot;1.0&quot;
+    output: str = &quot;results.json&quot;        # NEW — was CLI --output
+    backend: BackendSpec = BackendSpec()
+    model: ModelSpec
+    excitation: ExcitationSpec
+    tests: list[AnyTestSpec] = []
+    plots: PlotsSpec = PlotsSpec()      # NEW
+</code></pre>
+<h3 id="test-specs-add-enabled">Test specs — add <code>enabled</code></h3>
+<p>Every <code>*Spec</code> class (DiscreteFrequencySweepSpec, ContinuousChirpSpec, etc.) gains:</p>
+<pre><code class="language-python">enabled: bool = True
+</code></pre>
+<p>The runner skips any test where <code>enabled=False</code>.</p>
+<h3 id="plot-panel-specs-new">Plot panel specs (new)</h3>
+<pre><code class="language-python">class BodeSeriesSpec(BaseModel):
+    test: str
+    label: str | None = None
+    show_phase: bool = True
+    db: bool = True
+
+class BodePanelSpec(BaseModel):
+    type: Literal[&quot;bode&quot;] = &quot;bode&quot;
+    enabled: bool = True
+    title: str | None = None
+    series: list[BodeSeriesSpec] = []
+
+class ChirpTimeseriesPanelSpec(BaseModel):
+    type: Literal[&quot;chirp_timeseries&quot;] = &quot;chirp_timeseries&quot;
+    enabled: bool = True
+    title: str | None = None
+    test: str
+
+class AmplitudeSweepPanelSpec(BaseModel):
+    type: Literal[&quot;amplitude_sweep&quot;] = &quot;amplitude_sweep&quot;
+    enabled: bool = True
+    title: str | None = None
+    test: str
+    show_phase: bool = True
+
+class DCSweepPanelSpec(BaseModel):
+    type: Literal[&quot;dc_sweep&quot;] = &quot;dc_sweep&quot;
+    enabled: bool = True
+    title: str | None = None
+    test: str
+
+class ParameterFamilyPanelSpec(BaseModel):
+    type: Literal[&quot;parameter_family&quot;] = &quot;parameter_family&quot;
+    enabled: bool = True
+    title: str | None = None
+    test: str
+    db: bool = True
+    show_phase: bool = True
+
+class DOEScatterPanelSpec(BaseModel):
+    type: Literal[&quot;doe_scatter&quot;] = &quot;doe_scatter&quot;
+    enabled: bool = True
+    title: str | None = None
+    test: str
+    x_param: str
+    y_metric: str = &quot;f0&quot;        # f0 | Q | damping_ratio | peak_magnitude
+    color_param: str | None = None
+
+class ParameterGridHeatmapPanelSpec(BaseModel):
+    type: Literal[&quot;parameter_grid_heatmap&quot;] = &quot;parameter_grid_heatmap&quot;
+    enabled: bool = True
+    title: str | None = None
+    test: str
+    metric: str = &quot;peak_magnitude&quot;
+
+AnyPanelSpec = Annotated[
+    Union[BodePanelSpec, ChirpTimeseriesPanelSpec, AmplitudeSweepPanelSpec,
+          DCSweepPanelSpec, ParameterFamilyPanelSpec, DOEScatterPanelSpec,
+          ParameterGridHeatmapPanelSpec],
+    Field(discriminator=&quot;type&quot;),
+]
+
+class FigureSpec(BaseModel):
+    title: str | None = None
+    subtitle: str | None = None
+    size: tuple[float, float] | None = None
+
+class PlotsSpec(BaseModel):
+    output: str = &quot;characterization_summary.png&quot;
+    dpi: int = 150
+    figure: FigureSpec = FigureSpec()
+    panels: list[AnyPanelSpec] = []
+</code></pre>
+<hr />
+<h2 id="plot_runnerpy-new-module"><code>plot_runner.py</code> — new module</h2>
+<p><code>src/numen/characterization/plot_runner.py</code></p>
+<pre><code class="language-python">class CharacterizationPlotter:
+    def __init__(self, config: CharacterizationConfig, results: CampaignResults,
+                 yaml_dir: Path): ...
+
+    def run(self) -&gt; Path:
+        &quot;&quot;&quot;Build figure, render all enabled panels, save PNG.&quot;&quot;&quot;
+        panels = [p for p in self.config.plots.panels if p.enabled]
+        rows, cols = _auto_layout(len(panels))
+        fig = plt.figure(figsize=self.config.plots.figure.size or _default_size(rows, cols))
+        outer_gs = GridSpec(rows, cols, figure=fig, hspace=0.45, wspace=0.38)
+        _add_title(fig, self.config.plots.figure)
+        results_by_name = {r.name: r for r in self.results.results}
+        for idx, panel_spec in enumerate(panels):
+            cell = outer_gs[idx // cols, idx % cols]
+            self._render_panel(fig, cell, panel_spec, results_by_name)
+        out = _resolve_path(self.config.plots.output, self.yaml_dir)
+        fig.savefig(out, dpi=self.config.plots.dpi, bbox_inches=&quot;tight&quot;)
+        return out
+</code></pre>
+<h3 id="layout-algorithm">Layout algorithm</h3>
+<pre><code class="language-python">def _auto_layout(n: int) -&gt; tuple[int, int]:
+    if n == 0: return 1, 1
+    cols = math.ceil(math.sqrt(n))
+    rows = math.ceil(n / cols)
+    return rows, cols
+</code></pre>
+<h3 id="panel-renderers-one-per-type">Panel renderers (one per type)</h3>
+<p>Each renderer receives <code>(fig, subplot_spec, panel_spec, results_by_name)</code> and uses
+<code>GridSpecFromSubplotSpec</code> internally for multi-axis panels:</p>
+<table>
+<thead>
+<tr>
+<th>Panel type</th>
+<th>Internal layout</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>bode</code></td>
+<td>2×1 (mag / phase)</td>
+<td><code>sharex</code>; phase skipped if no series has <code>show_phase=True</code></td>
+</tr>
+<tr>
+<td><code>chirp_timeseries</code></td>
+<td>1×1</td>
+<td>plain time series</td>
+</tr>
+<tr>
+<td><code>amplitude_sweep</code></td>
+<td>2×1 (</td>
+<td>H</td>
+</tr>
+<tr>
+<td><code>dc_sweep</code></td>
+<td>1×2 (</td>
+<td>H</td>
+</tr>
+<tr>
+<td><code>parameter_family</code></td>
+<td>2×1</td>
+<td>colourmap from viridis; colorbar spans both rows</td>
+</tr>
+<tr>
+<td><code>doe_scatter</code></td>
+<td>1×1 per param</td>
+<td>if multiple params, auto-expands columns</td>
+</tr>
+<tr>
+<td><code>parameter_grid_heatmap</code></td>
+<td>1×1</td>
+<td>imshow + colorbar; axes labels from param keys</td>
+</tr>
+</tbody>
+</table>
+<h3 id="metric-extraction-helper">Metric extraction helper</h3>
+<p>Used by <code>doe_scatter</code> and <code>parameter_grid_heatmap</code> to pull a scalar from any
+nested result:</p>
+<pre><code class="language-python">def _extract_metric(result, metric: str) -&gt; float | None:
+    &quot;&quot;&quot;Return a scalar metric from an FRFResult or the first FRF in a nested result.&quot;&quot;&quot;
+    # Handles FRFResult directly
+    # Recurses into ParameterSweepResult, ParameterGridResult, DOESweepResult sub_results
+    # Returns None if metric not available
+</code></pre>
+<p>Supported metrics: <code>f0</code>, <code>Q</code>, <code>damping_ratio</code>, <code>peak_magnitude</code>.</p>
+<hr />
+<h2 id="path-resolution">Path resolution</h2>
+<pre><code class="language-python">def _resolve_path(path_str: str, base_dir: Path) -&gt; Path:
+    p = Path(path_str)
+    return p if p.is_absolute() else base_dir / p
+</code></pre>
+<p>Applied to both <code>config.output</code> (JSON) and <code>config.plots.output</code> (PNG).</p>
+<hr />
+<h2 id="updated-clipy-characterize-command">Updated <code>cli.py</code> — <code>characterize</code> command</h2>
+<pre><code class="language-python">@app.command()
+def characterize(
+    plan:    Annotated[Path, typer.Argument(...)],
+    do_char: Annotated[bool, typer.Option(&quot;-c&quot;, is_eager=False)] = False,
+    do_plot: Annotated[bool, typer.Option(&quot;-p&quot;, is_eager=False)] = False,
+    verbose: Annotated[bool, typer.Option(&quot;--verbose&quot;)] = False,
+) -&gt; None:
+    # When neither flag given, run both
+    if not do_char and not do_plot:
+        do_char = do_plot = True
+
+    yaml_dir = plan.resolve().parent
+    config   = CharacterizationConfig.from_yaml(plan)
+    out_json = _resolve_path(config.output, yaml_dir)
+
+    if do_char:
+        runner  = CharacterizationRunner.from_config(config)
+        results = runner.run()
+        results.save(out_json)
+
+    if do_plot:
+        if not out_json.exists():
+            _fail(f&quot;results not found: {out_json}  (run with -c first)&quot;)
+            raise typer.Exit(1)
+        results = CampaignResults.load(out_json)
+        plotter = CharacterizationPlotter(config, results, yaml_dir)
+        out_png = plotter.run()
+        _ok(f&quot;Plot saved → {out_png}&quot;)
+</code></pre>
+<hr />
+<h2 id="runner-changes-respect-enabled">Runner changes — respect <code>enabled</code></h2>
+<pre><code class="language-python"># runner.py _run_test():
+for test_spec in self.config.tests:
+    if not getattr(test_spec, &quot;enabled&quot;, True):
+        continue   # skip disabled tests
+    ...
+</code></pre>
+<hr />
+<h2 id="campaignresults-add-load"><code>CampaignResults</code> — add <code>load()</code></h2>
+<pre><code class="language-python">@classmethod
+def load(cls, path: Path) -&gt; &quot;CampaignResults&quot;:
+    with open(path) as f:
+        data = json.load(f)
+    # reconstruct typed result objects from dict
+    ...
+</code></pre>
+<p>Currently <code>save()</code> exists but <code>load()</code> does not. This is needed for <code>-p</code> without <code>-c</code>.</p>
+<hr />
+<h2 id="files-changed">Files changed</h2>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>Change</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>src/numen/characterization/schema.py</code></td>
+<td>Add <code>output</code>, <code>enabled</code>, <code>PlotsSpec</code>, all panel specs</td>
+</tr>
+<tr>
+<td><code>src/numen/characterization/plot_runner.py</code></td>
+<td><strong>New</strong> — <code>CharacterizationPlotter</code></td>
+</tr>
+<tr>
+<td><code>src/numen/characterization/results.py</code></td>
+<td>Add <code>CampaignResults.load()</code></td>
+</tr>
+<tr>
+<td><code>src/numen/characterization/runner.py</code></td>
+<td>Respect <code>enabled</code> flag per test</td>
+</tr>
+<tr>
+<td><code>src/numen/cli.py</code></td>
+<td>Replace <code>--output</code> with <code>-c</code>/<code>-p</code>; call plotter</td>
+</tr>
+<tr>
+<td><code>examples/nonlinear_oscillator/test_plan.yaml</code></td>
+<td>Add <code>output:</code> and <code>plots:</code> sections</td>
+</tr>
+<tr>
+<td><code>examples/nonlinear_oscillator/characterize_plot.py</code></td>
+<td>Delete (superseded)</td>
+</tr>
+<tr>
+<td><code>src/numen/init_data/CHARACTERIZATION.md</code></td>
+<td>Update CLI reference + YAML schema</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="phases">Phases</h2>
+<h3 id="phase-1-foundation-in-progress">Phase 1 — Foundation ✓ in progress</h3>
+<ul>
+<li>[ ] Schema: <code>output</code>, <code>enabled</code>, <code>PlotsSpec</code>, all panel specs</li>
+<li>[ ] <code>CampaignResults.load()</code> (JSON → typed objects)</li>
+<li>[ ] <code>CharacterizationPlotter.run()</code> with auto-layout</li>
+<li>[ ] Panel renderers: <code>bode</code>, <code>chirp_timeseries</code>, <code>amplitude_sweep</code>, <code>dc_sweep</code></li>
+<li>[ ] CLI: <code>-c</code>/<code>-p</code> flags, path resolution, call plotter</li>
+<li>[ ] Runner: respect <code>enabled</code></li>
+<li>[ ] Update <code>test_plan.yaml</code> with <code>output:</code> + <code>plots:</code> sections</li>
+<li>[ ] Delete <code>characterize_plot.py</code></li>
+</ul>
+<h3 id="phase-2-parameter-result-panels-complete">Phase 2 — Parameter result panels ✓ complete</h3>
+<ul>
+<li>[x] <code>parameter_family</code> panel renderer</li>
+<li>[x] <code>doe_scatter</code> panel renderer + <code>_extract_metric()</code></li>
+<li>[x] <code>parameter_grid_heatmap</code> panel renderer</li>
+<li>[x] Update CHARACTERIZATION.md with new YAML schema</li>
+</ul>
+<h3 id="phase-3-excitation-parameter-outer-loop-complete">Phase 3 — Excitation parameter outer-loop ✓ complete</h3>
+<p><strong>Goal:</strong> Let <code>parameter_sweep</code>, <code>parameter_grid</code>, and <code>doe_sweep</code> vary excitation
+inputs (DC offset, amplitude, frequency) as the outer dimension over any inner test.</p>
+<p><strong>Problem:</strong> The excitation parameters (<code>amp</code>, <code>freq</code>, <code>dc</code>) live in
+<code>spec.param_index_map</code> under internal keys like <code>_exc_osc_force.dc</code> — not user-facing
+paths.  A model parameter like <code>osc.c1</code> is accessed directly; excitation needs a
+translation layer.</p>
+<p><strong>Solution:</strong> <code>excitation.*</code> parameter paths in <code>param_sweep.py</code>:</p>
+<pre><code class="language-python">_EXC_PARAM_MAP = {&quot;dc_offset&quot;: &quot;dc&quot;, &quot;amplitude&quot;: &quot;amp&quot;, &quot;frequency&quot;: &quot;freq&quot;}
+
+def _resolve_param_key(key, entity_id=None, port_name=None) -&gt; str:
+    if key.startswith(&quot;excitation.&quot;):
+        sub = key[len(&quot;excitation.&quot;):]
+        return f&quot;_exc_{entity_id}_{port_name}.{_EXC_PARAM_MAP[sub]}&quot;
+    return key  # plain model param path, unchanged
+</code></pre>
+<p>The <code>entity_id</code> and <code>port_name</code> come from <code>CharacterizationRunner</code> (the excitation
+config) and are threaded down through every sweep runner.</p>
+<p><strong>YAML usage:</strong></p>
+<pre><code class="language-yaml"># Outer loop: 6 DC offsets
+# Inner test: baseline_frf (discrete frequency sweep)
+# Result: ParameterFamilyResult with 6 FRFResults
+- name: frf_vs_dc
+  type: parameter_sweep
+  sweep_param: excitation.dc_offset   # translates to _exc_osc_force.dc
+  values: [0.0, 0.1, 0.3, 0.5, 0.8, 1.0]
+  sub_test: baseline_frf
+
+# Same pattern for chirp
+- name: chirp_vs_dc
+  type: parameter_sweep
+  sweep_param: excitation.dc_offset
+  values: [0.0, 0.3, 0.6, 1.0]
+  sub_test: chirp_survey
+</code></pre>
+<p><strong><code>_render_parameter_family</code> sub-result dispatch:</strong></p>
+<table>
+<thead>
+<tr>
+<th><code>subs[0]</code> type</th>
+<th>Layout</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>FRFResult</code></td>
+<td>2×1 stacked Bode</td>
+<td>mag + phase (phase optional via <code>show_phase</code>)</td>
+</tr>
+<tr>
+<td><code>ChirpResult</code></td>
+<td>1×1</td>
+<td>magnitude-only semilog; chirp phase unreliable</td>
+</tr>
+<tr>
+<td><code>AmplitudeSweepResult</code></td>
+<td>1×1</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<p>All three are coloured by sweep parameter using viridis with a colorbar.</p>
+<p><strong>Files changed:</strong>
+- <code>src/numen/characterization/tests/param_sweep.py</code> — <code>_EXC_PARAM_MAP</code>, <code>_resolve_param_key()</code>, updated <code>_set_model_param()</code> and <code>run_parameter_sweep()</code> signatures
+- <code>src/numen/characterization/tests/param_grid.py</code> — propagate <code>entity_id</code>/<code>port_name</code>
+- <code>src/numen/characterization/tests/doe_sweep.py</code> — same
+- <code>src/numen/characterization/runner.py</code> — <code>_make_sub_runner()</code> + <code>_get_sub_spec()</code> consolidation
+- <code>src/numen/characterization/plot_runner.py</code> — <code>_render_parameter_family</code> extended for all 3 sub-result types
+- <code>examples/nonlinear_oscillator/test_plan.yaml</code> — <code>frf_vs_dc</code> + <code>chirp_vs_dc</code> tests + panels</p>
+<hr />
+<h2 id="open-questions">Open questions</h2>
+<ol>
+<li>
+<p><strong><code>doe_scatter</code> with multiple params</strong> — should each param get its own subplot within
+   the panel cell (auto-expanding columns), or should the user pick one <code>x_param</code> and
+   one optional <code>color_param</code>? Current design: one axis per panel, user picks axes.</p>
+</li>
+<li>
+<p><strong><code>parameter_grid_heatmap</code> with &gt;2 params</strong> — for N&gt;2 parameters, a single heatmap
+   is impossible. Options: show all 2D projections, or raise an error and require the
+   user to add multiple panels. Current design: require exactly 2 params; raise if not.</p>
+</li>
+<li>
+<p><strong>Figure size with many panels</strong> — <code>_default_size</code> scales with rows/cols but tall
+   panels (Bode = 2 stacked axes) may feel cramped at small sizes. Consider a minimum
+   cell height.</p>
+</li>
+</ol>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tabs", "navigation.sections", "toc.integrate", "search.suggest"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>

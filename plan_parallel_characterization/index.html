@@ -1,0 +1,1405 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Hybrid Python/Julia physics simulation framework">
+      
+      
+      
+        <link rel="canonical" href="https://TalbotKnighton.github.io/numen/plan_parallel_characterization/">
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>Parallel Characterization — Design Plan - Numen</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/_mkdocstrings.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#parallel-characterization-design-plan" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="Numen" class="md-header__button md-logo" aria-label="Numen" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Numen
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Parallel Characterization — Design Plan
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/TalbotKnighton/numen" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    TalbotKnighton/numen
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href=".." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../getting-started/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Getting Started
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../guide/components/" class="md-tabs__link">
+          
+  
+  
+  User Guide
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../examples/oscillator/" class="md-tabs__link">
+          
+  
+  
+  Examples
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../api/fields/" class="md-tabs__link">
+          
+  
+  
+  API Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../julia/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Julia Reference
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="Numen" class="md-nav__button md-logo" aria-label="Numen" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Numen
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/TalbotKnighton/numen" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    TalbotKnighton/numen
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User Guide
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    User Guide
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/components/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Components & Fields
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/systems/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Systems & Dynamics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/backends/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Backends
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/characterization/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Characterization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Examples
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Examples
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../examples/oscillator/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Oscillator
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../examples/coupled_spring/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Coupled Spring
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../examples/fluid_poppet/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Fluid Poppet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    API Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/fields/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Fields
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/compiler/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Compiler
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/backends/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Backends
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/reconstruction/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reconstruction
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../julia/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Julia Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="parallel-characterization-design-plan">Parallel Characterization — Design Plan</h1>
+<blockquote>
+<p><strong>Status: COMPLETE.</strong> All steps implemented and verified against the nonlinear
+oscillator example campaign.  Architectural notes graduated to <code>CLAUDE.md</code>.
+This file is retained as a record of the design decisions made.</p>
+</blockquote>
+<hr />
+<h2 id="north-star">North Star</h2>
+<p>Allow a characterization campaign to distribute DOE-level work across N Julia server
+processes so that a sweep over 20 parameter combinations on a 4-core machine runs in
+roughly 20/4 = 5× less wall time, with zero change to results and zero extra boilerplate
+in the YAML.</p>
+<hr />
+<h2 id="constraints-non-goals">Constraints / non-goals</h2>
+<table>
+<thead>
+<tr>
+<th>Constraint</th>
+<th>Rationale</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Parallelism only for <code>julia_server</code> backend</td>
+<td>Pool management is Julia-process-level; scipy/JAX/julia backends are single-threaded. Non-Julia paths ignore <code>n_workers</code>.</td>
+</tr>
+<tr>
+<td>DOE-level granularity, not leaf-solve</td>
+<td>A single sub-test (FRF sweep at one DC offset, chirp at one amplitude, …) runs on <strong>one server</strong> start-to-finish. This lets the first solve on each server JIT-compile all dynamics; subsequent solves on that server are warm. Splitting solves within a sub-test across servers would lose the JIT benefit and add per-solve overhead.</td>
+</tr>
+<tr>
+<td><code>n_workers=1</code> default</td>
+<td>Single-server path is unchanged. YAML opt-in.</td>
+</tr>
+<tr>
+<td>Non-sweep tests route through one worker</td>
+<td><code>continuous_chirp</code>, <code>discrete_frequency_sweep</code>, <code>amplitude_sweep</code>, <code>dc_operating_point_sweep</code> defined at the top level (not as <code>sub_test</code>) are not parallelised. They already run on the single shared server.</td>
+</tr>
+<tr>
+<td>No result ordering change</td>
+<td>Results must appear in the same order as <code>test.values</code> / design-point list regardless of which worker finishes first.</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="user-facing-api">User-facing API</h2>
+<h3 id="yaml">YAML</h3>
+<pre><code class="language-yaml">backend:
+  type: julia_server
+  julia_file: dynamics.jl
+  method: Tsit5
+  rtol: 1.0e-8
+  atol: 1.0e-9
+  n_workers: 4          # NEW — default 1
+</code></pre>
+<h3 id="cli-override-always-wins-over-yaml">CLI override (always wins over YAML)</h3>
+<pre><code class="language-bash">numen characterize test_plan.yaml --workers 4
+numen characterize test_plan.yaml --workers 1   # force sequential even if YAML says 4
+</code></pre>
+<hr />
+<h2 id="architecture">Architecture</h2>
+<h3 id="current-flow-n_workers1">Current flow (n_workers=1)</h3>
+<pre><code>CharacterizationRunner.run()
+  backend = JuliaServerBackend(...)         # 1 process
+
+  for test in config.tests:
+      _run_test(test, backend)
+
+      ParameterSweepSpec → run_parameter_sweep(test, exc_spec, sub_runner, ...)
+        for val in test.values:             # SEQUENTIAL
+            spec_v = _set_model_param(exc_spec, key, val)
+            sub_runner(spec_v)              # sub_runner closes over backend
+</code></pre>
+<h3 id="target-flow-n_workers1">Target flow (n_workers&gt;1)</h3>
+<pre><code>CharacterizationRunner.run()
+  pool = JuliaServerPool(n_workers=N, ...)  # N processes, all started eagerly
+
+  for test in config.tests:
+      _run_test(test, pool)
+
+      ParameterSweepSpec → run_parameter_sweep_parallel(test, exc_spec, sub_runner_factory, pool)
+        specs_v = [_set_model_param(exc_spec, key, val) for val in test.values]
+        pool.map(
+            lambda server, spec_v: sub_runner_factory(server)(spec_v),
+            specs_v,
+        )                                   # PARALLEL across N servers
+                                            # results returned in input order
+</code></pre>
+<p><code>pool.map</code> already exists in <code>JuliaServerPool</code> (<code>server_backend.py:302</code>) and returns
+results in input order by allocating by index.</p>
+<hr />
+<h2 id="key-design-decision-sub_runner_factory">Key design decision — sub_runner_factory</h2>
+<p>Currently <code>_make_sub_runner(sub_spec_obj, backend, context)</code> closes over <code>backend</code> at
+construction time (runner.py:237). This makes it impossible to hand the same sub-test to
+a different server per design point.</p>
+<p><strong>Change:</strong> split into a factory that captures everything except the server, plus a
+call-site that supplies the server:</p>
+<pre><code class="language-python"># New signature — backend NOT captured at construction
+def _make_sub_runner_factory(self, sub_spec_obj, context):
+    &quot;&quot;&quot;Return Callable[[backend, spec_v], result].&quot;&quot;&quot;
+    e_id   = self.config.excitation.entity
+    e_port = self.config.excitation.port
+    out    = self._output_key
+
+    def _runner(backend, spec_v):
+        if isinstance(sub_spec_obj, DiscreteFrequencySweepSpec):
+            from numen.characterization.tests.freq_sweep import run_discrete_frequency_sweep
+            return run_discrete_frequency_sweep(sub_spec_obj, spec_v, e_id, e_port, out, backend)
+        # … other types …
+    return _runner
+
+# Sequential path (n_workers=1):
+factory = self._make_sub_runner_factory(sub, test.name)
+sub_runner = lambda spec_v: factory(backend, spec_v)   # close over the single backend
+run_parameter_sweep(test, exc_spec, sub_runner, ...)
+
+# Parallel path (n_workers&gt;1):
+factory = self._make_sub_runner_factory(sub, test.name)
+run_parameter_sweep_parallel(test, exc_spec, factory, pool, ...)
+  # pool.map(lambda server, spec_v: factory(server, spec_v), all_specs_v)
+</code></pre>
+<p>The three sweep runners (<code>param_sweep</code>, <code>param_grid</code>, <code>doe_sweep</code>) each get a
+<code>_parallel</code> variant or a unified <code>parallel</code> kwarg. Simplest: add a <code>parallel=False</code>
+flag and a <code>pool=None</code> argument; when <code>pool</code> is provided, call <code>pool.map</code>.</p>
+<hr />
+<h2 id="files-to-change">Files to change</h2>
+<h3 id="1-srcnumencharacterizationschemapy">1. <code>src/numen/characterization/schema.py</code></h3>
+<p>Add <code>n_workers: int = 1</code> to <code>BackendSpec</code>:</p>
+<pre><code class="language-python">class BackendSpec(BaseModel):
+    type:       Literal[&quot;scipy&quot;, &quot;jax&quot;, &quot;julia&quot;, &quot;julia_server&quot;] = &quot;scipy&quot;
+    julia_file: str | None = None
+    method:     str | None = None
+    rtol:       float = 1e-8
+    atol:       float = 1e-9
+    n_workers:  int   = 1          # NEW
+</code></pre>
+<h3 id="2-srcnumenclipy">2. <code>src/numen/cli.py</code></h3>
+<p>Add <code>--workers</code> option to <code>characterize</code> command:</p>
+<pre><code class="language-python">@app.command()
+def characterize(
+    plan: Path = typer.Argument(...),
+    only_characterize: bool = typer.Option(False, &quot;--characterize&quot;, &quot;-c&quot;),
+    only_plot:         bool = typer.Option(False, &quot;--plot&quot;, &quot;-p&quot;),
+    workers:           int  = typer.Option(0, &quot;--workers&quot;, &quot;-w&quot;,
+                                           help=&quot;Parallel Julia servers (0 = use YAML value)&quot;),
+):
+    ...
+    if workers &gt; 0:
+        config = config.model_copy(update={
+            &quot;backend&quot;: config.backend.model_copy(update={&quot;n_workers&quot;: workers})
+        })
+</code></pre>
+<h3 id="3-srcnumencharacterizationrunnerpy">3. <code>src/numen/characterization/runner.py</code></h3>
+<p><strong><code>_backend_context</code>:</strong> open a <code>JuliaServerPool</code> instead of <code>JuliaServerBackend</code> when
+<code>n_workers &gt; 1</code>:</p>
+<pre><code class="language-python">@contextmanager
+def _backend_context(spec: BackendSpec) -&gt; Generator[Any, None, None]:
+    if spec.type == &quot;julia_server&quot; and spec.n_workers &gt; 1:
+        from numen.bridge.server_backend import JuliaServerPool
+        pool = JuliaServerPool(
+            n_workers  = spec.n_workers,
+            julia_file = spec.julia_file,
+            method     = spec.method or &quot;Tsit5&quot;,
+            rtol       = spec.rtol,
+            atol       = spec.atol,
+        )
+        with pool:
+            _log.info(&quot;Julia pool started (%d workers)&quot;, spec.n_workers)
+            yield pool
+    else:
+        # existing path
+        backend = _open_backend(spec)
+        if spec.type == &quot;julia_server&quot;:
+            with backend:
+                yield backend
+        else:
+            with nullcontext(backend):
+                yield backend
+</code></pre>
+<p><strong><code>_run_test</code>:</strong> pass <code>pool</code> through to sweep methods that can exploit it:</p>
+<pre><code class="language-python">def _run_test(self, test: TestSpec, backend_or_pool: Any) -&gt; Any:
+    ...
+    if isinstance(test, ParameterSweepSpec):
+        return self._run_parameter_sweep(test, backend_or_pool)
+    if isinstance(test, ParameterGridSpec):
+        return self._run_parameter_grid(test, backend_or_pool)
+    if isinstance(test, DOESweepSpec):
+        return self._run_doe_sweep(test, backend_or_pool)
+    # leaf tests — use a single server from pool, or the backend directly
+    actual_backend = _one_server(backend_or_pool)
+    ...
+</code></pre>
+<p><code>_one_server(b)</code>: if <code>b</code> is a <code>JuliaServerPool</code>, acquire-and-release using
+<code>pool._q.get()</code> / put (or add a <code>JuliaServerPool.one()</code> context manager); otherwise
+return <code>b</code> unchanged.</p>
+<p><strong>Rename <code>_make_sub_runner</code> → <code>_make_sub_runner_factory</code></strong> (returns a 2-arg callable as
+described above).</p>
+<p><strong><code>_run_parameter_sweep</code>, <code>_run_parameter_grid</code>, <code>_run_doe_sweep</code>:</strong> detect pool and
+dispatch:</p>
+<pre><code class="language-python">def _run_parameter_sweep(self, test: ParameterSweepSpec, backend_or_pool: Any) -&gt; Any:
+    from numen.characterization.tests.param_sweep import run_parameter_sweep
+    sub = self._get_sub_spec(test.sub_test, test.name)
+    exc = self.config.excitation
+    factory = self._make_sub_runner_factory(sub, test.name)
+
+    if isinstance(backend_or_pool, JuliaServerPool):
+        return _run_sweep_parallel(test, self._exc_spec, factory, backend_or_pool,
+                                   entity_id=exc.entity, port_name=exc.port)
+    else:
+        sub_runner = lambda spec_v: factory(backend_or_pool, spec_v)
+        return run_parameter_sweep(test, self._exc_spec, sub_runner,
+                                   entity_id=exc.entity, port_name=exc.port)
+</code></pre>
+<h3 id="4-srcnumencharacterizationtestsparam_sweeppy">4. <code>src/numen/characterization/tests/param_sweep.py</code></h3>
+<p>Add <code>run_parameter_sweep_parallel</code> (or fold into <code>run_parameter_sweep</code> with a
+<code>pool</code> kwarg):</p>
+<pre><code class="language-python">def run_parameter_sweep_parallel(
+    test: ParameterSweepSpec,
+    exc_spec: Any,
+    factory: Callable[[Any, Any], Any],   # (server, spec_v) → result
+    pool: Any,                             # JuliaServerPool
+    entity_id: str | None = None,
+    port_name: str | None = None,
+) -&gt; ParameterFamilyResult:
+    all_specs = [
+        _set_model_param(exc_spec, test.sweep_param, val, entity_id, port_name)
+        for val in test.values
+    ]
+    sub_results = pool.map(factory, all_specs)
+    result_obj = ParameterFamilyResult(
+        name=test.name, sweep_param=test.sweep_param, param_values=list(test.values),
+    )
+    result_obj.sub_results.extend(sub_results)
+    return result_obj
+</code></pre>
+<p>Same pattern for <code>param_grid.py</code> (<code>run_parameter_grid_parallel</code>) and
+<code>doe_sweep.py</code> (<code>run_doe_sweep_parallel</code>).</p>
+<hr />
+<h2 id="jit-precompilation-replacing-dummy-warmup-solves">JIT precompilation — replacing dummy warmup solves</h2>
+<h3 id="problem">Problem</h3>
+<p>Without precompilation, the first solve on each pool worker triggers Julia's JIT
+compilation. If we DON'T do a nominal warmup solve, the first real solve on each server
+carries JIT latency. With N workers the aggregate JIT overhead is N × compile time.</p>
+<h3 id="solution-precompile-in-serverjl">Solution — <code>precompile()</code> in server.jl</h3>
+<p>Julia's <code>precompile(fn, (arg_types...))</code> triggers type-inference and native code
+generation <strong>without executing the function</strong>. All Numen dynamics functions use one
+concrete signature:</p>
+<pre><code class="language-julia">fn(::Vector{Float64}, ::Vector{Float64}, ::Vector{Float64}, ::Float64,
+   ::CompiledSpec, ::CompiledSystemSpec) → nothing
+</code></pre>
+<p>So we can precompile every dynamics function after loading user files by scanning all
+top-level modules in <code>Main</code>:</p>
+<pre><code class="language-julia"># In server.jl, after: for f in ARGS; include(f); end
+
+const _DYNAMICS_SIG = (
+    Vector{Float64}, Vector{Float64}, Vector{Float64},
+    Float64, CompiledSpec, CompiledSystemSpec,
+)
+
+function _precompile_dynamics_modules()
+    n = 0
+    for sym in names(Main; all=false)
+        mod = getfield(Main, sym)
+        mod isa Module || continue
+        for fn_sym in names(mod; all=false)
+            fn = try getfield(mod, fn_sym) catch; continue end
+            fn isa Function || continue
+            if precompile(fn, _DYNAMICS_SIG)
+                n += 1
+            end
+        end
+    end
+    println(stderr, &quot;NUMEN_PRECOMPILE_DONE ($n functions)&quot;)
+    flush(stderr)
+end
+
+_precompile_dynamics_modules()
+</code></pre>
+<p><code>precompile</code> returns <code>true</code> on success, <code>false</code> if the method doesn't exist for those
+types (silently ignored). Framework functions in <code>NumenCharacterization</code> (loaded by
+server.jl itself) are included automatically.</p>
+<p><strong>Result:</strong> each worker exits its startup phase with all dynamics functions compiled.
+The first real solve incurs no JIT latency — it runs at full compiled speed immediately.</p>
+<h3 id="python-side-wait-for-precompile-signal">Python side — wait for precompile signal</h3>
+<p>In <code>JuliaServerBackend._ensure_started</code>, extend the ready signal check:</p>
+<pre><code class="language-python">_READY_SIGNAL     = &quot;NUMEN_SERVER_READY&quot;
+_PRECOMPILE_DONE  = &quot;NUMEN_PRECOMPILE_DONE&quot;
+
+def _read_stderr(self) -&gt; None:
+    for raw in proc.stderr:
+        decoded = raw.decode(errors=&quot;replace&quot;).rstrip()
+        if decoded == _READY_SIGNAL:
+            ready_event.set()
+        elif decoded.startswith(_PRECOMPILE_DONE):
+            _log.info(&quot;[julia] %s&quot;, decoded)    # logs how many functions compiled
+        elif decoded.strip():
+            _log.debug(&quot;[julia] %s&quot;, decoded)
+</code></pre>
+<p>The precompile step runs after the packages are loaded but before <code>NUMEN_SERVER_READY</code>,
+so the existing ready-wait mechanism covers it automatically — Python waits for
+<code>NUMEN_SERVER_READY</code>, which only comes after precompilation completes.</p>
+<p>Actually slightly cleaner: emit <code>NUMEN_SERVER_READY</code> <strong>after</strong> precompilation. That way
+the pool's <code>eager=True</code> startup already guarantees all workers are compiled before the
+first request is dispatched.</p>
+<hr />
+<h2 id="ordering-and-thread-safety">Ordering and thread-safety</h2>
+<ul>
+<li><code>JuliaServerPool.map</code> already allocates results by index (<code>results[idx] = fn(...)</code>)
+  — result order matches input order regardless of finish order (server_backend.py:324).</li>
+<li>Each <code>JuliaServerBackend</code> has its own <code>threading.Lock</code> (<code>_lock</code>); the pool ensures at
+  most one request per server at a time via the queue.</li>
+<li><code>CompiledSpec</code> is a frozen dataclass — safe to read from multiple threads.</li>
+<li>The sub-test runners (<code>run_discrete_frequency_sweep</code>, etc.) do not write shared state;
+  they return new result objects.</li>
+<li>The pool <code>map</code> uses a <code>ThreadPoolExecutor</code> with <code>max_workers=n_workers</code> — same as the
+  pool size, so threads never contend for server slots.</li>
+</ul>
+<hr />
+<h2 id="unchanged-paths">Unchanged paths</h2>
+<table>
+<thead>
+<tr>
+<th>Scenario</th>
+<th>Behaviour</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>n_workers=1</code> (default)</td>
+<td>Sequential, single server, existing code paths unchanged</td>
+</tr>
+<tr>
+<td><code>backend.type != julia_server</code></td>
+<td><code>n_workers</code> ignored; sequential execution</td>
+</tr>
+<tr>
+<td>Top-level non-sweep test</td>
+<td>Routes to one server; not parallelized</td>
+</tr>
+<tr>
+<td>Nested sub-tests that are themselves sweeps</td>
+<td>Out of scope (not supported today; treat as error)</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="implementation-order">Implementation order</h2>
+<ol>
+<li><strong>YAML schema</strong> — add <code>n_workers</code> to <code>BackendSpec</code>. Zero risk.</li>
+<li><strong>CLI</strong> — add <code>--workers</code> option to <code>characterize</code>. Zero risk.</li>
+<li><strong><code>server.jl</code> precompile</strong> — add <code>_precompile_dynamics_modules()</code> to server.jl.
+   Test: start a server, look for <code>NUMEN_PRECOMPILE_DONE</code> in logs.</li>
+<li><strong>Runner: factory refactor</strong> — rename <code>_make_sub_runner</code> → <code>_make_sub_runner_factory</code>,
+   change signature to <code>(sub_spec_obj, context) → (backend, spec_v) → result</code>. Update
+   <code>_run_parameter_sweep</code>, <code>_run_parameter_grid</code>, <code>_run_doe_sweep</code> to use new factory.
+   <code>n_workers=1</code> still sequential; full regression test.</li>
+<li><strong>Runner: pool dispatch</strong> — <code>_backend_context</code> opens <code>JuliaServerPool</code> when
+   <code>n_workers &gt; 1</code>; sweep methods call <code>_run_*_parallel</code> when they receive a pool.</li>
+<li><strong>Sweep runners</strong> — add parallel variants to <code>param_sweep.py</code>, <code>param_grid.py</code>,
+   <code>doe_sweep.py</code>.</li>
+<li><strong>End-to-end test</strong> — run <code>numen characterize test_plan.yaml --workers 4</code> on
+   nonlinear oscillator; verify results match <code>--workers 1</code>, check wall time.</li>
+</ol>
+<hr />
+<h2 id="open-questions">Open questions</h2>
+<ul>
+<li>Should <code>--workers</code> default to <code>0</code> (use YAML) or to the machine's CPU count? Current
+  plan: <code>0</code> = use YAML. The user can always add <code>n_workers: $(nproc)</code> in YAML for
+  auto-scale; explicit beats implicit here.</li>
+<li>Pool startup is eager (<code>eager=True</code> in <code>JuliaServerPool.__init__</code>). Startup time is
+  ~8–15 s per server and they all start in parallel (each is its own thread waiting for
+  <code>NUMEN_SERVER_READY</code>). Should we surface per-worker startup time in the log? Yes — add
+  a pool-level <code>INFO</code> line after all workers are ready: "Julia pool ready: N workers in
+  X.X s".</li>
+<li><code>_one_server</code> helper for routing top-level leaf tests to a pool worker — should this
+  use <code>pool._q.get()</code> directly (accessing a private attribute) or should <code>JuliaServerPool</code>
+  expose a <code>borrow()</code> context manager? Prefer a public context manager: cleaner, no
+  private-attribute coupling.</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tabs", "navigation.sections", "toc.integrate", "search.suggest"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>

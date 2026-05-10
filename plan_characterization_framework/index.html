@@ -1,0 +1,1824 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Hybrid Python/Julia physics simulation framework">
+      
+      
+      
+        <link rel="canonical" href="https://TalbotKnighton.github.io/numen/plan_characterization_framework/">
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>Characterization Framework — Design Plan - Numen</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/_mkdocstrings.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#characterization-framework-design-plan" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="Numen" class="md-header__button md-logo" aria-label="Numen" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Numen
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Characterization Framework — Design Plan
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/TalbotKnighton/numen" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    TalbotKnighton/numen
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href=".." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../getting-started/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Getting Started
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../guide/components/" class="md-tabs__link">
+          
+  
+  
+  User Guide
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../examples/oscillator/" class="md-tabs__link">
+          
+  
+  
+  Examples
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../api/fields/" class="md-tabs__link">
+          
+  
+  
+  API Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../julia/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Julia Reference
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="Numen" class="md-nav__button md-logo" aria-label="Numen" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Numen
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/TalbotKnighton/numen" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    TalbotKnighton/numen
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User Guide
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    User Guide
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/components/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Components & Fields
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/systems/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Systems & Dynamics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/backends/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Backends
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guide/characterization/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Characterization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Examples
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Examples
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../examples/oscillator/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Oscillator
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../examples/coupled_spring/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Coupled Spring
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../examples/fluid_poppet/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Fluid Poppet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    API Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/fields/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Fields
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/compiler/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Compiler
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/backends/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Backends
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/reconstruction/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reconstruction
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../julia/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Julia Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="characterization-framework-design-plan">Characterization Framework — Design Plan</h1>
+<blockquote>
+<p><strong>Living document.</strong> As design decisions are refined during implementation, update
+this file immediately so it stays the single source of truth. When a phase is
+complete, the relevant sections graduate into <code>DESIGN.md</code> (architecture reference)
+and <code>CLAUDE.md</code> (model-authoring guide for future sessions). Do not let the plan
+drift from the code.</p>
+</blockquote>
+<hr />
+<h2 id="north-star">North Star</h2>
+<p>Build a <strong>domain-agnostic characterization framework</strong> that can run systematic
+test campaigns against any Numen physics model — oscillators, thermal systems,
+fluid networks, diffusion problems, chemical kinetics — without the framework
+itself knowing anything about those domains.</p>
+<p>The framework operates at the level of <strong>signals and ports</strong>. It applies waveforms
+(steps, sinusoids, chirps, DOE-sampled inputs) to model input ports and records
+responses from output states. Domain-specific knowledge lives entirely in the model
+and its associated metric extractors; the framework is just the orchestration layer.</p>
+<p>Long-term, computation lives in Julia (via the Julia server backend), and Python
+handles schema, orchestration, and visualization only. This keeps the hot path in
+the fastest available solver ecosystem without sacrificing the ergonomics of
+Pydantic-validated declarative test plans.</p>
+<h3 id="what-does-not-exist-yet">What does not exist yet</h3>
+<p>Nothing in the open-source ecosystem does this. The closest analogues are:</p>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Gap</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>MATLAB Control Toolbox</td>
+<td>Linear systems only, closed ecosystem, Simulink-coupled</td>
+</tr>
+<tr>
+<td>ModelingToolkit.jl / SciML</td>
+<td>Modeling toolkit, not a characterization framework</td>
+</tr>
+<tr>
+<td>DynamicalSystems.jl</td>
+<td>Nonlinear analysis only (Lyapunov, attractors), not general characterization</td>
+</tr>
+<tr>
+<td>Modelica / OpenModelica</td>
+<td>Separate language, not composable with Python/Pydantic</td>
+</tr>
+<tr>
+<td>AMESim / GT-Suite</td>
+<td>Commercial, locked ecosystem</td>
+</tr>
+</tbody>
+</table>
+<p>This is genuinely novel. Design decisions should be made with that in mind.</p>
+<hr />
+<h2 id="overview">Overview</h2>
+<p>This document captures the design decisions made for a general-purpose characterization
+test framework built on top of Numen. The goal is to run systematic frequency-domain
+and operating-point experiments on any physical model, using a declarative YAML/JSON
+test plan validated by Pydantic, with a Julia server backend that stays open across
+the entire test campaign.</p>
+<hr />
+<h2 id="motivation">Motivation</h2>
+<p>When you build a physics model, the first questions are always:
+- What is the natural frequency?
+- How much damping is present?
+- How do those properties change with amplitude or operating point?</p>
+<p>For linear systems these questions have clean analytical answers. For nonlinear
+systems (like the position-dependent damping oscillator we built) they require
+numerical experiments. This framework provides a structured, reusable way to run
+those experiments on <strong>any</strong> Numen model without writing bespoke run scripts each time.</p>
+<hr />
+<h2 id="physics-background">Physics Background</h2>
+<h3 id="linear-systems-homogeneous-particular-solution">Linear systems: homogeneous + particular solution</h3>
+<p>For a linear ODE such as <code>ẍ + 2ζω·ẋ + ω²x = F(t)</code>, the general solution decomposes
+cleanly:</p>
+<pre><code>x(t) = x_h(t)  +  x_p(t)
+        free         forced
+        response     response
+</code></pre>
+<p>The free response <code>x_h</code> decays to zero (for ζ &gt; 0). The forced response <code>x_p</code> is a
+steady-state sinusoid at the driving frequency. Superposition holds: you can solve
+each part independently and add them. This is why Bode plots work — each frequency
+is independent.</p>
+<h3 id="nonlinear-systems-superposition-breaks">Nonlinear systems: superposition breaks</h3>
+<p>For a nonlinear ODE such as <code>ẍ + (c₀ + c₁x²)ẋ + ω²x = F(t)</code>, <strong>superposition does
+not hold</strong>. The free and forced responses are coupled — the damping coefficient
+<code>c(x) = c₀ + c₁x²</code> depends on the instantaneous displacement, so the presence of
+any forcing changes the effective damping seen by the free response, and vice versa.</p>
+<p>You cannot separate the responses. You must solve the full ODE including all forcing
+and read off the steady-state behavior directly.</p>
+<h3 id="operating-point-linearization-the-dc-sweep-technique">Operating-point linearization (the DC sweep technique)</h3>
+<p>Even though global superposition fails, nonlinear systems can be <strong>locally linearized</strong>
+around an equilibrium point. This is the key technique behind the DC sweep test:</p>
+<ol>
+<li>
+<p>Apply a constant force <code>F_dc</code>. The system settles to a new equilibrium <code>x_eq</code>
+   where the restoring force balances <code>F_dc</code>:
+   <code>ω²·x_eq = F_dc</code>  →  <code>x_eq = F_dc / ω²</code></p>
+</li>
+<li>
+<p>At <code>x_eq</code>, the effective damping is <code>c(x_eq) = c₀ + c₁·x_eq²</code>.</p>
+</li>
+<li>
+<p>Apply a small probe sine on top: <code>F(t) = F_dc + ε·sin(2πft)</code> with <code>ε ≪ 1</code>.
+   The response is approximately linear with the modified parameters.</p>
+</li>
+<li>
+<p>Sweep <code>F_dc</code> through a range of values → you map out how effective damping and
+   effective stiffness change with operating point. This is the <strong>first-order
+   fingerprint of the nonlinearity</strong>.</p>
+</li>
+</ol>
+<p>A purely linear system's frequency response function (FRF) does not change with DC
+bias. Any change you observe is a direct measurement of the nonlinear character.</p>
+<h3 id="key-measurement-quantities">Key measurement quantities</h3>
+<table>
+<thead>
+<tr>
+<th>Quantity</th>
+<th>Symbol</th>
+<th>How extracted</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Natural (resonant) frequency</td>
+<td>f₀</td>
+<td>Peak of magnitude FRF</td>
+</tr>
+<tr>
+<td>Quality factor</td>
+<td>Q</td>
+<td>Q = f₀ / Δf₋₃dB (bandwidth method)</td>
+</tr>
+<tr>
+<td>Damping ratio</td>
+<td>ζ</td>
+<td>ζ = 1 / (2Q)</td>
+</tr>
+<tr>
+<td>Transfer function magnitude</td>
+<td>|H(f)|</td>
+<td>Output amplitude / input amplitude</td>
+</tr>
+<tr>
+<td>Transfer function phase</td>
+<td>∠H(f)</td>
+<td>Phase of output relative to input</td>
+</tr>
+<tr>
+<td>Effective damping vs bias</td>
+<td>c(x_eq)</td>
+<td>From DC sweep → FRF peak at each bias</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="domain-agnostic-design-principle">Domain-Agnostic Design Principle</h2>
+<h3 id="the-temptation-to-avoid">The temptation to avoid</h3>
+<p>As the framework grows to cover thermal, fluid, diffusion, and other domains, the
+temptation is to add domain-specific test types: <code>oscillator_bode</code>, <code>thermal_step</code>,
+<code>fluid_pressure_drop</code>. This leads to a combinatorial explosion of
+<code>test_type × physics_domain</code> specializations and a framework that needs to be
+rewritten every time a new domain is added.</p>
+<h3 id="the-right-abstraction-ports-and-signals">The right abstraction: ports and signals</h3>
+<p>Every physical domain shares the same port structure, captured by bond graph theory:</p>
+<table>
+<thead>
+<tr>
+<th>Domain</th>
+<th>Effort variable</th>
+<th>Flow variable</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Mechanical</td>
+<td>Force [N]</td>
+<td>Velocity [m/s]</td>
+</tr>
+<tr>
+<td>Electrical</td>
+<td>Voltage [V]</td>
+<td>Current [A]</td>
+</tr>
+<tr>
+<td>Thermal</td>
+<td>Temperature [K]</td>
+<td>Heat flux [W/m²]</td>
+</tr>
+<tr>
+<td>Fluid</td>
+<td>Pressure [Pa]</td>
+<td>Volume flow [m³/s]</td>
+</tr>
+<tr>
+<td>Chemical</td>
+<td>Chemical potential [J/mol]</td>
+<td>Molar flux [mol/s]</td>
+</tr>
+</tbody>
+</table>
+<p>Every test type — step, sine sweep, chirp, DOE — is simply applying a waveform to
+an effort or flow port and recording the response at another port. The framework
+never needs to know which domain it is in.</p>
+<p><strong>Domain-specific knowledge lives in exactly two places:</strong></p>
+<ol>
+<li>The model itself (components, dynamics, Julia functions)</li>
+<li><strong>Metric extractors</strong> — small functions registered by the model author that know
+   how to compute physically meaningful scalars from a time series</li>
+</ol>
+<pre><code class="language-python"># metrics.py — written by the model author, not the framework
+METRICS = {
+    &quot;f0&quot;:            extract_resonant_frequency,   # oscillator domain
+    &quot;Q&quot;:             extract_quality_factor,
+    &quot;settling_time&quot;: extract_settling_time,        # universal
+    &quot;overshoot&quot;:     extract_overshoot,            # universal
+}
+</code></pre>
+<pre><code class="language-python"># A thermal model registers different metrics
+METRICS = {
+    &quot;time_constant&quot;:      extract_time_constant,
+    &quot;thermal_resistance&quot;: extract_steady_state_gain,
+    &quot;peak_temperature&quot;:   extract_peak,
+}
+</code></pre>
+<p>The test plan names which metrics to extract; the framework resolves them against
+the model's registry at runtime. The framework itself is unchanged.</p>
+<h3 id="port-typing-on-excitationport">Port typing on ExcitationPort</h3>
+<p><code>ExcitationPort</code> should carry physical metadata so the framework can generate
+correct axis labels and perform basic dimensional checks without knowing the domain:</p>
+<pre><code class="language-python">force: Annotated[float, ExcitationPort(
+    targets  = &quot;velocity&quot;,
+    domain   = &quot;mechanical&quot;,   # optional, for documentation
+    quantity = &quot;force&quot;,        # effort or flow variable name
+    units    = &quot;N&quot;,            # SI units string
+)] = 0.0
+</code></pre>
+<hr />
+<h2 id="julia-first-architecture">Julia-First Architecture</h2>
+<h3 id="division-of-responsibilities">Division of responsibilities</h3>
+<p>The long-term target is for all computation to live in Julia, with Python handling
+only schema, orchestration, and visualization:</p>
+<pre><code>Python                              Julia
+─────────────────────────────────   ────────────────────────────────────
+Schema definition (Pydantic)        Dynamics (OrdinaryDiffEq.jl)
+Test plan parsing (YAML → dict)     Stiff/DAE solvers (Rodas5P, FBDF)
+Test orchestration (runner.py)      Sensitivity (ForwardDiff.jl)
+DOE sampling (scipy / pyDOE3)       Frequency analysis (DSP.jl)
+Sensitivity indices (SALib)         Control analysis (ControlSystems.jl)
+Visualization (matplotlib)          Bifurcation (BifurcationKit.jl)
+Result serialization (JSON)
+</code></pre>
+<p>Metric extraction — currently imagined on the Python side — can migrate to Julia
+using <strong>DSP.jl</strong> and <strong>ControlSystems.jl</strong> as the framework matures. This would
+eliminate a Python round-trip per solve and keep the entire hot path in Julia.</p>
+<h3 id="sciml-ecosystem-integration-future">SciML ecosystem integration (future)</h3>
+<p>The Julia SciML ecosystem provides building blocks we should plan to integrate:</p>
+<table>
+<thead>
+<tr>
+<th>Package</th>
+<th>Capability</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ModelingToolkit.jl</code></td>
+<td>Symbolic model manipulation, automatic Jacobians</td>
+</tr>
+<tr>
+<td><code>SciMLSensitivity.jl</code></td>
+<td>Adjoint-based parameter sensitivity (faster than finite diff for large models)</td>
+</tr>
+<tr>
+<td><code>BifurcationKit.jl</code></td>
+<td>Bifurcation diagrams, stability analysis</td>
+</tr>
+<tr>
+<td><code>ControlSystems.jl</code></td>
+<td>Transfer function extraction, Bode, Nyquist, root locus</td>
+</tr>
+<tr>
+<td><code>DynamicalSystems.jl</code></td>
+<td>Lyapunov exponents, attractors, chaos characterization</td>
+</tr>
+</tbody>
+</table>
+<p>None of these require changes to the Python schema — they are Julia-side analysis
+tools that consume the same solve results the current framework already produces.</p>
+<hr />
+<h2 id="architecture">Architecture</h2>
+<pre><code>src/numen/characterization/
+├── schema.py        # Pydantic models for all spec types; YAML loads to these
+├── runner.py        # CharacterizationRunner — opens backend once, runs all tests
+├── excitation.py    # ExcitationPort field marker, ExcitationSystem, world wrapping
+├── analysis.py      # Lock-in extraction, FFT, Q-factor fitting, peak finding
+├── results.py       # Typed result containers (FRFResult, DCSweptFRF, etc.)
+└── plots.py         # Bode, Nyquist, operating-point waterfall plots
+</code></pre>
+<h3 id="characterizationrunner">CharacterizationRunner</h3>
+<p>The runner is the top-level orchestrator. It:</p>
+<ol>
+<li>Parses and validates the test plan (YAML → dict → Pydantic)</li>
+<li>Opens the backend <strong>once</strong> (critical for Julia server: avoids repeated JIT)</li>
+<li>Iterates through the test list in order</li>
+<li>For each test, builds a world variant (modified parameters), compiles a spec,
+   runs the solve, and collects results</li>
+<li>Passes the open backend handle to every test so the server is never closed
+   between runs</li>
+</ol>
+<pre><code class="language-python">runner = CharacterizationRunner.from_yaml(&quot;test_plan.yaml&quot;)
+results = runner.run()    # Julia server opens here and stays open
+results.save(&quot;results.json&quot;)
+results.plot()
+</code></pre>
+<hr />
+<h2 id="excitationport-field-annotation-design">ExcitationPort — Field Annotation Design</h2>
+<h3 id="rationale">Rationale</h3>
+<p>Excitation injection points should be <strong>declared by the model author</strong>, not discovered
+or guessed by the test framework. This is the physically correct approach: in real
+systems, input channels are structural — a force port on a mass, a pressure inlet on
+a control volume. The model author knows where external forcing can be applied; the
+framework should respect that.</p>
+<p>This also constrains the test framework to valid experiments. Injecting an arbitrary
+force into an arbitrary derivative would often be physically meaningless.</p>
+<h3 id="bond-graph-grounding">Bond graph grounding</h3>
+<p>The <code>targets</code> mechanism maps directly onto <strong>effort source</strong> excitation in bond graph
+theory: impose a known effort (force, pressure, voltage, heat flux) and let the system
+determine the conjugate flow response. This is the correct excitation type for FRF
+measurement in every physical domain:</p>
+<table>
+<thead>
+<tr>
+<th>Domain</th>
+<th>Effort source</th>
+<th><code>targets</code> derivative of</th>
+<th>Natural output to measure</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Mechanical</td>
+<td>Force [N]</td>
+<td>velocity</td>
+<td>velocity (mobility FRF) or position (receptance)</td>
+</tr>
+<tr>
+<td>Thermal</td>
+<td>Heat flux [W/m²]</td>
+<td>temperature</td>
+<td>temperature</td>
+</tr>
+<tr>
+<td>Fluid</td>
+<td>Pressure [Pa]</td>
+<td>flow state</td>
+<td>flow rate</td>
+</tr>
+<tr>
+<td>Electrical</td>
+<td>Voltage [V]</td>
+<td>current/charge state</td>
+<td>current</td>
+</tr>
+</tbody>
+</table>
+<p>The injection mechanism is identical across all domains — the <code>targets</code> field just
+names the right integrated state. Bond graph theory validates this abstraction and
+tells us <em>why</em> it generalises.</p>
+<p><strong>Flow source</strong> excitation (<code>port_type="flow"</code> — impose velocity, measure force) is
+a valid alternative measurement mode. It is less common for FRF campaigns but should
+be supported in the schema from the start so the field is available when needed.</p>
+<h3 id="usage">Usage</h3>
+<pre><code class="language-python">from numen.fields import IntegratedField, ParameterField, ExcitationPort
+
+class NLOscillatorComponent(Component):
+    kind:     Literal[&quot;nl_oscillator&quot;] = &quot;nl_oscillator&quot;
+    position: Annotated[float, IntegratedField()] = 1.0
+    velocity: Annotated[float, IntegratedField()] = 0.0
+    omega:    Annotated[float, ParameterField()]  = 1.0
+    c0:       Annotated[float, ParameterField()]  = 0.1
+    c1:       Annotated[float, ParameterField()]  = 1.0
+    # Effort-source port: adds F(t) to d(velocity)/dt
+    force:    Annotated[float, ExcitationPort(
+                  targets   = &quot;velocity&quot;,
+                  port_type = &quot;effort&quot;,   # &quot;effort&quot; | &quot;flow&quot;
+                  units     = &quot;N&quot;,        # SI units string — used for axis labels
+              )] = 0.0
+</code></pre>
+<p><code>port_type</code> and <code>units</code> are metadata only — they do not affect the injection
+mechanism. They enable the framework to auto-label plot axes and name the FRF
+correctly (effort-in / effort-out = impedance; flow-out / effort-in = mobility)
+without knowing the physics domain.</p>
+<p><code>ExcitationPort(targets="velocity")</code> means: "the value of <code>force</code> is added to
+<code>d(velocity)/dt</code> by the framework's ExcitationSystem."</p>
+<p>At the component level, <code>force</code> behaves like a <code>ParameterField</code> — it is constant
+for any single solve. The characterization framework varies it across solves by
+setting <code>force_amp</code>, <code>force_freq</code>, and <code>force_dc</code> in the compiled parameter vector.</p>
+<h3 id="what-the-framework-adds-automatically">What the framework adds automatically</h3>
+<p>When <code>compile_spec</code> (or a wrapper) detects an <code>ExcitationPort</code>, it:
+1. Adds three <code>ParameterField</code>s to the component: <code>{port}_amp</code>, <code>{port}_freq</code>, <code>{port}_dc</code>
+2. Adds a generic <code>ExcitationSystem</code> to the world that evaluates
+   <code>F(t) = amp·sin(2π·freq·t) + dc</code> and injects it into the target derivative</p>
+<p>The dynamics function itself does not need to be modified to support excitation.</p>
+<h3 id="multiple-ports">Multiple ports</h3>
+<p>Components can declare multiple excitation ports. Multi-mass systems can have a
+force port on each mass:</p>
+<pre><code class="language-python">class MassComponent(Component):
+    ...
+    force: Annotated[float, ExcitationPort(
+               targets=&quot;velocity&quot;, port_type=&quot;effort&quot;, units=&quot;N&quot;
+           )] = 0.0
+</code></pre>
+<p>The test schema specifies which entity's port to drive: <code>entity: mass_1, port: force</code>.</p>
+<hr />
+<h2 id="schema-design">Schema Design</h2>
+<h3 id="yaml-pydantic-pattern">YAML → Pydantic pattern</h3>
+<p>YAML is the human-readable authoring format. Pydantic is the validation layer.
+They compose without any magic:</p>
+<pre><code class="language-python">import yaml
+config = CharacterizationConfig.model_validate(yaml.safe_load(open(&quot;test_plan.yaml&quot;)))
+</code></pre>
+<p>We never bypass Pydantic. The YAML is just a serialization of the dict that
+<code>model_validate</code> would otherwise receive.</p>
+<h3 id="full-example-test-plan">Full example test plan</h3>
+<pre><code class="language-yaml">version: &quot;1.0&quot;
+
+backend:
+  type: julia_server          # scipy | jax | julia | julia_server
+  julia_file: dynamics.jl
+  rtol: 1e-8
+  atol: 1e-9
+
+model:
+  module: examples.nonlinear_oscillator.world
+  factory: make_world
+  factory_kwargs:
+    omega: 6.283              # 1 Hz natural frequency
+    c0: 0.1
+    c1: 2.0
+  metrics: examples.nonlinear_oscillator.metrics   # optional METRICS registry
+
+excitation:
+  entity: osc
+  port: force                 # must match an ExcitationPort field name
+  output_state: position      # field to measure
+
+tests:
+
+  - name: baseline_frf
+    type: discrete_frequency_sweep
+    frequencies:
+      spacing: log
+      f_start: 0.1
+      f_end: 20.0
+      n_points: 40
+    amplitude: 0.01           # small — linear regime
+    dc_offset: 0.0
+    settle_periods: 10        # wait this many cycles before measuring
+    measure_periods: 5        # integrate over this many cycles
+
+  - name: dc_bias_sweep
+    type: dc_operating_point_sweep
+    dc_values: [0.0, 0.3, 0.6, 1.0, 1.5, 2.0]
+    probe_frequency: 1.0      # Hz — probe near resonance
+    probe_amplitude: 0.001    # small-signal (differential) probe
+    settle_periods: 10
+    measure_periods: 5
+
+  - name: amplitude_sweep
+    type: amplitude_sweep
+    frequency: 1.0            # Hz — fixed at resonance
+    amplitudes: [0.001, 0.01, 0.1, 0.5, 1.0, 2.0]
+    dc_offset: 0.0
+    settle_periods: 10
+    measure_periods: 5
+
+  - name: parameter_family
+    type: parameter_sweep
+    sweep_param: osc.c1       # any ParameterField in the model
+    values: [0.0, 0.5, 1.0, 2.0, 5.0]
+    sub_test: baseline_frf    # reference a named test to repeat at each value
+
+  - name: chirp_sweep
+    type: continuous_chirp
+    f_start: 0.1
+    f_end: 20.0
+    duration: 120.0
+    amplitude: 0.01
+    dc_offset: 0.0
+    chirp_type: log           # log | linear
+</code></pre>
+<h3 id="pydantic-model-sketch">Pydantic model sketch</h3>
+<pre><code class="language-python">class BackendSpec(BaseModel):
+    type: Literal[&quot;scipy&quot;, &quot;jax&quot;, &quot;julia&quot;, &quot;julia_server&quot;]
+    julia_file: str | None = None
+    rtol: float = 1e-8
+    atol: float = 1e-9
+
+class ModelSpec(BaseModel):
+    module: str
+    factory: str
+    factory_kwargs: dict[str, Any] = {}
+    metrics: str | None = None   # optional module path to METRICS registry
+
+class ExcitationSpec(BaseModel):
+    entity: str
+    port: str
+    output_state: str
+
+class DiscreteFrequencySweepSpec(BaseModel):
+    name: str
+    type: Literal[&quot;discrete_frequency_sweep&quot;]
+    frequencies: FrequencyGridSpec
+    amplitude: float
+    dc_offset: float = 0.0
+    settle_periods: int = 10
+    measure_periods: int = 5
+
+# ... other test spec types ...
+
+TestSpec = Annotated[
+    DiscreteFrequencySweepSpec | DCOperatingPointSweepSpec | AmplitudeSweepSpec
+    | ParameterSweepSpec | ContinuousChirpSpec,
+    Field(discriminator=&quot;type&quot;),
+]
+
+class CharacterizationConfig(BaseModel):
+    version: str
+    backend: BackendSpec
+    model: ModelSpec
+    excitation: ExcitationSpec
+    tests: list[TestSpec]
+</code></pre>
+<hr />
+<h2 id="test-types-detailed-descriptions">Test Types — Detailed Descriptions</h2>
+<h3 id="1-discrete-frequency-sweep-stepped-sine">1. Discrete Frequency Sweep (stepped sine)</h3>
+<p><strong>What it does:</strong> Runs one solve per frequency point. At each frequency <code>f</code>:
+- Build world with <code>force_amp = A</code>, <code>force_freq = f</code>, <code>force_dc = DC</code>
+- Solve for <code>t_settle + t_measure</code> seconds where <code>t_settle = settle_periods / f</code>
+- Discard the settling transient; extract amplitude and phase from the last
+  <code>measure_periods</code> cycles using lock-in detection (multiply by sin/cos, lowpass)
+- Record <code>|H(f)| = output_amp / input_amp</code> and <code>∠H(f)</code></p>
+<p><strong>Output:</strong> Full Bode plot. Peak gives f₀; -3dB bandwidth gives Q.</p>
+<p><strong>When to use:</strong> When you want clean, high-SNR measurements at each frequency.
+Slower than chirp (N separate solves) but more accurate.</p>
+<h3 id="2-dc-operating-point-sweep">2. DC Operating Point Sweep</h3>
+<p><strong>What it does:</strong> Sweeps the DC bias through a list of values. At each bias:
+- Settle to the new equilibrium under <code>F_dc</code> alone (no probe)
+- Apply a small-amplitude probe sine at the specified frequency
+- Extract the local (linearized) gain and phase</p>
+<p><strong>Output:</strong> How the small-signal transfer function changes with operating point.
+For the nonlinear oscillator, this maps out <code>c(x_eq) = c₀ + c₁·x_eq²</code> directly.</p>
+<p><strong>When to use:</strong> First diagnostic for nonlinearity. If the FRF changes with DC
+bias, the system is nonlinear. If it doesn't, it's linear (in that range).</p>
+<h3 id="3-amplitude-sweep">3. Amplitude Sweep</h3>
+<p><strong>What it does:</strong> Fixed frequency, vary drive amplitude. Measures whether
+output amplitude scales linearly with input (linear regime) or deviates (nonlinear
+regime — amplitude-dependent resonance, harmonic generation).</p>
+<p><strong>Output:</strong> Output amplitude vs input amplitude at a fixed frequency.
+Deviation from a straight line is the nonlinearity signature.</p>
+<p><strong>Note:</strong> This is the entry point for the more advanced characterization work
+(harmonic analysis, Volterra kernels) planned for a future phase.</p>
+<h3 id="4-parameter-sweep-wrapper">4. Parameter Sweep (wrapper)</h3>
+<p><strong>What it does:</strong> Repeats any named test for multiple values of a model
+ParameterField. For example, run <code>baseline_frf</code> for <code>c1 ∈ {0, 0.5, 1, 2, 5}</code>.</p>
+<p><strong>Output:</strong> A family of FRFs or other results showing how system character
+depends on a physical parameter. Useful for design sweeps and sensitivity analysis.</p>
+<h3 id="5-multi-parameter-grid">5. Multi-Parameter Grid</h3>
+<p><strong>What it does:</strong> Full (or paired) factorial over explicit value lists for two or
+more parameters. The <code>full_factorial</code> mode generates every combination; <code>pairs</code>
+only sweeps the diagonal (N points instead of N^k).</p>
+<pre><code class="language-yaml">- type: parameter_grid
+  params:
+    osc.c0: [0.1, 0.5, 1.0]
+    osc.c1: [0.0, 1.0, 2.0]
+  sub_test: baseline_frf
+  mode: full_factorial          # or pairs
+</code></pre>
+<p><strong>Output:</strong> Same as a single-parameter sweep but indexed by a multi-dimensional
+parameter tuple. Results are tabulated as <code>(c₀, c₁, f₀, Q, ...)</code> rows suitable
+for response surface plotting or surrogate fitting.</p>
+<h3 id="6-doe-sweep">6. DOE Sweep</h3>
+<p><strong>What it does:</strong> Generates a design matrix using a statistical sampling strategy,
+then runs the sub-test at each design point. Suited for exploring a continuous
+parameter space efficiently without specifying explicit value lists.</p>
+<pre><code class="language-yaml">- type: doe_sweep
+  design: latin_hypercube       # sobol | halton | central_composite | full_factorial
+  n_samples: 50                 # for space-filling designs
+  params:
+    osc.c0: { min: 0.01, max: 2.0, scale: log }
+    osc.c1: { min: 0.0,  max: 5.0, scale: linear }
+  sub_test: baseline_frf
+  outputs: [f0, Q, settling_time]   # scalar summaries to tabulate per design point
+</code></pre>
+<p>The <code>outputs</code> list extracts scalar summaries from each sub-test result into a flat
+table <code>(c₀, c₁, ...) → (f₀, Q, ...)</code> that can be passed directly to a surrogate
+model or sensitivity analysis.</p>
+<h3 id="7-continuous-chirp-sweep">7. Continuous Chirp Sweep</h3>
+<p><strong>What it does:</strong> One long solve with a frequency-swept input:
+<code>F(t) = A · sin(φ(t))</code> where <code>φ(t)</code> is a log or linear chirp phase.</p>
+<p><strong>Output:</strong> Spectrogram or short-time FFT gives FRF estimate in a single solve.
+Faster than stepped sine but lower frequency resolution and SNR.</p>
+<p><strong>When to use:</strong> Quick first look, or when the number of frequency points makes
+stepped sine too slow.</p>
+<hr />
+<h2 id="signal-analysis">Signal Analysis</h2>
+<h3 id="lock-in-detection-for-discrete-swept-sine">Lock-in detection (for discrete swept sine)</h3>
+<p>For each solved time series, extract amplitude and phase at the drive frequency <code>f</code>:</p>
+<pre><code class="language-python">def lock_in(t, y, f, t_start):
+    mask = t &gt;= t_start
+    t_m, y_m = t[mask], y[mask]
+    I = 2 * np.trapz(y_m * np.sin(2*np.pi*f*t_m), t_m) / (t_m[-1] - t_m[0])
+    Q = 2 * np.trapz(y_m * np.cos(2*np.pi*f*t_m), t_m) / (t_m[-1] - t_m[0])
+    amplitude = np.sqrt(I**2 + Q**2)
+    phase     = np.arctan2(Q, I)
+    return amplitude, phase
+</code></pre>
+<p>This is numerically cleaner than FFT for single-frequency extraction and
+handles non-integer numbers of cycles correctly.</p>
+<h3 id="q-factor-extraction-from-frf">Q-factor extraction from FRF</h3>
+<p>Given a magnitude FRF <code>|H(f)|</code>:
+1. Find the peak at f₀ (resonant frequency)
+2. Find the two -3dB frequencies <code>f₁ &lt; f₀ &lt; f₂</code> where <code>|H| = |H_peak| / √2</code>
+3. <code>Q = f₀ / (f₂ - f₁)</code></p>
+<p>For the nonlinear oscillator, Q will be amplitude-dependent. The DC sweep maps
+out how Q changes with operating point.</p>
+<hr />
+<h2 id="julia-server-integration">Julia Server Integration</h2>
+<p>The Julia server must be opened <strong>once</strong> before the test loop and reused for all
+solves. This is the key to performance: Julia JIT-compiles the dynamics on the
+first solve; all subsequent solves hit the compiled kernel (~14 ms each).</p>
+<pre><code class="language-python"># Pseudocode — runner.py
+with JuliaServerBackend(julia_file=config.backend.julia_file, ...) as backend:
+    for test_spec in config.tests:
+        for world_variant in test_spec.iter_worlds(base_world):
+            spec   = compile_spec(world_variant)
+            result = backend.solve(spec, tspan=...)
+            results.append(analyze(result, test_spec))
+</code></pre>
+<p>For a 40-point frequency sweep at ~14 ms/solve, the full campaign takes
+~560 ms warm. With scipy it would be ~360 seconds.</p>
+<hr />
+<h2 id="doe-parameter-sweep-dependencies">DOE &amp; Parameter Sweep Dependencies</h2>
+<p>The sampling math and sensitivity analysis are solved problems — we use existing
+packages rather than writing our own. All are either already available (scipy) or
+small, well-maintained libraries added as optional extras.</p>
+<table>
+<thead>
+<tr>
+<th>Responsibility</th>
+<th>Package</th>
+<th>How we use it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>LHS, Sobol, Halton sampling</td>
+<td><code>scipy.stats.qmc</code></td>
+<td>Already a dependency — free</td>
+</tr>
+<tr>
+<td>Full/fractional factorial, CCD, Box-Behnken</td>
+<td><code>pyDOE3</code></td>
+<td>Classical DOE design matrices</td>
+</tr>
+<tr>
+<td>Sobol sensitivity indices</td>
+<td><code>SALib</code></td>
+<td>Which parameters drive f₀ and Q most</td>
+</tr>
+<tr>
+<td>Response surface / surrogate fitting</td>
+<td><code>scikit-learn</code></td>
+<td>GP, RBF after the sweep</td>
+</tr>
+</tbody>
+</table>
+<p><strong>What we write ourselves</strong> is only the glue layer (~100 lines):
+1. Translate the YAML spec into a call to the appropriate sampler
+2. Iterate design points, call the backend, collect scalar outputs
+3. Return a <code>pandas.DataFrame</code> of <code>(param_1, param_2, ..., f₀, Q, ...)</code></p>
+<p>The math of generating design matrices and computing sensitivity indices is entirely
+delegated to those packages.</p>
+<h3 id="pyprojecttoml-optional-extras">pyproject.toml optional extras</h3>
+<pre><code class="language-toml">[project.optional-dependencies]
+characterization = [
+    &quot;pyDOE3&quot;,
+    &quot;SALib&quot;,
+]
+</code></pre>
+<p>Install with: <code>uv pip install "numen[characterization]"</code></p>
+<h3 id="typical-post-sweep-workflow">Typical post-sweep workflow</h3>
+<pre><code class="language-python"># 1. Run the DOE sweep → get a DataFrame
+df = results.to_dataframe()   # columns: c0, c1, f0, Q, settling_time
+
+# 2. Sensitivity analysis — which parameter drives Q most?
+from SALib.analyse import sobol
+Si = sobol.analyze(problem, df[&quot;Q&quot;].values)
+
+# 3. Surrogate model for fast interpolation
+from sklearn.gaussian_process import GaussianProcessRegressor
+gp = GaussianProcessRegressor().fit(df[[&quot;c0&quot;, &quot;c1&quot;]], df[&quot;Q&quot;])
+</code></pre>
+<hr />
+<h2 id="implementation-roadmap">Implementation Roadmap</h2>
+<h3 id="phase-1-foundation-complete">Phase 1 — Foundation ✓ complete</h3>
+<ul>
+<li>[x] <code>ExcitationPort</code> field marker in <code>src/numen/fields.py</code> — compiles as <code>ParameterField</code>;
+      carries <code>targets</code>, <code>port_type</code>, <code>units</code> metadata</li>
+<li>[x] <code>src/numen/characterization/excitation.py</code> — <code>find_excitation_ports()</code>,
+      <code>inject_excitation()</code> (post-compile, pure function via <code>dataclasses.replace</code>),
+      <code>set_excitation_params()</code> (cheap parameter update for sweep inner loops)</li>
+<li>[x] <code>src/numen/compiler/flatten.py</code> updated — recognises <code>ExcitationPort</code> in
+      <code>_get_numen_fields</code> and <code>compile_spec</code></li>
+<li>[x] Nonlinear oscillator <code>components.py</code> updated — <code>force: ExcitationPort(targets="velocity",
+      port_type="effort", units="N")</code>; dynamics unchanged (framework injects transparently)</li>
+<li>[x] <code>src/numen/characterization/schema.py</code> — full Pydantic schema: <code>BackendSpec</code>,
+      <code>ModelSpec</code>, <code>ExcitationSpec</code>, <code>FrequencyGridSpec</code>, <code>DOEParamSpec</code>, all 7 test specs,
+      <code>CharacterizationConfig</code> with <code>from_yaml()</code> / <code>from_json()</code> loaders and validators</li>
+<li>[x] <code>src/numen/characterization/runner.py</code> — <code>CharacterizationRunner</code> with backend
+      lifecycle context manager, <code>compiled_spec_for()</code> helper, Phase 2 dispatch stub</li>
+</ul>
+<h3 id="phase-2-test-implementations-complete">Phase 2 — Test Implementations ✓ complete</h3>
+<ul>
+<li>[x] <code>analysis.py</code> — <code>lock_in()</code> (synchronous detection, handles non-integer cycles),
+      <code>extract_resonance()</code> (-3 dB bandwidth, linear interpolation, one-sided fallback),
+      <code>build_frequency_grid()</code>, <code>settle_tspan()</code>. Fixed: <code>np.trapezoid</code> (NumPy 2.0).</li>
+<li>[x] <code>results.py</code> — <code>FRFResult</code>, <code>OperatingPointMeasurement</code>, <code>DCSweptFRFResult</code>,
+      <code>ParameterFamilyResult</code>, <code>CampaignResults</code> with <code>.save()</code> JSON serialisation.</li>
+<li>[x] <code>tests/freq_sweep.py</code> — <code>run_discrete_frequency_sweep()</code>: per-frequency solve,
+      lock-in extraction, FRF normalised by drive amplitude, f0/Q extracted.</li>
+<li>[x] <code>tests/dc_sweep.py</code> — <code>run_dc_operating_point_sweep()</code>: settle under DC-only,
+      probe from settled state via <code>dataclasses.replace(spec, x0=x_settled)</code>.</li>
+<li>[x] <code>tests/param_sweep.py</code> — <code>run_parameter_sweep()</code>: <code>_set_model_param()</code> updates
+      p directly (no world rebuild); sub-runner closure built in CharacterizationRunner.</li>
+<li>[x] <code>plots.py</code> — <code>plot_bode()</code> (single FRF, f0/Q annotation), <code>plot_bode_family()</code>
+      (parameter-sweep overlay, viridis colourmap), <code>plot_dc_sweep()</code>.</li>
+<li>[x] <code>runner.py</code> — full dispatch: <code>DiscreteFrequencySweep</code>, <code>DCOperatingPointSweep</code>,
+      <code>ParameterSweep</code> (with sub-runner closure); Phase 3 types log a warning.</li>
+<li>[x] Verified: f0=0.960 Hz, Q=5.99, ζ=0.083 for c0=0.5, ω=2π. c1 family correctly
+      shows no change at small probe amplitude (nonlinearity invisible at x≈0).</li>
+</ul>
+<h3 id="phase-3-extended-tests-doe-complete">Phase 3 — Extended Tests &amp; DOE ✓ complete</h3>
+<ul>
+<li>[x] <code>AmplitudeSweep</code> runner (<code>tests/amplitude_sweep.py</code>) — fixed-frequency amplitude scan; H_magnitudes flat for linear, amplitude-dependent for nonlinear</li>
+<li>[x] <code>ContinuousChirpSweep</code> runner (<code>tests/chirp_sweep.py</code>) + chirp injection (<code>excitation.inject_chirp_excitation</code>) — log/linear chirp; FRF extracted via FFT cross-spectrum H(f)=S_xy/S_xx; <code>analysis.chirp_phase()</code> and <code>analysis.analyze_chirp_frf()</code> helpers</li>
+<li>[x] <code>ParameterGrid</code> runner (<code>tests/param_grid.py</code>) — full_factorial (Cartesian product) and pairs (zip) modes over explicit value lists</li>
+<li>[x] <code>DOESweep</code> runner (<code>tests/doe_sweep.py</code>) — <code>latin_hypercube</code>, <code>sobol</code>, <code>halton</code> via <code>scipy.stats.qmc</code>; <code>central_composite</code>, <code>box_behnken</code> via <code>pyDOE3</code> (optional); <code>full_factorial</code> grid built-in</li>
+<li>[x] <code>results.to_dataframe()</code> — long-format DataFrame with param columns + scalar metrics; handles FRF, AmplitudeSweep, DCSwept, Chirp, Family, Grid, DOE results recursively</li>
+<li>[x] <code>numen characterize test_plan.yaml</code> CLI command — pretty table, progress spinner, optional <code>--output results.json</code>, <code>--verbose</code> for DEBUG logging</li>
+<li>[x] <code>pyproject.toml</code>: <code>characterization = ["pyDOE3", "SALib", "pandas", "pyyaml"]</code> optional extra</li>
+<li>[x] <code>plots.plot_amplitude_sweep()</code> and <code>plots.plot_chirp_frf()</code> added</li>
+<li>[x] <code>examples/nonlinear_oscillator/test_plan.yaml</code> — complete 4-test campaign (chirp, FRF, amplitude sweep, DC sweep); settle-period guidance in comments</li>
+<li>[x] <code>examples/nonlinear_oscillator/characterize_plot.py</code> — 6-panel summary plot (Bode stepped+chirp overlay, chirp time series, amplitude sweep, DC sweep gain+phase)</li>
+<li>[x] <code>src/numen/init_data/CHARACTERIZATION.md</code> — package data guide: ExcitationPort setup, YAML schema, all 7 test types, settle-period rules, chirp vs stepped-sine table, loading results, full example reference</li>
+<li>[x] <code>src/numen/init_data/CLAUDE.md</code> — package data template for <code>numen init</code> (replaced Python string constant); includes {project_name} placeholder and project slots (models table, analysis notes, known issues)</li>
+<li>[x] <code>src/numen/cli.py</code> — <code>numen init</code> now copies both CLAUDE.md and CHARACTERIZATION.md from package data via <code>_write_init_data()</code>; dead <code>_INIT_CLAUDE_MD</code> string constant removed</li>
+<li>[x] <code>README.md</code> — characterization section, <code>[characterization]</code> install instructions, <code>numen characterize</code> in CLI reference, <code>nonlinear_oscillator</code> in examples table</li>
+<li>[x] <code>src/numen/_scaffold.py</code> — <code>nonlinear_oscillator</code> added to EXAMPLES registry</li>
+<li>[ ] SALib integration for Sobol sensitivity indices on DOE results (Phase 4)</li>
+</ul>
+<h3 id="phase-4-nonlinearity-characterization-future">Phase 4 — Nonlinearity Characterization (future)</h3>
+<ul>
+<li>[ ] Harmonic distortion measurement (THD, individual harmonics)</li>
+<li>[ ] Amplitude-dependent resonance tracking</li>
+<li>[ ] Volterra kernel identification (second-order frequency response)</li>
+<li>[ ] Modulation / intermodulation tests</li>
+</ul>
+<hr />
+<h2 id="open-questions">Open Questions</h2>
+<ol>
+<li>
+<p><strong>Julia dynamics for ExcitationSystem</strong> — the generic ExcitationSystem
+   needs a corresponding <code>dynamics.jl</code> function. Should this be auto-generated
+   or hand-written once and shipped with the framework?</p>
+</li>
+<li>
+<p><strong>Settle detection vs fixed settle time</strong> — currently settling is specified
+   as <code>settle_periods</code> (a fixed number of cycles). An adaptive approach that
+   monitors when the transient has decayed below a threshold would be more
+   robust, especially for heavily damped systems where the true settling time
+   is much shorter.</p>
+</li>
+<li>
+<p><strong>Result schema versioning</strong> — results saved as JSON should carry the full
+   test spec and model parameters so they are self-documenting. Design the
+   result schema before implementing serialization.</p>
+</li>
+<li>
+<p><strong>CLI integration</strong> — <code>uv run numen characterize test_plan.yaml</code> should
+   display a Rich progress table (one row per test, live-updating) consistent
+   with the existing CLI style.</p>
+</li>
+</ol>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tabs", "navigation.sections", "toc.integrate", "search.suggest"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>
