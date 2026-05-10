@@ -1461,8 +1461,8 @@ function gravity_dynamics!(
     t  :: Real, spec :: CompiledSpec, sys :: CompiledSystemSpec,
 ) where {T &lt;: Real, S &lt;: Real}
     for (eid,) in groups(sys)
-        i_pos = state_idx(spec, eid * &quot;.ball.position&quot;)
-        i_vel = state_idx(spec, eid * &quot;.ball.velocity&quot;)
+        i_pos = state_idx(spec, &quot;$eid.ball.position&quot;)
+        i_vel = state_idx(spec, &quot;$eid.ball.velocity&quot;)
         dx[i_pos] += x[i_vel]
         dx[i_vel] += -9.81
     end
@@ -1525,15 +1525,15 @@ x[r]                                               # 8-element view
 the entities in each group:</p>
 <pre><code class="language-julia"># group_size = 1 — one entity per group
 for (eid,) in groups(sys)
-    i_pos = state_idx(spec, eid * &quot;.oscillator.position&quot;)
+    i_pos = state_idx(spec, &quot;$eid.oscillator.position&quot;)
     # ...
 end
 
 # group_size = 3 — coupled triplet [cv_a, orifice, cv_b]
 for (cv_a, orifice, cv_b) in groups(sys)
-    P_a = x[state_idx(spec, cv_a * &quot;.control_volume.pressure&quot;)]
-    A   = p[param_idx(spec, orifice * &quot;.orifice.area&quot;)]
-    P_b = x[state_idx(spec, cv_b * &quot;.control_volume.pressure&quot;)]
+    P_a = x[state_idx(spec, &quot;$cv_a.control_volume.pressure&quot;)]
+    A   = p[param_idx(spec, &quot;$orifice.orifice.area&quot;)]
+    P_b = x[state_idx(spec, &quot;$cv_b.control_volume.pressure&quot;)]
     # ...
 end
 </code></pre>
