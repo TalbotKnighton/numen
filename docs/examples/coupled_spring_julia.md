@@ -14,7 +14,7 @@ Model: three masses (`m1`, `m2`, `m3`) connected by two springs (`s1`, `s2`).
 ```julia
 module SpringDynamics
 
-import Main: CompiledSpec, CompiledSystemSpec, state_idx, param_idx
+import Main: CompiledSpec, CompiledSystemSpec, state_idx, param_idx, groups
 
 # -------------------------------------------------------------------
 # MassKinematicsSystem  (group_size = 1)
@@ -33,9 +33,7 @@ function mass_kinematics_dynamics!(
     spec:: CompiledSpec,
     sys :: CompiledSystemSpec,
 ) where {T <: Real, S <: Real}
-    gs = sys.group_size   # = 1
-    for i in 1:gs:length(sys.entity_ids)
-        eid     = sys.entity_ids[i]
+    for (eid,) in groups(sys)
         pos_idx = state_idx(spec, eid * ".mass.position")
         vel_idx = state_idx(spec, eid * ".mass.velocity")
         dx[pos_idx] += x[vel_idx]
@@ -61,12 +59,7 @@ function spring_force_dynamics!(
     spec:: CompiledSpec,
     sys :: CompiledSystemSpec,
 ) where {T <: Real, S <: Real}
-    gs = sys.group_size   # = 3: [mass_a, spring, mass_b]
-    for i in 1:gs:length(sys.entity_ids)
-        id_a = sys.entity_ids[i]
-        id_s = sys.entity_ids[i + 1]
-        id_b = sys.entity_ids[i + 2]
-
+    for (id_a, id_s, id_b) in groups(sys)
         pos_a    = state_idx(spec, id_a * ".mass.position")
         pos_b    = state_idx(spec, id_b * ".mass.position")
         vel_a    = state_idx(spec, id_a * ".mass.velocity")
@@ -91,22 +84,20 @@ end  # module SpringDynamics
 
 ## Key points
 
-**Two systems with different `group_size`**
+**Tuple destructuring in `groups(sys)`** — the spring system declares
+`entity_slots = EntityGroup(MassComponent, SpringComponent, MassComponent)` on
+the Python side, so each group tuple has three entries in slot order. Naming
+them `(id_a, id_s, id_b)` makes the topology explicit at the loop header
+instead of buried in `entity_ids[i+1]` arithmetic.
 
-`mass_kinematics_dynamics!` has `group_size=1` — each mass is independent.
-`spring_force_dynamics!` has `group_size=3` — each group is `[mass_a, spring, mass_b]`.
-
-Both functions are registered on the same entity pool. The `+=` rule means
-`dx[vel_a]` from the spring force accumulates on top of whatever kinematics
-wrote (in this case nothing, since kinematics writes position, not velocity).
+**Two systems with different `group_size`** — `mass_kinematics_dynamics!` uses
+`group_size=1` (each mass independent); `spring_force_dynamics!` uses
+`group_size=3` (each group is `[mass_a, spring, mass_b]`). The loop header
+makes the difference obvious at a glance.
 
 **Force accumulation at shared masses** — mass `m2` appears in *both* spring
 groups (`[m1, s1, m2]` and `[m2, s2, m3]`). Because we use `+=`, both springs
 contribute to `dx[m2.mass.velocity]` correctly.
-
-**Index reuse** — `pos_a`, `pos_b`, etc. are computed fresh each group
-iteration. There is no caching between groups (the compiler provides the index
-maps; the dynamics function looks them up each time).
 
 ---
 

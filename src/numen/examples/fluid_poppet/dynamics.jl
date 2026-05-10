@@ -1,6 +1,6 @@
 module FluidPoppetDynamics
 
-import Main: CompiledSpec, CompiledSystemSpec, state_idx, param_idx
+import Main: CompiledSpec, CompiledSystemSpec, state_idx, param_idx, groups
 
 # ---------------------------------------------------------------------------
 # Smooth contact helper
@@ -70,12 +70,7 @@ function orifice_flow_dynamics!(
     dx :: AbstractVector{T}, x :: AbstractVector{S}, p :: Vector{Float64},
     t  :: Real, spec :: CompiledSpec, sys :: CompiledSystemSpec,
 ) where {T <: Real, S <: Real}
-    gs = sys.group_size  # 3
-    for i in 1:gs:length(sys.entity_ids)
-        id_a = sys.entity_ids[i]
-        id_o = sys.entity_ids[i + 1]
-        id_b = sys.entity_ids[i + 2]
-
+    for (id_a, id_o, id_b) in groups(sys)
         P_a  = x[state_idx(spec, id_a * ".control_volume.pressure")]
         P_b  = x[state_idx(spec, id_b * ".control_volume.pressure")]
         T_a  = p[param_idx(spec, id_a * ".control_volume.temperature")]
@@ -117,12 +112,7 @@ function poppet_flow_dynamics!(
     dx :: AbstractVector{T}, x :: AbstractVector{S}, p :: Vector{Float64},
     t  :: Real, spec :: CompiledSpec, sys :: CompiledSystemSpec,
 ) where {T <: Real, S <: Real}
-    gs = sys.group_size  # 3
-    for i in 1:gs:length(sys.entity_ids)
-        id_a = sys.entity_ids[i]
-        id_p = sys.entity_ids[i + 1]
-        id_b = sys.entity_ids[i + 2]
-
+    for (id_a, id_p, id_b) in groups(sys)
         pos           = x[state_idx(spec, id_p * ".poppet.position")]
         max_travel    = p[param_idx(spec, id_p * ".poppet.max_travel")]
         max_flow_area = p[param_idx(spec, id_p * ".poppet.max_flow_area")]
@@ -170,7 +160,7 @@ function poppet_kinematics_dynamics!(
     dx :: AbstractVector{T}, x :: AbstractVector{S}, p :: Vector{Float64},
     t  :: Real, spec :: CompiledSpec, sys :: CompiledSystemSpec,
 ) where {T <: Real, S <: Real}
-    for id_p in sys.entity_ids
+    for (id_p,) in groups(sys)
         i_pos = state_idx(spec, id_p * ".poppet.position")
         i_vel = state_idx(spec, id_p * ".poppet.velocity")
         dx[i_pos] += x[i_vel]
@@ -198,12 +188,7 @@ function poppet_mechanics_dynamics!(
     dx :: AbstractVector{T}, x :: AbstractVector{S}, p :: Vector{Float64},
     t  :: Real, spec :: CompiledSpec, sys :: CompiledSystemSpec,
 ) where {T <: Real, S <: Real}
-    gs = sys.group_size  # 3
-    for i in 1:gs:length(sys.entity_ids)
-        id_inlet  = sys.entity_ids[i]
-        id_p      = sys.entity_ids[i + 1]
-        id_outlet = sys.entity_ids[i + 2]
-
+    for (id_inlet, id_p, id_outlet) in groups(sys)
         pos     = x[state_idx(spec, id_p     * ".poppet.position")]
         vel     = x[state_idx(spec, id_p     * ".poppet.velocity")]
         P_in    = x[state_idx(spec, id_inlet  * ".control_volume.pressure")]

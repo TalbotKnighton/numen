@@ -1,6 +1,6 @@
 module NLOscillatorDynamics
 
-import Main: CompiledSpec, CompiledSystemSpec, state_idx, param_idx
+import Main: CompiledSpec, CompiledSystemSpec, state_idx, param_idx, groups
 
 """
     nl_oscillator_dynamics!(dx, x, p, t, spec, sys)
@@ -20,10 +20,7 @@ function nl_oscillator_dynamics!(
     spec:: CompiledSpec,
     sys :: CompiledSystemSpec,
 ) where {T <: Real, S <: Real}
-    gs = sys.group_size   # = 1 for single-entity systems
-    for i in 1:gs:length(sys.entity_ids)
-        eid = sys.entity_ids[i]
-
+    for (eid,) in groups(sys)
         pos_idx   = state_idx(spec, eid * ".nl_oscillator.position")
         vel_idx   = state_idx(spec, eid * ".nl_oscillator.velocity")
         omega_idx = param_idx(spec, eid * ".nl_oscillator.omega")

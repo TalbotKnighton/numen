@@ -60,13 +60,13 @@ the file once, then resolves function names from `dynamics_fn` strings like
 ```julia
 # dynamics.jl
 module MyDynamics
-import Main: CompiledSpec, CompiledSystemSpec, state_idx, param_idx
+import Main: CompiledSpec, CompiledSystemSpec, state_idx, param_idx, groups
 
 function gravity_dynamics!(
     dx :: AbstractVector{T}, x :: AbstractVector{S}, p :: Vector{Float64},
     t  :: Real, spec :: CompiledSpec, sys :: CompiledSystemSpec,
 ) where {T <: Real, S <: Real}
-    for eid in sys.entity_ids
+    for (eid,) in groups(sys)
         i_pos = state_idx(spec, eid * ".ball.position")
         i_vel = state_idx(spec, eid * ".ball.velocity")
         dx[i_pos] += x[i_vel]
@@ -81,9 +81,9 @@ In Python, set `dynamics_fn = "MyDynamics.gravity_dynamics!"` on the `System`.
 
 ---
 
-## Index helpers
+## Helpers available in dynamics files
 
-These four functions are always available via `import Main: ...`:
+These five functions are always available via `import Main: ...`:
 
 | Function | Returns | Description |
 |---|---|---|
@@ -91,6 +91,7 @@ These four functions are always available via `import Main: ...`:
 | `param_idx(spec, key)` | `Int` (1-based) | First Julia index for a parameter field |
 | `state_range(spec, key)` | `UnitRange{Int}` | Full slice for vector state fields (`size=N`) |
 | `param_range(spec, key)` | `UnitRange{Int}` | Full slice for vector parameter fields |
+| `groups(sys)` | iterator | Yields entity-id groups for destructuring |
 
 Keys use the full path `"entity_id.component_kind.field_name"`, matching Python's `spec.state_index_map`.
 
@@ -105,29 +106,32 @@ x[r]                                               # 8-element view
 
 ---
 
-## Multi-entity systems (`group_size`)
+## Iterating entity groups
 
-When a system couples multiple entities, entity IDs are stored flat in
-`sys.entity_ids` with `sys.group_size` per group:
+Use `groups(sys)` and tuple-destructure each group — this mirrors the Python
+`for entity_group in system.entity_groups:` pattern and gives semantic names to
+the entities in each group:
 
 ```julia
-gs = sys.group_size   # e.g. 3 for [cv_a, orifice, cv_b]
-for i in 1:gs:length(sys.entity_ids)
-    id_a = sys.entity_ids[i]
-    id_o = sys.entity_ids[i + 1]
-    id_b = sys.entity_ids[i + 2]
+# group_size = 1 — one entity per group
+for (eid,) in groups(sys)
+    i_pos = state_idx(spec, eid * ".oscillator.position")
+    # ...
+end
+
+# group_size = 3 — coupled triplet [cv_a, orifice, cv_b]
+for (cv_a, orifice, cv_b) in groups(sys)
+    P_a = x[state_idx(spec, cv_a * ".control_volume.pressure")]
+    A   = p[param_idx(spec, orifice * ".orifice.area")]
+    P_b = x[state_idx(spec, cv_b * ".control_volume.pressure")]
     # ...
 end
 ```
 
-For single-entity systems (`group_size = 1`), iterate directly:
-
-```julia
-for eid in sys.entity_ids
-    i_pos = state_idx(spec, eid * ".mass.position")
-    # ...
-end
-```
+Internally, `groups(sys) === Iterators.partition(sys.entity_ids, sys.group_size)`
+— a zero-allocation iterator over fixed-size slices of `sys.entity_ids`.
+Destructure into whatever names match your topology's slot order (defined by the
+`entity_slots = EntityGroup(...)` declaration on the Python `System` class).
 
 ---
 

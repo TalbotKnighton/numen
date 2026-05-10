@@ -386,13 +386,13 @@ The naming convention is `ModuleName.function_name!` (matching `dynamics_fn` on 
 ```julia
 # dynamics.jl
 module MyDynamics
-import Main: CompiledSpec, CompiledSystemSpec, state_idx, param_idx
+import Main: CompiledSpec, CompiledSystemSpec, state_idx, param_idx, groups
 
 function gravity_dynamics!(
     dx :: AbstractVector{T}, x :: AbstractVector{S}, p :: Vector{Float64},
     t  :: Real, spec :: CompiledSpec, sys :: CompiledSystemSpec,
 ) where {T <: Real, S <: Real}
-    for id_ball in sys.entity_ids
+    for (id_ball,) in groups(sys)
         i_pos = state_idx(spec, id_ball * ".ball.position")
         i_vel = state_idx(spec, id_ball * ".ball.velocity")
         dx[i_pos] += x[i_vel]
@@ -402,6 +402,11 @@ end
 
 end  # module MyDynamics
 ```
+
+Use ``groups(sys)`` with tuple destructuring to name the entities in each
+group, mirroring Python's ``for entity_group in system.entity_groups:``. For a
+multi-entity system with ``EntityGroup(MassComponent, SpringComponent, MassComponent)``
+the loop becomes ``for (id_a, id_s, id_b) in groups(sys)``.
 
 Julia uses the same `state_idx` / `param_idx` helpers that index into the flat
 `x` and `p` vectors. The index maps are serialized in the `CompiledSpec` JSON

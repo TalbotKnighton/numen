@@ -17,7 +17,7 @@ stiff relative to the mechanical motion.
 ```julia
 module PneumaticDashpotDynamics
 
-import Main: CompiledSpec, CompiledSystemSpec, state_idx, param_idx
+import Main: CompiledSpec, CompiledSystemSpec, state_idx, param_idx, groups
 
 const STOP_DELTA = 1e-6
 
@@ -82,10 +82,7 @@ function pneumatic_dashpot_dynamics!(
     spec:: CompiledSpec,
     sys :: CompiledSystemSpec,
 ) where {T <: Real, S <: Real}
-    gs = sys.group_size  # 1
-    for i in 1:gs:length(sys.entity_ids)
-        eid = sys.entity_ids[i]
-
+    for (eid,) in groups(sys)
         # Index lookups
         i_pos   = state_idx(spec, eid * ".pneumatic_dashpot.position")
         i_vel   = state_idx(spec, eid * ".pneumatic_dashpot.velocity")

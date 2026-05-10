@@ -63,3 +63,26 @@ param_range(spec::CompiledSpec, key::String) =
 # Scalar convenience — 1-based Julia index of the first element
 state_idx(spec::CompiledSpec, key::String) = first(state_range(spec, key))
 param_idx(spec::CompiledSpec, key::String) = first(param_range(spec, key))
+
+"""
+    groups(sys::CompiledSystemSpec)
+
+Iterate the entity groups of a system. Each iteration yields a slice of
+`sys.entity_ids` of length `sys.group_size`, suitable for tuple destructuring
+in dynamics functions:
+
+    # group_size = 1 — single entity per group
+    for (eid,) in groups(sys)
+        i_pos = state_idx(spec, eid * ".oscillator.position")
+        ...
+    end
+
+    # group_size = 3 — coupled triplet [a, middle, b]
+    for (cv_a, orifice, cv_b) in groups(sys)
+        i_Pa = state_idx(spec, cv_a * ".control_volume.pressure")
+        ...
+    end
+
+Mirrors the Python `for entity_group in system.entity_groups:` pattern.
+"""
+groups(sys::CompiledSystemSpec) = Iterators.partition(sys.entity_ids, sys.group_size)

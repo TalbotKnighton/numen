@@ -1,7 +1,7 @@
 module OscillatorDynamics
 
 # CompiledSpec, CompiledSystemSpec, state_idx, param_idx are available via Main.Numen
-import Main: CompiledSpec, CompiledSystemSpec, state_idx, param_idx
+import Main: CompiledSpec, CompiledSystemSpec, state_idx, param_idx, groups
 
 """
     oscillator_dynamics!(dx, x, p, t, spec, sys)
@@ -21,10 +21,7 @@ function oscillator_dynamics!(
     spec:: CompiledSpec,
     sys :: CompiledSystemSpec,
 ) where {T <: Real, S <: Real}
-    gs = sys.group_size   # = 1; each entity is its own group
-    for i in 1:gs:length(sys.entity_ids)
-        eid = sys.entity_ids[i]
-
+    for (eid,) in groups(sys)
         pos_idx     = state_idx(spec, eid * ".oscillator.position")
         vel_idx     = state_idx(spec, eid * ".oscillator.velocity")
         omega_idx   = param_idx(spec, eid * ".oscillator.omega")
