@@ -10,25 +10,31 @@
       
       
       
+        <link rel="canonical" href="https://TalbotKnighton.github.io/numen/examples/pneumatic_dashpot_julia/">
       
+      
+        <link rel="prev" href="../fluid_poppet_julia/">
+      
+      
+        <link rel="next" href="../../api/fields/">
       
       
         
       
       
-      <link rel="icon" href="/numen/assets/images/favicon.png">
+      <link rel="icon" href="../../assets/images/favicon.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
     
     
       
-        <title>Numen</title>
+        <title>Pneumatic Dashpot - Numen</title>
       
     
     
-      <link rel="stylesheet" href="/numen/assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
       
         
-        <link rel="stylesheet" href="/numen/assets/stylesheets/palette.ab4e12ef.min.css">
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
       
       
 
@@ -47,9 +53,9 @@
       
     
     
-      <link rel="stylesheet" href="/numen/assets/_mkdocstrings.css">
+      <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
     
-    <script>__md_scope=new URL("/numen/",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
 
@@ -73,6 +79,11 @@
     <label class="md-overlay" for="__drawer"></label>
     <div data-md-component="skip">
       
+        
+        <a href="#pneumatic-dashpot-julia-dynamics" class="md-skip">
+          Skip to content
+        </a>
+      
     </div>
     <div data-md-component="announce">
       
@@ -83,7 +94,7 @@
 
 <header class="md-header" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="/numen/." title="Numen" class="md-header__button md-logo" aria-label="Numen" data-md-component="logo">
+    <a href="../.." title="Numen" class="md-header__button md-logo" aria-label="Numen" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
@@ -103,7 +114,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              
+              Pneumatic Dashpot
             
           </span>
         </div>
@@ -216,7 +227,7 @@
   
   
     <li class="md-tabs__item">
-      <a href="/numen/." class="md-tabs__link">
+      <a href="../.." class="md-tabs__link">
         
   
   
@@ -235,7 +246,7 @@
   
   
     <li class="md-tabs__item">
-      <a href="/numen/getting-started/" class="md-tabs__link">
+      <a href="../../getting-started/" class="md-tabs__link">
         
   
   
@@ -256,7 +267,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="/numen/guide/components/" class="md-tabs__link">
+        <a href="../../guide/components/" class="md-tabs__link">
           
   
   
@@ -272,6 +283,8 @@
   
   
   
+    
+  
   
     
     
@@ -279,11 +292,13 @@
   
   
   
+    
+  
   
     
     
-      <li class="md-tabs__item">
-        <a href="/numen/examples/oscillator/" class="md-tabs__link">
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../oscillator/" class="md-tabs__link">
           
   
   
@@ -306,7 +321,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="/numen/api/fields/" class="md-tabs__link">
+        <a href="../../api/fields/" class="md-tabs__link">
           
   
   
@@ -324,7 +339,7 @@
   
   
     <li class="md-tabs__item">
-      <a href="/numen/julia/" class="md-tabs__link">
+      <a href="../../julia/" class="md-tabs__link">
         
   
   
@@ -361,7 +376,7 @@
 
 <nav class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="/numen/." title="Numen" class="md-nav__button md-logo" aria-label="Numen" data-md-component="logo">
+    <a href="../.." title="Numen" class="md-nav__button md-logo" aria-label="Numen" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
@@ -391,7 +406,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/numen/." class="md-nav__link">
+      <a href="../.." class="md-nav__link">
         
   
   
@@ -418,7 +433,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/numen/getting-started/" class="md-nav__link">
+      <a href="../../getting-started/" class="md-nav__link">
         
   
   
@@ -497,7 +512,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/numen/guide/components/" class="md-nav__link">
+      <a href="../../guide/components/" class="md-nav__link">
         
   
   
@@ -525,7 +540,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/numen/guide/systems/" class="md-nav__link">
+      <a href="../../guide/systems/" class="md-nav__link">
         
   
   
@@ -553,7 +568,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/numen/guide/backends/" class="md-nav__link">
+      <a href="../../guide/backends/" class="md-nav__link">
         
   
   
@@ -581,7 +596,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/numen/guide/characterization/" class="md-nav__link">
+      <a href="../../guide/characterization/" class="md-nav__link">
         
   
   
@@ -613,26 +628,31 @@
       
   
   
+    
   
   
+  
     
     
     
     
+      
+        
+        
       
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
         
           
-          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
             
   
   
@@ -650,7 +670,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_4">
             <span class="md-nav__icon md-icon"></span>
             
@@ -674,17 +694,20 @@
       
       
         
+          
+          
+        
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
       
         
         
         <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_1" >
         
           
-          <label class="md-nav__link" for="__nav_4_1" id="__nav_4_1_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_4_1" id="__nav_4_1_label" tabindex="">
             
   
   
@@ -720,7 +743,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/numen/examples/oscillator/" class="md-nav__link">
+      <a href="../oscillator/" class="md-nav__link">
         
   
   
@@ -748,7 +771,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/numen/examples/coupled_spring/" class="md-nav__link">
+      <a href="../coupled_spring/" class="md-nav__link">
         
   
   
@@ -776,7 +799,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/numen/examples/fluid_poppet/" class="md-nav__link">
+      <a href="../fluid_poppet/" class="md-nav__link">
         
   
   
@@ -809,26 +832,31 @@
                 
   
   
+    
   
   
+  
     
     
     
     
       
       
-        
-      
-    
-    
-    <li class="md-nav__item md-nav__item--nested">
-      
-        
-        
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_2" >
         
           
-          <label class="md-nav__link" for="__nav_4_2" id="__nav_4_2_label" tabindex="0">
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_2" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_4_2" id="__nav_4_2_label" tabindex="">
             
   
   
@@ -846,7 +874,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_2_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_2_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_4_2">
             <span class="md-nav__icon md-icon"></span>
             
@@ -864,7 +892,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/numen/examples/oscillator_julia/" class="md-nav__link">
+      <a href="../oscillator_julia/" class="md-nav__link">
         
   
   
@@ -892,7 +920,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/numen/examples/coupled_spring_julia/" class="md-nav__link">
+      <a href="../coupled_spring_julia/" class="md-nav__link">
         
   
   
@@ -920,7 +948,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/numen/examples/fluid_poppet_julia/" class="md-nav__link">
+      <a href="../fluid_poppet_julia/" class="md-nav__link">
         
   
   
@@ -945,10 +973,37 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="/numen/examples/pneumatic_dashpot_julia/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Pneumatic Dashpot
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -964,6 +1019,59 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#full-source" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Full source
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#key-points" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Key points
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#running-with-the-stiff-solver" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Running with the stiff solver
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -1043,7 +1151,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/numen/api/fields/" class="md-nav__link">
+      <a href="../../api/fields/" class="md-nav__link">
         
   
   
@@ -1071,7 +1179,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/numen/api/compiler/" class="md-nav__link">
+      <a href="../../api/compiler/" class="md-nav__link">
         
   
   
@@ -1099,7 +1207,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/numen/api/backends/" class="md-nav__link">
+      <a href="../../api/backends/" class="md-nav__link">
         
   
   
@@ -1127,7 +1235,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/numen/api/reconstruction/" class="md-nav__link">
+      <a href="../../api/reconstruction/" class="md-nav__link">
         
   
   
@@ -1162,7 +1270,7 @@
   
   
     <li class="md-nav__item">
-      <a href="/numen/julia/" class="md-nav__link">
+      <a href="../../julia/" class="md-nav__link">
         
   
   
@@ -1195,8 +1303,190 @@
               
               <article class="md-content__inner md-typeset">
                 
-  <h1>404 - Not found</h1>
+                  
 
+
+  
+  
+
+
+<h1 id="pneumatic-dashpot-julia-dynamics">Pneumatic Dashpot — Julia dynamics</h1>
+<p>Source: <a href="https://github.com/TalbotKnighton/numen/blob/main/src/numen/examples/pneumatic_dashpot/dynamics.jl"><code>src/numen/examples/pneumatic_dashpot/dynamics.jl</code></a></p>
+<p>A piston in a sealed cylinder with orifice vents on both ends.
+The air spring / viscous damping effect is <strong>strongly frequency-dependent</strong>:
+large orifices → low damping (gas escapes freely); small orifices → high
+damping (gas is trapped, acts as a stiff spring).</p>
+<p>This example uses <strong>Rodas5P</strong> (stiff solver) because the pressure ODEs are
+stiff relative to the mechanical motion.</p>
+<hr />
+<h2 id="full-source">Full source</h2>
+<pre><code class="language-julia">module PneumaticDashpotDynamics
+
+import Main: CompiledSpec, CompiledSystemSpec, state_idx, param_idx
+
+const STOP_DELTA = 1e-6
+
+function soft_pen(x::T) where T &lt;: Real
+    x &lt;= 0.0        &amp;&amp; return zero(T)
+    x &gt;= STOP_DELTA &amp;&amp; return x - 0.5 * STOP_DELTA
+    return 0.5 * x * x / STOP_DELTA
+end
+
+&quot;&quot;&quot;
+    orifice_mdot(P_up, P_dn, T_up, R, Cd, A, gamma) -&gt; T
+
+Isentropic compressible mass flow (kg/s, ≥ 0).
+Switches at β_crit = (2/(γ+1))^(γ/(γ-1)).
+&quot;&quot;&quot;
+function orifice_mdot(
+    P_up::T, P_dn::T, T_up::Float64,
+    R::Float64, Cd::Float64, A::Float64, gamma::Float64,
+)::T where T &lt;: Real
+    (P_up &lt;= 0.0 || A &lt;= 0.0) &amp;&amp; return zero(T)
+    beta      = max(zero(T), P_dn) / P_up
+    beta_crit = (2.0 / (gamma + 1.0))^(gamma / (gamma - 1.0))
+    if beta &lt;= beta_crit
+        choke_exp = (gamma + 1.0) / (2.0 * (gamma - 1.0))
+        return Cd * A * P_up * sqrt(gamma / (R * T_up)) *
+               (2.0 / (gamma + 1.0))^choke_exp
+    else
+        arg = beta^(2.0 / gamma) - beta^((gamma + 1.0) / gamma)
+        return Cd * A * P_up * sqrt(
+            max(zero(T), 2.0 * gamma / ((gamma - 1.0) * R * T_up) * arg))
+    end
+end
+
+&quot;&quot;&quot;
+    signed_orifice_flow(P_chamber, P_ambient, ...) -&gt; T
+
+Signed mass flow into the chamber (kg/s).
+  Positive: atmosphere → chamber  (P_ambient &gt; P_chamber)
+  Negative: chamber → atmosphere  (P_chamber &gt; P_ambient)
+&quot;&quot;&quot;
+function signed_orifice_flow(
+    P_chamber::T, P_ambient::Float64,
+    T_amb::Float64, R::Float64,
+    gamma::Float64, Cd::Float64, A::Float64,
+) where T &lt;: Real
+    P_up = max(T(P_ambient), P_chamber)
+    P_dn = min(T(P_ambient), P_chamber)
+    mdot = orifice_mdot(P_up, P_dn, T_amb, R, Cd, A, gamma)
+    return P_ambient &gt;= P_chamber ? mdot : -mdot
+end
+
+&quot;&quot;&quot;
+    pneumatic_dashpot_dynamics!(dx, x, p, t, spec, sys)
+
+Isothermal gas-spring dashpot: two chambers vented to atmosphere.
+&quot;&quot;&quot;
+function pneumatic_dashpot_dynamics!(
+    dx  :: AbstractVector{T},
+    x   :: AbstractVector{S},
+    p   :: Vector{Float64},
+    t   :: Real,
+    spec:: CompiledSpec,
+    sys :: CompiledSystemSpec,
+) where {T &lt;: Real, S &lt;: Real}
+    gs = sys.group_size  # 1
+    for i in 1:gs:length(sys.entity_ids)
+        eid = sys.entity_ids[i]
+
+        # Index lookups
+        i_pos   = state_idx(spec, eid * &quot;.pneumatic_dashpot.position&quot;)
+        i_vel   = state_idx(spec, eid * &quot;.pneumatic_dashpot.velocity&quot;)
+        i_pl    = state_idx(spec, eid * &quot;.pneumatic_dashpot.p_left&quot;)
+        i_pr    = state_idx(spec, eid * &quot;.pneumatic_dashpot.p_right&quot;)
+        i_bore  = param_idx(spec, eid * &quot;.pneumatic_dashpot.bore_area&quot;)
+        i_hs    = param_idx(spec, eid * &quot;.pneumatic_dashpot.half_stroke&quot;)
+        i_clr   = param_idx(spec, eid * &quot;.pneumatic_dashpot.clearance&quot;)
+        i_ao    = param_idx(spec, eid * &quot;.pneumatic_dashpot.orifice_area&quot;)
+        i_cd    = param_idx(spec, eid * &quot;.pneumatic_dashpot.cd&quot;)
+        i_mass  = param_idx(spec, eid * &quot;.pneumatic_dashpot.mass&quot;)
+        i_fric  = param_idx(spec, eid * &quot;.pneumatic_dashpot.friction&quot;)
+        i_kstop = param_idx(spec, eid * &quot;.pneumatic_dashpot.k_stop&quot;)
+        i_pamb  = param_idx(spec, eid * &quot;.pneumatic_dashpot.p_ambient&quot;)
+        i_temp  = param_idx(spec, eid * &quot;.pneumatic_dashpot.temp&quot;)
+        i_R     = param_idx(spec, eid * &quot;.pneumatic_dashpot.R_gas&quot;)
+        i_gamma = param_idx(spec, eid * &quot;.pneumatic_dashpot.gamma&quot;)
+
+        pos   = x[i_pos];  vel   = x[i_vel]
+        P_L   = x[i_pl];   P_R   = x[i_pr]
+        bore  = p[i_bore]; hs    = p[i_hs];  clr   = p[i_clr]
+        A_o   = p[i_ao];   Cd    = p[i_cd]
+        mass  = p[i_mass]; fric  = p[i_fric]; kstop = p[i_kstop]
+        P_amb = p[i_pamb]; T_gas = p[i_temp]
+        R     = p[i_R];    gamma = p[i_gamma]
+
+        # Chamber volumes (clamped to avoid V=0 singularity)
+        V_L  = max(bore * (hs + pos + clr), 1e-12)
+        V_R  = max(bore * (hs - pos + clr), 1e-12)
+        dV_L = bore * vel     # left chamber expands when piston moves right
+        dV_R = -bore * vel
+
+        # Orifice flows (positive = into chamber)
+        mdot_L = signed_orifice_flow(P_L, P_amb, T_gas, R, gamma, Cd, A_o)
+        mdot_R = signed_orifice_flow(P_R, P_amb, T_gas, R, gamma, Cd, A_o)
+
+        # Pressure ODEs (isothermal: dP/dt = R·T/V · ṁ - P/V · dV/dt)
+        dx[i_pl] += (R * T_gas / V_L) * mdot_L - (P_L / V_L) * dV_L
+        dx[i_pr] += (R * T_gas / V_R) * mdot_R - (P_R / V_R) * dV_R
+
+        # Piston equation of motion
+        F_pneu   = (P_L - P_R) * bore
+        F_fric   = -fric * vel
+        pen_left  = -(pos + hs)   # &gt; 0 inside left stop
+        pen_right = pos - hs      # &gt; 0 inside right stop
+        F_stop    = kstop * (soft_pen(pen_left) - soft_pen(pen_right))
+
+        dx[i_pos] += vel
+        dx[i_vel] += (F_pneu + F_fric + F_stop) / mass
+    end
+end
+
+end  # module PneumaticDashpotDynamics
+</code></pre>
+<hr />
+<h2 id="key-points">Key points</h2>
+<p><strong><code>signed_orifice_flow</code> helper</strong> — wraps <code>orifice_mdot</code> so callers don't need
+to check pressure direction. Returns positive flow into the chamber, negative
+flow out. Using a helper keeps the main dynamics function readable.</p>
+<p><strong>Isothermal pressure ODE</strong> — <code>dP/dt = (R·T/V)·ṁ_net - (P/V)·(dV/dt)</code>.
+The first term comes from mass flowing in; the second comes from the piston
+compressing or expanding the volume. Both terms use <code>+=</code> so any additional
+system could contribute.</p>
+<p><strong>Volume clamp</strong> — <code>max(bore * (...), 1e-12)</code> prevents division by zero if
+the piston reaches the end of stroke. The smooth stop force should prevent this
+in practice, but the clamp is a safety net.</p>
+<p><strong>Stiff solver</strong> — use <code>method="Rodas5P"</code> with this example. The pressure
+dynamics are stiff relative to the mechanical motion (especially for small
+orifice areas), and explicit solvers like Tsit5 will take very small steps.</p>
+<hr />
+<h2 id="running-with-the-stiff-solver">Running with the stiff solver</h2>
+<pre><code class="language-python">from numen.bridge.runtime import JuliaBackend
+
+result = JuliaBackend(
+    julia_file = &quot;dynamics.jl&quot;,
+    method     = &quot;Rodas5P&quot;,   # stiff Rosenbrock solver
+    rtol       = 1e-6,
+    atol       = 1e-8,
+).solve(spec, tspan=(0.0, 1.0))
+</code></pre>
+<p><code>Rodas5P</code> uses <code>ForwardDiff</code> to evaluate the state Jacobian ∂f/∂x via the
+sparse <code>jac_prototype</code> pattern that <code>compile_spec()</code> builds. The <code>{T &lt;: Real, S &lt;: Real}</code>
+signature in every dynamics function is what makes this work without modification.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
               </article>
             </div>
           
@@ -1233,10 +1523,10 @@
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "/numen/", "features": ["navigation.tabs", "navigation.sections", "toc.integrate", "search.suggest"], "search": "/numen/assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.sections", "toc.integrate", "search.suggest"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="/numen/assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
       
     
   </body>

@@ -284,6 +284,13 @@
   
     
     
+      
+  
+  
+  
+  
+    
+    
       <li class="md-tabs__item">
         <a href="../examples/oscillator/" class="md-tabs__link">
           
@@ -293,6 +300,9 @@
 
         </a>
       </li>
+    
+  
+
     
   
 
@@ -668,6 +678,58 @@
   
   
   
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_1" id="__nav_4_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Python
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
     <li class="md-nav__item">
       <a href="../examples/oscillator/" class="md-nav__link">
         
@@ -741,6 +803,186 @@
   
 
       </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_2" id="__nav_4_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Julia dynamics files
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Julia dynamics files
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../examples/oscillator_julia/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Oscillator
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../examples/coupled_spring_julia/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Coupled Spring
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../examples/fluid_poppet_julia/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Fluid Poppet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../examples/pneumatic_dashpot_julia/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Pneumatic Dashpot
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
     </li>
   
 
@@ -991,10 +1233,32 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#how-it-works" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How it works
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#dynamics-function-signature" class="md-nav__link">
     <span class="md-ellipsis">
       
         Dynamics function signature
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#module-layout" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Module layout
       
     </span>
   </a>
@@ -1013,10 +1277,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#scalar-helper-functions" class="md-nav__link">
+  <a href="#multi-entity-systems-group_size" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Scalar helper functions
+        Multi-entity systems (group_size)
       
     </span>
   </a>
@@ -1024,10 +1288,32 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#smooth-hard-stop-c1-ramp" class="md-nav__link">
+  <a href="#smooth-contact-hard-stop-helper" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Smooth hard stop (C1 ramp)
+        Smooth contact / hard-stop helper
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#isentropic-orifice-flow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Isentropic orifice flow
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#helper-function-type-signatures" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Helper function type signatures
       
     </span>
   </a>
@@ -1046,35 +1332,52 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#stiff-solvers" class="md-nav__link">
+  <a href="#framework-types-reference" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Stiff solvers
+        Framework types reference
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Framework types reference">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#compiledspec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CompiledSpec
       
     </span>
   </a>
   
 </li>
-      
-        <li class="md-nav__item">
-  <a href="#controller-callbacks" class="md-nav__link">
+        
+          <li class="md-nav__item">
+  <a href="#compiledsystemspec" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Controller callbacks
+        CompiledSystemSpec
       
     </span>
   </a>
   
 </li>
-      
-        <li class="md-nav__item">
-  <a href="#why-the-subprocess-bridge" class="md-nav__link">
+        
+          <li class="md-nav__item">
+  <a href="#index-helper-source" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Why the subprocess bridge?
+        Index helper source
       
     </span>
   </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -1107,24 +1410,59 @@
 
 
 <h1 id="julia-reference">Julia Reference</h1>
-<p>Numen uses Julia (via OrdinaryDiffEq.jl) as its fastest solver backend.
-Each Python <code>System</code> has a corresponding Julia function in a <code>.jl</code> file.</p>
+<p>Numen uses Julia (via <a href="https://docs.sciml.ai/OrdinaryDiffEq/stable/">OrdinaryDiffEq.jl</a>) as its fastest solver backend — typically <strong>600× faster</strong> than scipy warm, without JIT cost after the first solve.</p>
+<hr />
+<h2 id="how-it-works">How it works</h2>
+<p>When you call <code>JuliaBackend</code> or <code>JuliaServerBackend</code>, Numen:</p>
+<ol>
+<li>Serialises the <code>CompiledSpec</code> to JSON</li>
+<li>Starts a Julia subprocess (or reuses a server)</li>
+<li><code>include</code>s your <code>dynamics.jl</code> file</li>
+<li>Calls your module's dynamics functions inside <code>ODEProblem</code> / <code>DAEProblem</code></li>
+</ol>
+<p>The Julia side receives the same <code>CompiledSpec</code> the Python backends use, so every index lookup (<code>state_idx</code>, <code>param_idx</code>) returns the same slot as <code>spec.state_idx(key)</code> on the Python side.</p>
+<hr />
 <h2 id="dynamics-function-signature">Dynamics function signature</h2>
+<p>Every dynamics function must have this exact signature:</p>
+<pre><code class="language-julia">function my_dynamics!(
+    dx  :: AbstractVector{T},   # write: derivative accumulator
+    x   :: AbstractVector{S},   # read:  current state
+    p   :: Vector{Float64},     # read:  parameter vector (constant)
+    t   :: Real,                # read:  current time
+    spec:: CompiledSpec,        # read:  index maps
+    sys :: CompiledSystemSpec,  # read:  entity IDs for this system
+) where {T &lt;: Real, S &lt;: Real}
+    # ...
+end
+</code></pre>
+<p><strong>Why two type parameters <code>{T, S}</code>?</strong>
+Stiff solvers (Rodas5P, Rosenbrock23) evaluate the state Jacobian ∂f/∂x using
+ForwardDiff. During those calls <code>x</code> contains <code>Dual</code> numbers — <code>S</code> covers both
+<code>Float64</code> (normal solve steps) and <code>ForwardDiff.Dual</code> (Jacobian steps). The
+separate <code>T</code> parameter for <code>dx</code> lets helper functions return the correct type in
+both paths.</p>
+<p><strong>Why <code>t :: Real</code>?</strong>
+Any future path that passes a <code>Dual</code> time will work without changes. For the
+current explicit <code>tgrad!</code>, <code>t</code> is always <code>Float64</code> — <code>Real</code> covers both.</p>
+<p><strong>The golden rule: always use <code>+=</code> on <code>dx</code>, never <code>=</code>.</strong>
+Multiple systems accumulate into the same <code>dx</code> slot. Direct assignment silently
+zeros out contributions from other systems.</p>
+<hr />
+<h2 id="module-layout">Module layout</h2>
+<p>Every <code>dynamics.jl</code> file defines one or more <code>module</code> blocks. Numen <code>include</code>s
+the file once, then resolves function names from <code>dynamics_fn</code> strings like
+<code>"MyModule.my_fn!"</code>:</p>
 <pre><code class="language-julia"># dynamics.jl
 module MyDynamics
 import Main: CompiledSpec, CompiledSystemSpec, state_idx, param_idx
 
 function gravity_dynamics!(
-    dx :: AbstractVector{T},
-    x  :: AbstractVector{S},
-    p  :: Vector{Float64},
-    t  :: Real,
-    spec :: CompiledSpec,
-    sys  :: CompiledSystemSpec,
+    dx :: AbstractVector{T}, x :: AbstractVector{S}, p :: Vector{Float64},
+    t  :: Real, spec :: CompiledSpec, sys :: CompiledSystemSpec,
 ) where {T &lt;: Real, S &lt;: Real}
-    for id_ball in sys.entity_ids
-        i_pos = state_idx(spec, id_ball * &quot;.ball.position&quot;)
-        i_vel = state_idx(spec, id_ball * &quot;.ball.velocity&quot;)
+    for eid in sys.entity_ids
+        i_pos = state_idx(spec, eid * &quot;.ball.position&quot;)
+        i_vel = state_idx(spec, eid * &quot;.ball.velocity&quot;)
         dx[i_pos] += x[i_vel]
         dx[i_vel] += -9.81
     end
@@ -1132,137 +1470,186 @@ end
 
 end  # module MyDynamics
 </code></pre>
-<p>The <code>{T &lt;: Real, S &lt;: Real}</code> signature is required for stiff solvers (Rodas5P):
-during Jacobian evaluation, OrdinaryDiffEq calls dynamics with <code>x::Vector{Dual}</code>.
-Both type parameters must be present so helper functions can correctly type their
-return values.</p>
-<p>Use <code>t :: Real</code> (not <code>Float64</code>) to cover both normal Float64 calls and any
-potential ForwardDiff Dual paths.</p>
+<p>In Python, set <code>dynamics_fn = "MyDynamics.gravity_dynamics!"</code> on the <code>System</code>.</p>
+<hr />
 <h2 id="index-helpers">Index helpers</h2>
-<pre><code class="language-julia">state_idx(spec, &quot;entity_id.component_kind.field_name&quot;)  # Int (1-based)
-param_idx(spec, &quot;entity_id.component_kind.field_name&quot;)  # Int (1-based)
-state_range(spec, &quot;entity_id.component_kind.field_name&quot;)  # UnitRange{Int}
-param_range(spec, &quot;entity_id.component_kind.field_name&quot;)  # UnitRange{Int}
-</code></pre>
-<p>For multi-slot systems, entity IDs are stored flat in <code>sys.entity_ids</code> with
-<code>sys.group_size</code> entities per group:</p>
-<pre><code class="language-julia">function spring_force!(dx, x, p, t, spec, sys)
-    gs = sys.group_size   # = 3 for (MassComponent, SpringComponent, MassComponent)
-    for i in 1:gs:length(sys.entity_ids)
-        id_a = sys.entity_ids[i]
-        id_s = sys.entity_ids[i+1]
-        id_b = sys.entity_ids[i+2]
-        # ...
-    end
-end
-</code></pre>
-<h2 id="scalar-helper-functions">Scalar helper functions</h2>
-<p>Helper functions called from dynamics must be generic over <code>T &lt;: Real</code> so they work
-with both <code>Float64</code> (normal calls) and <code>ForwardDiff.Dual</code> (Jacobian calls):</p>
-<pre><code class="language-julia">function soft_pen(x::T) where T &lt;: Real
-    x &lt;= 0.0 &amp;&amp; return zero(T)
-    x &gt;= STOP_DELTA &amp;&amp; return x - T(0.5 * STOP_DELTA)
-    return T(0.5) * x * x / STOP_DELTA
-end
-</code></pre>
-<h2 id="smooth-hard-stop-c1-ramp">Smooth hard stop (C1 ramp)</h2>
-<pre><code class="language-julia">const STOP_DELTA = 1e-6   # 1 µm
-
-function soft_pen(x::T)::T where T &lt;: Real
-    x &lt;= 0.0 &amp;&amp; return zero(T)
-    x &gt;= STOP_DELTA &amp;&amp; return x - T(0.5 * STOP_DELTA)
-    return T(0.5) * x * x / STOP_DELTA
-end
-
-# Velocity damping: blend in over the same 1 µm
-alpha  = clamp(-pos / STOP_DELTA, 0.0, 1.0)
-v_damp = max(0.0, -vel) * alpha
-F_stop = k_stop * soft_pen(-pos) + c_stop * v_damp
-</code></pre>
-<h2 id="calling-from-python">Calling from Python</h2>
-<pre><code class="language-python">from numen.bridge.runtime import JuliaBackend
-
-backend = JuliaBackend(
-    julia_file=&quot;dynamics.jl&quot;,
-    method=&quot;Tsit5&quot;,
-    rtol=1e-6,
-    atol=1e-8,
-)
-result = backend.solve(spec, tspan=(0.0, 5.0))
-</code></pre>
-<p>For repeated solves in the same session, use <code>JuliaServerBackend</code> (persistent process):</p>
-<pre><code class="language-python">from numen.bridge.server_backend import JuliaServerBackend
-
-backend = JuliaServerBackend(
-    julia_file=&quot;dynamics.jl&quot;,
-    method=&quot;Tsit5&quot;,
-    rtol=1e-6,
-    atol=1e-8,
-)
-result = backend.solve(spec, tspan=(0.0, 5.0))
-</code></pre>
-<h2 id="stiff-solvers">Stiff solvers</h2>
-<p>For stiff problems (multiple timescales, pressure/force at different scales), use
-Rosenbrock-type implicit solvers:</p>
+<p>These four functions are always available via <code>import Main: ...</code>:</p>
 <table>
 <thead>
 <tr>
-<th>Method</th>
-<th>Best for</th>
+<th>Function</th>
+<th>Returns</th>
+<th>Description</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>Tsit5</code></td>
-<td>Non-stiff ODEs (default)</td>
+<td><code>state_idx(spec, key)</code></td>
+<td><code>Int</code> (1-based)</td>
+<td>First Julia index for a state field</td>
 </tr>
 <tr>
-<td><code>Dopri5</code></td>
-<td>Non-stiff ODEs with tight tolerances</td>
+<td><code>param_idx(spec, key)</code></td>
+<td><code>Int</code> (1-based)</td>
+<td>First Julia index for a parameter field</td>
 </tr>
 <tr>
-<td><code>Vern7</code></td>
-<td>Non-stiff, high-accuracy</td>
+<td><code>state_range(spec, key)</code></td>
+<td><code>UnitRange{Int}</code></td>
+<td>Full slice for vector state fields (<code>size=N</code>)</td>
 </tr>
 <tr>
-<td><code>Rodas5P</code></td>
-<td>Stiff ODEs and index-1 DAEs (recommended)</td>
-</tr>
-<tr>
-<td><code>FBDF</code></td>
-<td>Very stiff DAE systems</td>
+<td><code>param_range(spec, key)</code></td>
+<td><code>UnitRange{Int}</code></td>
+<td>Full slice for vector parameter fields</td>
 </tr>
 </tbody>
 </table>
-<p>Numen handles both the sparse Jacobian (<code>jac_prototype</code> from ECS sparsity pattern)
-and the time gradient (<code>tgrad!</code> via central FD) automatically — you do not need
-to implement these in <code>dynamics.jl</code>.</p>
-<pre><code class="language-python">backend = JuliaServerBackend(
-    julia_file=&quot;dynamics.jl&quot;,
-    method=&quot;Rodas5P&quot;,
-    rtol=1e-6,
-    atol=1e-8,
-)
+<p>Keys use the full path <code>"entity_id.component_kind.field_name"</code>, matching Python's <code>spec.state_index_map</code>.</p>
+<pre><code class="language-julia"># Scalar field
+i_pos = state_idx(spec, &quot;osc.oscillator.position&quot;)
+
+# Vector field (size=8)
+r = state_range(spec, &quot;node.beam.displacement&quot;)   # UnitRange 1:8
+x[r]                                               # 8-element view
 </code></pre>
-<h2 id="controller-callbacks">Controller callbacks</h2>
-<p>Julia callbacks fire inside the OrdinaryDiffEq integrator via <code>PeriodicCallback</code>:</p>
-<pre><code class="language-julia">function pid!(integrator, spec, params)
-    i_force = state_idx(spec, &quot;actuator.actuator.force&quot;)
-    i_angle = state_idx(spec, &quot;sensor.sensor.angle&quot;)
-    err = integrator.u[i_angle] - params[&quot;setpoint&quot;]
-    integrator.u[i_force] = params[&quot;kp&quot;] * err
+<hr />
+<h2 id="multi-entity-systems-group_size">Multi-entity systems (<code>group_size</code>)</h2>
+<p>When a system couples multiple entities, entity IDs are stored flat in
+<code>sys.entity_ids</code> with <code>sys.group_size</code> per group:</p>
+<pre><code class="language-julia">gs = sys.group_size   # e.g. 3 for [cv_a, orifice, cv_b]
+for i in 1:gs:length(sys.entity_ids)
+    id_a = sys.entity_ids[i]
+    id_o = sys.entity_ids[i + 1]
+    id_b = sys.entity_ids[i + 2]
+    # ...
 end
 </code></pre>
-<p>Reference the callback in Python with <code>julia_fn = "MyDyn.pid!"</code> on the <code>Callback</code> class.</p>
-<h2 id="why-the-subprocess-bridge">Why the subprocess bridge?</h2>
-<p>Numen communicates with Julia via subprocess JSON — not <code>juliacall</code> / <code>PythonCall</code>.</p>
-<ul>
-<li><strong>No dependency on <code>juliacall</code></strong> — Julia is a black box that reads JSON and writes JSON.</li>
-<li><strong>Full isolation</strong> — Julia subprocess crash doesn't crash the Python process.</li>
-<li><strong>Simpler debugging</strong> — Julia stderr is captured and routed to <code>numen.backend.julia*</code> logger.</li>
-</ul>
-<p>The <code>JuliaServerBackend</code> keeps the subprocess alive between solves to amortise the
-~6 s startup cost. The <code>JuliaServerPool</code> runs N parallel servers for parameter sweeps.</p>
+<p>For single-entity systems (<code>group_size = 1</code>), iterate directly:</p>
+<pre><code class="language-julia">for eid in sys.entity_ids
+    i_pos = state_idx(spec, eid * &quot;.mass.position&quot;)
+    # ...
+end
+</code></pre>
+<hr />
+<h2 id="smooth-contact-hard-stop-helper">Smooth contact / hard-stop helper</h2>
+<p>A bare <code>max(0, -pos)</code> stop force has a C0 kink that causes thousands of tiny
+rejected steps. Use this C1-smooth ramp instead:</p>
+<pre><code class="language-julia">const STOP_DELTA = 1e-6   # 1 µm — matches Python _STOP_DELTA
+
+function soft_pen(x::T) where T &lt;: Real
+    x &lt;= 0.0        &amp;&amp; return zero(T)
+    x &gt;= STOP_DELTA &amp;&amp; return x - 0.5 * STOP_DELTA
+    return 0.5 * x * x / STOP_DELTA
+end
+</code></pre>
+<p>Piston with both-end stops:</p>
+<pre><code class="language-julia">pen_close    = soft_pen(-pos)
+pen_open     = soft_pen(pos - max_travel)
+alpha_close  = clamp(-pos / STOP_DELTA, zero(S), one(S))
+alpha_open   = clamp((pos - max_travel) / STOP_DELTA, zero(S), one(S))
+v_damp_close = max(zero(S), -vel) * alpha_close
+v_damp_open  = max(zero(S),  vel) * alpha_open
+F_stop = (k_stop * pen_close + c_stop * v_damp_close
+         - k_stop * pen_open  - c_stop * v_damp_open)
+</code></pre>
+<hr />
+<h2 id="isentropic-orifice-flow">Isentropic orifice flow</h2>
+<p>Standard compressible orifice helper (from the fluid examples):</p>
+<pre><code class="language-julia">function orifice_mdot(
+    P_up::T, P_dn::T, T_up::Float64,
+    R::Float64, Cd::Float64, A::Real, gamma::Float64,
+) where T &lt;: Real
+    (P_up &lt;= 0.0 || A &lt;= 0.0) &amp;&amp; return zero(T)
+
+    beta      = max(zero(T), P_dn) / P_up
+    beta_crit = (2.0 / (gamma + 1.0))^(gamma / (gamma - 1.0))
+
+    if beta &lt;= beta_crit
+        choke_exp = (gamma + 1.0) / (2.0 * (gamma - 1.0))
+        return Cd * A * P_up * sqrt(gamma / (R * T_up)) *
+               (2.0 / (gamma + 1.0))^choke_exp
+    else
+        arg = beta^(2.0 / gamma) - beta^((gamma + 1.0) / gamma)
+        return Cd * A * P_up * sqrt(
+            max(zero(T), 2.0 * gamma / ((gamma - 1.0) * R * T_up) * arg))
+    end
+end
+</code></pre>
+<p><code>P_up</code>, <code>P_dn</code>, and state-derived areas may be Dual numbers; scalar parameters
+from <code>p</code> are always <code>Float64</code>.</p>
+<hr />
+<h2 id="helper-function-type-signatures">Helper function type signatures</h2>
+<p>Any helper that receives state values must be generic in <code>T</code>:</p>
+<pre><code class="language-julia"># Correct — works for Float64 and Dual
+function my_helper(x::T) where T &lt;: Real
+    x &gt; 0.0 &amp;&amp; return x * x
+    return zero(T)        # zero(T), not 0.0
+end
+
+# Wrong — crashes during stiff Jacobian evaluation
+function my_helper(x::Float64)::Float64
+    return x &gt; 0.0 ? x * x : 0.0
+end
+</code></pre>
+<hr />
+<h2 id="calling-from-python">Calling from Python</h2>
+<pre><code class="language-python">from numen.bridge.runtime import JuliaBackend, JuliaServerBackend
+
+# Single solve
+result = JuliaBackend(
+    julia_file = &quot;dynamics.jl&quot;,
+    method     = &quot;Tsit5&quot;,         # or &quot;Rodas5P&quot; for stiff systems
+    rtol       = 1e-8,
+    atol       = 1e-10,
+).solve(spec, tspan=(0.0, 1.0))
+
+# Repeated solves — pays JIT cost once
+with JuliaServerBackend(
+    julia_file    = &quot;dynamics.jl&quot;,
+    method        = &quot;Tsit5&quot;,
+    rtol          = 1e-8,
+    atol          = 1e-10,
+    n_save_points = 2000,
+) as srv:
+    for p_val in param_sweep:
+        result = srv.solve(compile_spec(make_world(p_val)), tspan)
+</code></pre>
+<p>See <a href="../guide/backends/">Backends</a> for <code>JuliaServerPool</code> (parallel sweeps).</p>
+<hr />
+<h2 id="framework-types-reference">Framework types reference</h2>
+<p>Defined in <code>julia/src/types.jl</code>; available via <code>import Main:</code> in every dynamics file.</p>
+<h3 id="compiledspec"><code>CompiledSpec</code></h3>
+<pre><code class="language-julia">struct CompiledSpec
+    state_size        :: Int
+    param_size        :: Int
+    state_index_map   :: Dict{String, Vector{Int}}   # key → [start, stop] (0-based)
+    param_index_map   :: Dict{String, Vector{Int}}
+    discrete_dts      :: Vector{Float64}
+    x0                :: Vector{Float64}
+    p                 :: Vector{Float64}
+    differential_mask :: Vector{Float64}             # 1.0 = ODE slot, 0.0 = algebraic
+    systems           :: Vector{CompiledSystemSpec}
+    callbacks         :: Vector{CompiledCallbackSpec}
+    jac_sparsity_rows :: Vector{Int}                 # COO sparsity (0-based)
+    jac_sparsity_cols :: Vector{Int}
+end
+</code></pre>
+<h3 id="compiledsystemspec"><code>CompiledSystemSpec</code></h3>
+<pre><code class="language-julia">struct CompiledSystemSpec
+    dynamics_fn :: String            # &quot;Module.function_name!&quot;
+    entity_ids  :: Vector{String}    # flat; stride = group_size
+    group_size  :: Int
+end
+</code></pre>
+<h3 id="index-helper-source">Index helper source</h3>
+<pre><code class="language-julia"># 0-based Python [start, stop) → 1-based Julia start:stop
+state_range(spec, key) = let e = spec.state_index_map[key]; (e[1]+1):e[2] end
+param_range(spec, key) = let e = spec.param_index_map[key]; (e[1]+1):e[2] end
+
+state_idx(spec, key) = first(state_range(spec, key))
+param_idx(spec, key) = first(param_range(spec, key))
+</code></pre>
 
 
 
