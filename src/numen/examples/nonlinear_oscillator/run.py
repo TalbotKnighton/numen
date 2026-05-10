@@ -52,7 +52,7 @@ def main():
     # --- Snapshot comparison at t=5 s ---
     for label, col in [("Nonlinear", collector_nl), ("Linear   ", collector_lin)]:
         snap = col.at(t=5.0)
-        osc  = snap.components["osc"]
+        osc  = snap.components["osc"]["nl_oscillator"]
         print(f"{label} at t=5 s:  x={osc.position:+.6f}  v={osc.velocity:+.6f}")
 
     fig = plot_nl_oscillator(

@@ -158,10 +158,10 @@ def check() -> None:
             from numen._check_model import _CheckOsc, _CheckOscSys, CheckWorld
             from numen.compiler.flatten import compile_spec
             from numen.bridge.scipy_backend import ScipyBackend
-            world = CheckWorld(components={"o": _CheckOsc()}, systems={"s": _CheckOscSys()})
+            world = CheckWorld(components={"o": {"_check_osc": _CheckOsc()}}, systems={"s": _CheckOscSys()})
             spec = compile_spec(world)
             result = ScipyBackend(rtol=1e-8, atol=1e-10).solve(spec, (0.0, 1.0))
-            final = result.x[spec.state_index_map["o.position"][0], -1]
+            final = result.x[spec.state_index_map["o._check_osc.position"][0], -1]
             assert abs(final - 1.0) < 1e-4, f"wrong: {final}"
             scipy_ok = True
         except Exception as e:
@@ -179,10 +179,10 @@ def check() -> None:
             from numen._check_model import _CheckOsc, _CheckOscSysJax, CheckWorldJax
             from numen.compiler.flatten import compile_spec
             from numen.bridge.jax_backend import JAXBackend
-            world2 = CheckWorldJax(components={"o": _CheckOsc()}, systems={"s": _CheckOscSysJax()})
+            world2 = CheckWorldJax(components={"o": {"_check_osc": _CheckOsc()}}, systems={"s": _CheckOscSysJax()})
             spec2 = compile_spec(world2)
             result2 = JAXBackend(rtol=1e-8, atol=1e-10, solver="Dopri5").solve(spec2, (0.0, 1.0))
-            final2 = float(result2.x[spec2.state_index_map["o.position"][0], -1])
+            final2 = float(result2.x[spec2.state_index_map["o._check_osc.position"][0], -1])
             assert abs(final2 - 1.0) < 1e-3, f"wrong: {final2}"
             jax_ok = True
         except ImportError:

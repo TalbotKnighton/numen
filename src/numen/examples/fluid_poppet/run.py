@@ -124,11 +124,11 @@ def plot(world, spec, result):
     vel           = sv("poppet.poppet.velocity")
 
     # Reconstruct mass flow through valve at each saved time step
-    poppet_c = world.components["poppet"]
-    pipe_c   = world.components["inlet_pipe"]
-    P_ip = sv("inlet_pipe.pressure")
-    P_op = sv("outlet_pipe.pressure")
-    pos  = sv("poppet.position")
+    poppet_c = world.components["poppet"]["poppet"]
+    pipe_c   = world.components["inlet_pipe"]["control_volume"]
+    P_ip = sv("inlet_pipe.control_volume.pressure")
+    P_op = sv("outlet_pipe.control_volume.pressure")
+    pos  = sv("poppet.poppet.position")
 
     opening  = np.clip(pos / poppet_c.max_travel, 0.0, 1.0)
     area     = poppet_c.max_flow_area * opening

@@ -28,7 +28,7 @@ def main():
 
     collector = SnapshotCollector(world, spec, result)
     snap = collector.at(0.25)
-    osc  = snap.components["osc"]
+    osc  = snap.components["osc"]["oscillator"]
     print(f"\nSnapshot at t=0.25s:  position={osc.position:.6f}  velocity={osc.velocity:.6f}")
 
     fig = plot_oscillator(collector, entity_id="osc", title="1D Harmonic Oscillator")

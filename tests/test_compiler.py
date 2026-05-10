@@ -16,7 +16,8 @@ class TankComponent(Component):
 
 def make_world():
     World = GenericWorld[TankComponent, None, None]
-    return World(components={"tank_a": TankComponent()})
+    # components: {entity_id: {component_kind: Component()}}
+    return World(components={"tank_a": {"tank": TankComponent()}})
 
 
 def test_compile_state_size():
@@ -32,15 +33,16 @@ def test_compile_param_size():
 
 def test_state_index_map_keys():
     spec = compile_spec(make_world())
-    assert "tank_a.pressure"    in spec.state_index_map
-    assert "tank_a.temperature" in spec.state_index_map
-    assert "tank_a.valve_cmd"   in spec.state_index_map
+    # keys are entity_id.component_kind.field_name
+    assert "tank_a.tank.pressure"    in spec.state_index_map
+    assert "tank_a.tank.temperature" in spec.state_index_map
+    assert "tank_a.tank.valve_cmd"   in spec.state_index_map
 
 
 def test_param_index_map_keys():
     spec = compile_spec(make_world())
-    assert "tank_a.volume" in spec.param_index_map
-    assert "tank_a.volume" not in spec.state_index_map
+    assert "tank_a.tank.volume" in spec.param_index_map
+    assert "tank_a.tank.volume" not in spec.state_index_map
 
 
 def test_discrete_dts():
@@ -60,9 +62,9 @@ def test_p_length():
 
 def test_scalar_idx_helpers():
     spec = compile_spec(make_world())
-    idx = spec.state_idx("tank_a.pressure")
+    idx = spec.state_idx("tank_a.tank.pressure")
     assert isinstance(idx, int)
     assert spec.x0[idx] == 0.0   # default pressure
 
-    pidx = spec.param_idx("tank_a.volume")
+    pidx = spec.param_idx("tank_a.tank.volume")
     assert spec.p[pidx] == 1.0   # default volume
