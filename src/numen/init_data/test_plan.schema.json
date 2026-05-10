@@ -1,0 +1,1876 @@
+{
+  "$defs": {
+    "AmplitudeSweepPanelSpec": {
+      "description": "Transfer function magnitude (and optionally phase) vs drive amplitude.",
+      "properties": {
+        "type": {
+          "const": "amplitude_sweep",
+          "default": "amplitude_sweep",
+          "title": "Type",
+          "type": "string"
+        },
+        "enabled": {
+          "default": true,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title"
+        },
+        "test": {
+          "title": "Test",
+          "type": "string"
+        },
+        "show_phase": {
+          "default": true,
+          "title": "Show Phase",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "test"
+      ],
+      "title": "AmplitudeSweepPanelSpec",
+      "type": "object"
+    },
+    "AmplitudeSweepSpec": {
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "type": {
+          "const": "amplitude_sweep",
+          "title": "Type",
+          "type": "string"
+        },
+        "enabled": {
+          "default": true,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "frequency": {
+          "title": "Frequency",
+          "type": "number"
+        },
+        "amplitudes": {
+          "items": {
+            "type": "number"
+          },
+          "title": "Amplitudes",
+          "type": "array"
+        },
+        "dc_offset": {
+          "default": 0.0,
+          "title": "Dc Offset",
+          "type": "number"
+        },
+        "settle_periods": {
+          "default": 10,
+          "title": "Settle Periods",
+          "type": "integer"
+        },
+        "measure_periods": {
+          "default": 5,
+          "title": "Measure Periods",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "name",
+        "type",
+        "frequency",
+        "amplitudes"
+      ],
+      "title": "AmplitudeSweepSpec",
+      "type": "object"
+    },
+    "BackboneCurvePanelSpec": {
+      "description": "Backbone curve (instantaneous frequency vs amplitude) from a free_decay test.",
+      "properties": {
+        "type": {
+          "const": "backbone_curve",
+          "default": "backbone_curve",
+          "title": "Type",
+          "type": "string"
+        },
+        "enabled": {
+          "default": true,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title"
+        },
+        "decay_test": {
+          "title": "Decay Test",
+          "type": "string"
+        }
+      },
+      "required": [
+        "decay_test"
+      ],
+      "title": "BackboneCurvePanelSpec",
+      "type": "object"
+    },
+    "BackendSpec": {
+      "description": "Which solver backend to use for all solves in this campaign.",
+      "properties": {
+        "type": {
+          "default": "scipy",
+          "enum": [
+            "scipy",
+            "jax",
+            "julia",
+            "julia_server"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "julia_file": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Julia File"
+        },
+        "method": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Method"
+        },
+        "rtol": {
+          "default": 1e-08,
+          "title": "Rtol",
+          "type": "number"
+        },
+        "atol": {
+          "default": 1e-09,
+          "title": "Atol",
+          "type": "number"
+        },
+        "n_workers": {
+          "default": 1,
+          "title": "N Workers",
+          "type": "integer"
+        },
+        "n_save_points": {
+          "default": 0,
+          "title": "N Save Points",
+          "type": "integer"
+        },
+        "dtsave": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Dtsave"
+        },
+        "dtmax": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Dtmax"
+        }
+      },
+      "title": "BackendSpec",
+      "type": "object"
+    },
+    "BodePanelSpec": {
+      "description": "Magnitude + phase Bode diagram; overlays multiple test series.",
+      "properties": {
+        "type": {
+          "const": "bode",
+          "default": "bode",
+          "title": "Type",
+          "type": "string"
+        },
+        "enabled": {
+          "default": true,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title"
+        },
+        "series": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/BodeSeriesSpec"
+          },
+          "title": "Series",
+          "type": "array"
+        }
+      },
+      "title": "BodePanelSpec",
+      "type": "object"
+    },
+    "BodeSeriesSpec": {
+      "description": "One series on a Bode plot \u2014 references a test by name.",
+      "properties": {
+        "test": {
+          "title": "Test",
+          "type": "string"
+        },
+        "label": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Label"
+        },
+        "show_phase": {
+          "default": true,
+          "title": "Show Phase",
+          "type": "boolean"
+        },
+        "db": {
+          "default": true,
+          "title": "Db",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "test"
+      ],
+      "title": "BodeSeriesSpec",
+      "type": "object"
+    },
+    "ChirpTimeseriesPanelSpec": {
+      "description": "Raw time series of the chirp output state.",
+      "properties": {
+        "type": {
+          "const": "chirp_timeseries",
+          "default": "chirp_timeseries",
+          "title": "Type",
+          "type": "string"
+        },
+        "enabled": {
+          "default": true,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title"
+        },
+        "test": {
+          "title": "Test",
+          "type": "string"
+        }
+      },
+      "required": [
+        "test"
+      ],
+      "title": "ChirpTimeseriesPanelSpec",
+      "type": "object"
+    },
+    "ContinuousChirpSpec": {
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "type": {
+          "const": "continuous_chirp",
+          "title": "Type",
+          "type": "string"
+        },
+        "enabled": {
+          "default": true,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "f_start": {
+          "title": "F Start",
+          "type": "number"
+        },
+        "f_end": {
+          "title": "F End",
+          "type": "number"
+        },
+        "duration": {
+          "title": "Duration",
+          "type": "number"
+        },
+        "amplitude": {
+          "title": "Amplitude",
+          "type": "number"
+        },
+        "dc_offset": {
+          "default": 0.0,
+          "title": "Dc Offset",
+          "type": "number"
+        },
+        "chirp_type": {
+          "default": "log",
+          "enum": [
+            "log",
+            "linear"
+          ],
+          "title": "Chirp Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "type",
+        "f_start",
+        "f_end",
+        "duration",
+        "amplitude"
+      ],
+      "title": "ContinuousChirpSpec",
+      "type": "object"
+    },
+    "DCOperatingPointSweepSpec": {
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "type": {
+          "const": "dc_operating_point_sweep",
+          "title": "Type",
+          "type": "string"
+        },
+        "enabled": {
+          "default": true,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "dc_values": {
+          "items": {
+            "type": "number"
+          },
+          "title": "Dc Values",
+          "type": "array"
+        },
+        "probe_frequency": {
+          "title": "Probe Frequency",
+          "type": "number"
+        },
+        "probe_amplitude": {
+          "title": "Probe Amplitude",
+          "type": "number"
+        },
+        "settle_periods": {
+          "default": 10,
+          "title": "Settle Periods",
+          "type": "integer"
+        },
+        "measure_periods": {
+          "default": 5,
+          "title": "Measure Periods",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "name",
+        "type",
+        "dc_values",
+        "probe_frequency",
+        "probe_amplitude"
+      ],
+      "title": "DCOperatingPointSweepSpec",
+      "type": "object"
+    },
+    "DCSweepPanelSpec": {
+      "description": "Small-signal gain and phase vs DC operating point.",
+      "properties": {
+        "type": {
+          "const": "dc_sweep",
+          "default": "dc_sweep",
+          "title": "Type",
+          "type": "string"
+        },
+        "enabled": {
+          "default": true,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title"
+        },
+        "test": {
+          "title": "Test",
+          "type": "string"
+        }
+      },
+      "required": [
+        "test"
+      ],
+      "title": "DCSweepPanelSpec",
+      "type": "object"
+    },
+    "DOEParamSpec": {
+      "description": "Continuous parameter range for a DOE sweep.",
+      "properties": {
+        "min": {
+          "title": "Min",
+          "type": "number"
+        },
+        "max": {
+          "title": "Max",
+          "type": "number"
+        },
+        "scale": {
+          "default": "linear",
+          "enum": [
+            "linear",
+            "log"
+          ],
+          "title": "Scale",
+          "type": "string"
+        }
+      },
+      "required": [
+        "min",
+        "max"
+      ],
+      "title": "DOEParamSpec",
+      "type": "object"
+    },
+    "DOEScatterPanelSpec": {
+      "description": "Scatter of one scalar metric vs one parameter from a DOE or parameter sweep.",
+      "properties": {
+        "type": {
+          "const": "doe_scatter",
+          "default": "doe_scatter",
+          "title": "Type",
+          "type": "string"
+        },
+        "enabled": {
+          "default": true,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title"
+        },
+        "test": {
+          "title": "Test",
+          "type": "string"
+        },
+        "x_param": {
+          "title": "X Param",
+          "type": "string"
+        },
+        "y_metric": {
+          "default": "f0",
+          "title": "Y Metric",
+          "type": "string"
+        },
+        "color_param": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Color Param"
+        }
+      },
+      "required": [
+        "test",
+        "x_param"
+      ],
+      "title": "DOEScatterPanelSpec",
+      "type": "object"
+    },
+    "DOESweepSpec": {
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "type": {
+          "const": "doe_sweep",
+          "title": "Type",
+          "type": "string"
+        },
+        "enabled": {
+          "default": true,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "design": {
+          "default": "latin_hypercube",
+          "enum": [
+            "latin_hypercube",
+            "sobol",
+            "halton",
+            "central_composite",
+            "box_behnken",
+            "full_factorial"
+          ],
+          "title": "Design",
+          "type": "string"
+        },
+        "n_samples": {
+          "default": 50,
+          "title": "N Samples",
+          "type": "integer"
+        },
+        "params": {
+          "additionalProperties": {
+            "$ref": "#/$defs/DOEParamSpec"
+          },
+          "title": "Params",
+          "type": "object"
+        },
+        "sub_test": {
+          "title": "Sub Test",
+          "type": "string"
+        },
+        "outputs": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Outputs",
+          "type": "array"
+        }
+      },
+      "required": [
+        "name",
+        "type",
+        "params",
+        "sub_test"
+      ],
+      "title": "DOESweepSpec",
+      "type": "object"
+    },
+    "DiscreteFrequencySweepSpec": {
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "type": {
+          "const": "discrete_frequency_sweep",
+          "title": "Type",
+          "type": "string"
+        },
+        "enabled": {
+          "default": true,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "frequencies": {
+          "$ref": "#/$defs/FrequencyGridSpec"
+        },
+        "amplitude": {
+          "title": "Amplitude",
+          "type": "number"
+        },
+        "dc_offset": {
+          "default": 0.0,
+          "title": "Dc Offset",
+          "type": "number"
+        },
+        "settle_periods": {
+          "default": 10,
+          "title": "Settle Periods",
+          "type": "integer"
+        },
+        "measure_periods": {
+          "default": 5,
+          "title": "Measure Periods",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "name",
+        "type",
+        "frequencies",
+        "amplitude"
+      ],
+      "title": "DiscreteFrequencySweepSpec",
+      "type": "object"
+    },
+    "ExcitationSpec": {
+      "description": "Which entity / port to drive and which state to measure.\n\nFull path for the excitation port:  entity / component (kind) / port (field name).\nFull path for the output state:     entity / output_component (kind) / output_state (field name).\n``output_component`` defaults to ``component`` when omitted (most models drive and\nmeasure on the same component).",
+      "properties": {
+        "entity": {
+          "title": "Entity",
+          "type": "string"
+        },
+        "component": {
+          "title": "Component",
+          "type": "string"
+        },
+        "port": {
+          "title": "Port",
+          "type": "string"
+        },
+        "output_state": {
+          "title": "Output State",
+          "type": "string"
+        },
+        "output_component": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Output Component"
+        }
+      },
+      "required": [
+        "entity",
+        "component",
+        "port",
+        "output_state"
+      ],
+      "title": "ExcitationSpec",
+      "type": "object"
+    },
+    "FigureSpec": {
+      "description": "Top-level figure appearance.",
+      "properties": {
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title"
+        },
+        "subtitle": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Subtitle"
+        },
+        "size": {
+          "anyOf": [
+            {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Size"
+        }
+      },
+      "title": "FigureSpec",
+      "type": "object"
+    },
+    "FreeDecaySpec": {
+      "description": "Ring-down from a large initial condition; Hilbert-transform backbone extraction.\n\nThe excitation force is set to zero.  The initial state is overridden to\n``initial_displacement`` (position) and ``initial_velocity`` (velocity).",
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "type": {
+          "const": "free_decay",
+          "title": "Type",
+          "type": "string"
+        },
+        "enabled": {
+          "default": true,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "initial_displacement": {
+          "title": "Initial Displacement",
+          "type": "number"
+        },
+        "initial_velocity": {
+          "default": 0.0,
+          "title": "Initial Velocity",
+          "type": "number"
+        },
+        "t_end": {
+          "title": "T End",
+          "type": "number"
+        },
+        "bandpass_low": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Bandpass Low"
+        },
+        "bandpass_high": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Bandpass High"
+        }
+      },
+      "required": [
+        "name",
+        "type",
+        "initial_displacement",
+        "t_end"
+      ],
+      "title": "FreeDecaySpec",
+      "type": "object"
+    },
+    "FrequencyGridSpec": {
+      "description": "Log or linear frequency grid for discrete swept-sine tests.",
+      "properties": {
+        "spacing": {
+          "default": "log",
+          "enum": [
+            "log",
+            "linear"
+          ],
+          "title": "Spacing",
+          "type": "string"
+        },
+        "f_start": {
+          "title": "F Start",
+          "type": "number"
+        },
+        "f_end": {
+          "title": "F End",
+          "type": "number"
+        },
+        "n_points": {
+          "default": 40,
+          "title": "N Points",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "f_start",
+        "f_end"
+      ],
+      "title": "FrequencyGridSpec",
+      "type": "object"
+    },
+    "HarmonicDistortionSweepSpec": {
+      "description": "Stepped-sine sweep that measures THD and individual harmonics at each frequency.",
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "type": {
+          "const": "harmonic_distortion_sweep",
+          "title": "Type",
+          "type": "string"
+        },
+        "enabled": {
+          "default": true,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "frequencies": {
+          "$ref": "#/$defs/FrequencyGridSpec"
+        },
+        "amplitude": {
+          "title": "Amplitude",
+          "type": "number"
+        },
+        "dc_offset": {
+          "default": 0.0,
+          "title": "Dc Offset",
+          "type": "number"
+        },
+        "max_harmonic": {
+          "default": 4,
+          "title": "Max Harmonic",
+          "type": "integer"
+        },
+        "settle_periods": {
+          "default": 10,
+          "title": "Settle Periods",
+          "type": "integer"
+        },
+        "measure_periods": {
+          "default": 5,
+          "title": "Measure Periods",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "name",
+        "type",
+        "frequencies",
+        "amplitude"
+      ],
+      "title": "HarmonicDistortionSweepSpec",
+      "type": "object"
+    },
+    "ModelSpec": {
+      "description": "How to construct the Numen world under test.",
+      "properties": {
+        "module": {
+          "title": "Module",
+          "type": "string"
+        },
+        "factory": {
+          "title": "Factory",
+          "type": "string"
+        },
+        "factory_kwargs": {
+          "additionalProperties": true,
+          "default": {},
+          "title": "Factory Kwargs",
+          "type": "object"
+        },
+        "metrics": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Metrics"
+        }
+      },
+      "required": [
+        "module",
+        "factory"
+      ],
+      "title": "ModelSpec",
+      "type": "object"
+    },
+    "MultisineSignalSpec": {
+      "description": "Deterministic multi-sine \u2014 PHASE 2, implementation deferred.",
+      "properties": {
+        "type": {
+          "const": "multisine",
+          "title": "Type",
+          "type": "string"
+        },
+        "tones": {
+          "anyOf": [
+            {
+              "items": {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tones"
+        },
+        "file": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "File"
+        },
+        "optimize_phase": {
+          "default": false,
+          "title": "Optimize Phase",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "MultisineSignalSpec",
+      "type": "object"
+    },
+    "PSDFileSignalSpec": {
+      "description": "External PSD file (CSV / JSON / NPY). Resolved relative to test_plan.yaml.",
+      "properties": {
+        "type": {
+          "const": "psd_file",
+          "title": "Type",
+          "type": "string"
+        },
+        "path": {
+          "title": "Path",
+          "type": "string"
+        },
+        "units": {
+          "default": "g_rms",
+          "enum": [
+            "g_rms",
+            "m_s2"
+          ],
+          "title": "Units",
+          "type": "string"
+        },
+        "target_grms": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Target Grms"
+        }
+      },
+      "required": [
+        "type",
+        "path"
+      ],
+      "title": "PSDFileSignalSpec",
+      "type": "object"
+    },
+    "PSDProfileSignalSpec": {
+      "description": "Inline PSD breakpoints with log-log interpolation.",
+      "properties": {
+        "type": {
+          "const": "psd_profile",
+          "title": "Type",
+          "type": "string"
+        },
+        "breakpoints": {
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Breakpoints",
+          "type": "array"
+        },
+        "units": {
+          "default": "g_rms",
+          "enum": [
+            "g_rms",
+            "m_s2"
+          ],
+          "title": "Units",
+          "type": "string"
+        },
+        "target_grms": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Target Grms"
+        }
+      },
+      "required": [
+        "type",
+        "breakpoints"
+      ],
+      "title": "PSDProfileSignalSpec",
+      "type": "object"
+    },
+    "ParameterFamilyPanelSpec": {
+      "description": "Family of Bode curves from a parameter sweep, coloured by parameter value.",
+      "properties": {
+        "type": {
+          "const": "parameter_family",
+          "default": "parameter_family",
+          "title": "Type",
+          "type": "string"
+        },
+        "enabled": {
+          "default": true,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title"
+        },
+        "test": {
+          "title": "Test",
+          "type": "string"
+        },
+        "db": {
+          "default": true,
+          "title": "Db",
+          "type": "boolean"
+        },
+        "show_phase": {
+          "default": true,
+          "title": "Show Phase",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "test"
+      ],
+      "title": "ParameterFamilyPanelSpec",
+      "type": "object"
+    },
+    "ParameterGridHeatmapPanelSpec": {
+      "description": "Heatmap of a scalar metric over a 2-parameter grid.",
+      "properties": {
+        "type": {
+          "const": "parameter_grid_heatmap",
+          "default": "parameter_grid_heatmap",
+          "title": "Type",
+          "type": "string"
+        },
+        "enabled": {
+          "default": true,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title"
+        },
+        "test": {
+          "title": "Test",
+          "type": "string"
+        },
+        "metric": {
+          "default": "peak_magnitude",
+          "title": "Metric",
+          "type": "string"
+        }
+      },
+      "required": [
+        "test"
+      ],
+      "title": "ParameterGridHeatmapPanelSpec",
+      "type": "object"
+    },
+    "ParameterGridSpec": {
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "type": {
+          "const": "parameter_grid",
+          "title": "Type",
+          "type": "string"
+        },
+        "enabled": {
+          "default": true,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "params": {
+          "additionalProperties": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array"
+          },
+          "title": "Params",
+          "type": "object"
+        },
+        "sub_test": {
+          "title": "Sub Test",
+          "type": "string"
+        },
+        "mode": {
+          "default": "full_factorial",
+          "enum": [
+            "full_factorial",
+            "pairs"
+          ],
+          "title": "Mode",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "type",
+        "params",
+        "sub_test"
+      ],
+      "title": "ParameterGridSpec",
+      "type": "object"
+    },
+    "ParameterSweepSpec": {
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "type": {
+          "const": "parameter_sweep",
+          "title": "Type",
+          "type": "string"
+        },
+        "enabled": {
+          "default": true,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "sweep_param": {
+          "title": "Sweep Param",
+          "type": "string"
+        },
+        "values": {
+          "items": {
+            "type": "number"
+          },
+          "title": "Values",
+          "type": "array"
+        },
+        "sub_test": {
+          "title": "Sub Test",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "type",
+        "sweep_param",
+        "values",
+        "sub_test"
+      ],
+      "title": "ParameterSweepSpec",
+      "type": "object"
+    },
+    "PhasePortraitPanelSpec": {
+      "description": "Phase portrait (position vs velocity limit cycle) with optional Poincar\u00e9 dots.",
+      "properties": {
+        "type": {
+          "const": "phase_portrait_panel",
+          "default": "phase_portrait_panel",
+          "title": "Type",
+          "type": "string"
+        },
+        "enabled": {
+          "default": true,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title"
+        },
+        "tests": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Tests",
+          "type": "array"
+        },
+        "show_poincare": {
+          "default": true,
+          "title": "Show Poincare",
+          "type": "boolean"
+        }
+      },
+      "title": "PhasePortraitPanelSpec",
+      "type": "object"
+    },
+    "PhasePortraitSpec": {
+      "description": "Record the steady-state limit cycle in (position, velocity) state space.\n\nSimulates ``n_transient_cycles + n_record_cycles`` forcing periods.  The\nfirst ``n_transient_cycles`` are discarded; the rest are returned as the\nlimit cycle.  If ``poincare=True``, stroboscopic samples at multiples of\nthe forcing period are also returned (one dot per period for a periodic\nresponse; a cloud for quasi-periodic or chaotic response).",
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "type": {
+          "const": "phase_portrait",
+          "title": "Type",
+          "type": "string"
+        },
+        "enabled": {
+          "default": true,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "frequency": {
+          "title": "Frequency",
+          "type": "number"
+        },
+        "amplitude": {
+          "title": "Amplitude",
+          "type": "number"
+        },
+        "dc_offset": {
+          "default": 0.0,
+          "title": "Dc Offset",
+          "type": "number"
+        },
+        "n_transient_cycles": {
+          "default": 50,
+          "title": "N Transient Cycles",
+          "type": "integer"
+        },
+        "n_record_cycles": {
+          "default": 10,
+          "title": "N Record Cycles",
+          "type": "integer"
+        },
+        "poincare": {
+          "default": true,
+          "title": "Poincare",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "name",
+        "type",
+        "frequency",
+        "amplitude"
+      ],
+      "title": "PhasePortraitSpec",
+      "type": "object"
+    },
+    "PlotsSpec": {
+      "description": "Plot generation configuration \u2014 paired with the tests: section.",
+      "properties": {
+        "output": {
+          "default": "characterization_summary.png",
+          "title": "Output",
+          "type": "string"
+        },
+        "dpi": {
+          "default": 150,
+          "title": "Dpi",
+          "type": "integer"
+        },
+        "figure": {
+          "$ref": "#/$defs/FigureSpec"
+        },
+        "panels": {
+          "default": [],
+          "items": {
+            "discriminator": {
+              "mapping": {
+                "amplitude_sweep": "#/$defs/AmplitudeSweepPanelSpec",
+                "backbone_curve": "#/$defs/BackboneCurvePanelSpec",
+                "bode": "#/$defs/BodePanelSpec",
+                "chirp_timeseries": "#/$defs/ChirpTimeseriesPanelSpec",
+                "dc_sweep": "#/$defs/DCSweepPanelSpec",
+                "doe_scatter": "#/$defs/DOEScatterPanelSpec",
+                "parameter_family": "#/$defs/ParameterFamilyPanelSpec",
+                "parameter_grid_heatmap": "#/$defs/ParameterGridHeatmapPanelSpec",
+                "phase_portrait_panel": "#/$defs/PhasePortraitPanelSpec",
+                "stochastic_response": "#/$defs/StochasticResponsePanelSpec",
+                "thd_spectrum": "#/$defs/THDSpectrumPanelSpec",
+                "two_tone_spectrum": "#/$defs/TwoToneSpectrumPanelSpec"
+              },
+              "propertyName": "type"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/BodePanelSpec"
+              },
+              {
+                "$ref": "#/$defs/ChirpTimeseriesPanelSpec"
+              },
+              {
+                "$ref": "#/$defs/AmplitudeSweepPanelSpec"
+              },
+              {
+                "$ref": "#/$defs/DCSweepPanelSpec"
+              },
+              {
+                "$ref": "#/$defs/ParameterFamilyPanelSpec"
+              },
+              {
+                "$ref": "#/$defs/DOEScatterPanelSpec"
+              },
+              {
+                "$ref": "#/$defs/ParameterGridHeatmapPanelSpec"
+              },
+              {
+                "$ref": "#/$defs/TwoToneSpectrumPanelSpec"
+              },
+              {
+                "$ref": "#/$defs/THDSpectrumPanelSpec"
+              },
+              {
+                "$ref": "#/$defs/BackboneCurvePanelSpec"
+              },
+              {
+                "$ref": "#/$defs/PhasePortraitPanelSpec"
+              },
+              {
+                "$ref": "#/$defs/StochasticResponsePanelSpec"
+              }
+            ]
+          },
+          "title": "Panels",
+          "type": "array"
+        }
+      },
+      "title": "PlotsSpec",
+      "type": "object"
+    },
+    "StochasticExcitationSpec": {
+      "description": "Broadband random vibration test.\n\nGenerates a pre-computed forcing time series from a PSD specification\n(or an external file) and replays it via table interpolation during the\nODE solve.  The response PSD, RMS, and crest factor are extracted.  A\nBest Linear Approximation (BLA) is computed from the input/output cross-\nspectrum \u2014 coherence below 1 identifies nonlinear or noise contributions.\n\nSeed management:\n    ``seed: null`` draws from os.urandom and the used seed is stored in\n    the result so the realisation is always replayable.  The CLI\n    ``--seed`` flag overrides all per-test seeds in the plan.\n\nNote:\n    JAX backends are not supported (variable-length parameter vector).\n    Use ``julia_server`` or ``scipy`` backends.",
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "type": {
+          "const": "stochastic_excitation",
+          "title": "Type",
+          "type": "string"
+        },
+        "enabled": {
+          "default": true,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "duration": {
+          "title": "Duration",
+          "type": "number"
+        },
+        "dt_sig": {
+          "title": "Dt Sig",
+          "type": "number"
+        },
+        "signal": {
+          "discriminator": {
+            "mapping": {
+              "multisine": "#/$defs/MultisineSignalSpec",
+              "psd_file": "#/$defs/PSDFileSignalSpec",
+              "psd_profile": "#/$defs/PSDProfileSignalSpec",
+              "time_series_file": "#/$defs/TimeSeriesFileSignalSpec"
+            },
+            "propertyName": "type"
+          },
+          "oneOf": [
+            {
+              "$ref": "#/$defs/PSDProfileSignalSpec"
+            },
+            {
+              "$ref": "#/$defs/PSDFileSignalSpec"
+            },
+            {
+              "$ref": "#/$defs/MultisineSignalSpec"
+            },
+            {
+              "$ref": "#/$defs/TimeSeriesFileSignalSpec"
+            }
+          ],
+          "title": "Signal"
+        },
+        "seed": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Seed"
+        },
+        "transient_fraction": {
+          "default": 0.2,
+          "title": "Transient Fraction",
+          "type": "number"
+        },
+        "n_welch_segments": {
+          "default": 8,
+          "title": "N Welch Segments",
+          "type": "integer"
+        },
+        "dc_offset": {
+          "default": 0.0,
+          "title": "Dc Offset",
+          "type": "number"
+        }
+      },
+      "required": [
+        "name",
+        "type",
+        "duration",
+        "dt_sig",
+        "signal"
+      ],
+      "title": "StochasticExcitationSpec",
+      "type": "object"
+    },
+    "StochasticResponsePanelSpec": {
+      "description": "Random vibration response: input PSD vs response PSD + BLA + coherence.",
+      "properties": {
+        "type": {
+          "const": "stochastic_response",
+          "default": "stochastic_response",
+          "title": "Type",
+          "type": "string"
+        },
+        "enabled": {
+          "default": true,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title"
+        },
+        "test": {
+          "default": "",
+          "title": "Test",
+          "type": "string"
+        },
+        "show_bla": {
+          "default": true,
+          "title": "Show Bla",
+          "type": "boolean"
+        },
+        "show_coherence": {
+          "default": true,
+          "title": "Show Coherence",
+          "type": "boolean"
+        },
+        "psd_db": {
+          "default": false,
+          "title": "Psd Db",
+          "type": "boolean"
+        }
+      },
+      "title": "StochasticResponsePanelSpec",
+      "type": "object"
+    },
+    "THDSpectrumPanelSpec": {
+      "description": "THD(f) and individual harmonic magnitudes from a harmonic_distortion_sweep.",
+      "properties": {
+        "type": {
+          "const": "thd_spectrum",
+          "default": "thd_spectrum",
+          "title": "Type",
+          "type": "string"
+        },
+        "enabled": {
+          "default": true,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title"
+        },
+        "test": {
+          "title": "Test",
+          "type": "string"
+        },
+        "show_harmonics": {
+          "default": [
+            2,
+            3
+          ],
+          "items": {
+            "type": "integer"
+          },
+          "title": "Show Harmonics",
+          "type": "array"
+        }
+      },
+      "required": [
+        "test"
+      ],
+      "title": "THDSpectrumPanelSpec",
+      "type": "object"
+    },
+    "TimeSeriesFileSignalSpec": {
+      "description": "Replay a pre-computed waveform from a file (CSV / JSON / NPY).",
+      "properties": {
+        "type": {
+          "const": "time_series_file",
+          "title": "Type",
+          "type": "string"
+        },
+        "path": {
+          "title": "Path",
+          "type": "string"
+        },
+        "resample": {
+          "default": true,
+          "title": "Resample",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "type",
+        "path"
+      ],
+      "title": "TimeSeriesFileSignalSpec",
+      "type": "object"
+    },
+    "TwoToneSpec": {
+      "description": "Apply two simultaneous sinusoids; extract harmonics and IM products.\n\nThe two tones are injected as independent excitation systems that\naccumulate into the same ExcitationPort target \u2014 no extra infrastructure\nis needed.  The simulation runs for ``n_cycles`` cycles of f1, with the\nfirst 70% discarded as transient.",
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "type": {
+          "const": "two_tone",
+          "title": "Type",
+          "type": "string"
+        },
+        "enabled": {
+          "default": true,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "f1": {
+          "title": "F1",
+          "type": "number"
+        },
+        "f2": {
+          "title": "F2",
+          "type": "number"
+        },
+        "amplitude1": {
+          "title": "Amplitude1",
+          "type": "number"
+        },
+        "amplitude2": {
+          "title": "Amplitude2",
+          "type": "number"
+        },
+        "n_cycles": {
+          "default": 30,
+          "title": "N Cycles",
+          "type": "integer"
+        },
+        "max_order": {
+          "default": 3,
+          "title": "Max Order",
+          "type": "integer"
+        },
+        "dc_offset": {
+          "default": 0.0,
+          "title": "Dc Offset",
+          "type": "number"
+        }
+      },
+      "required": [
+        "name",
+        "type",
+        "f1",
+        "f2",
+        "amplitude1",
+        "amplitude2"
+      ],
+      "title": "TwoToneSpec",
+      "type": "object"
+    },
+    "TwoToneSpectrumPanelSpec": {
+      "description": "Full FFT of a two-tone result with annotated harmonic and IM product lines.",
+      "properties": {
+        "type": {
+          "const": "two_tone_spectrum",
+          "default": "two_tone_spectrum",
+          "title": "Type",
+          "type": "string"
+        },
+        "enabled": {
+          "default": true,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title"
+        },
+        "test": {
+          "title": "Test",
+          "type": "string"
+        },
+        "db_floor": {
+          "default": -120.0,
+          "title": "Db Floor",
+          "type": "number"
+        },
+        "annotate_products": {
+          "default": true,
+          "title": "Annotate Products",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "test"
+      ],
+      "title": "TwoToneSpectrumPanelSpec",
+      "type": "object"
+    }
+  },
+  "description": "JSON Schema for Numen characterization test plans (test_plan.yaml). Generated from numen.characterization.schema.CharacterizationConfig. IMPORTANT: All model parameter keys (sweep_param, params keys, etc.) must use the full three-level path \"entity_id.component_kind.field_name\" \u2014 never two-level \"entity_id.field_name\". Excitation parameter paths use the prefix excitation.* (e.g. excitation.dc_offset, excitation.amplitude, excitation.frequency).",
+  "properties": {
+    "version": {
+      "default": "1.0",
+      "title": "Version",
+      "type": "string"
+    },
+    "output": {
+      "default": "results.json",
+      "title": "Output",
+      "type": "string"
+    },
+    "backend": {
+      "$ref": "#/$defs/BackendSpec"
+    },
+    "model": {
+      "$ref": "#/$defs/ModelSpec"
+    },
+    "excitation": {
+      "$ref": "#/$defs/ExcitationSpec"
+    },
+    "tests": {
+      "default": [],
+      "items": {
+        "discriminator": {
+          "mapping": {
+            "amplitude_sweep": "#/$defs/AmplitudeSweepSpec",
+            "continuous_chirp": "#/$defs/ContinuousChirpSpec",
+            "dc_operating_point_sweep": "#/$defs/DCOperatingPointSweepSpec",
+            "discrete_frequency_sweep": "#/$defs/DiscreteFrequencySweepSpec",
+            "doe_sweep": "#/$defs/DOESweepSpec",
+            "free_decay": "#/$defs/FreeDecaySpec",
+            "harmonic_distortion_sweep": "#/$defs/HarmonicDistortionSweepSpec",
+            "parameter_grid": "#/$defs/ParameterGridSpec",
+            "parameter_sweep": "#/$defs/ParameterSweepSpec",
+            "phase_portrait": "#/$defs/PhasePortraitSpec",
+            "stochastic_excitation": "#/$defs/StochasticExcitationSpec",
+            "two_tone": "#/$defs/TwoToneSpec"
+          },
+          "propertyName": "type"
+        },
+        "oneOf": [
+          {
+            "$ref": "#/$defs/DiscreteFrequencySweepSpec"
+          },
+          {
+            "$ref": "#/$defs/DCOperatingPointSweepSpec"
+          },
+          {
+            "$ref": "#/$defs/AmplitudeSweepSpec"
+          },
+          {
+            "$ref": "#/$defs/ParameterSweepSpec"
+          },
+          {
+            "$ref": "#/$defs/ParameterGridSpec"
+          },
+          {
+            "$ref": "#/$defs/DOESweepSpec"
+          },
+          {
+            "$ref": "#/$defs/ContinuousChirpSpec"
+          },
+          {
+            "$ref": "#/$defs/TwoToneSpec"
+          },
+          {
+            "$ref": "#/$defs/HarmonicDistortionSweepSpec"
+          },
+          {
+            "$ref": "#/$defs/FreeDecaySpec"
+          },
+          {
+            "$ref": "#/$defs/PhasePortraitSpec"
+          },
+          {
+            "$ref": "#/$defs/StochasticExcitationSpec"
+          }
+        ]
+      },
+      "title": "Tests",
+      "type": "array"
+    },
+    "plots": {
+      "$ref": "#/$defs/PlotsSpec"
+    }
+  },
+  "required": [
+    "model",
+    "excitation"
+  ],
+  "title": "Numen characterization test plan",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://TalbotKnighton.github.io/numen/test_plan.schema.json"
+}

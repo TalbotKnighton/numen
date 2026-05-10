@@ -1,4 +1,9 @@
+# yaml-language-server: $schema=../../init_data/test_plan.schema.json
 # Characterization test plan for the nonlinear oscillator
+#
+#   Model parameter keys must use the full three-level path
+#   "entity_id.component_kind.field_name" (e.g. osc.nl_oscillator.c1).
+#   Excitation parameters use the excitation.* prefix.
 #
 #   ẍ + (c₀ + c₁·x²)ẋ + ω²x = F(t)
 #

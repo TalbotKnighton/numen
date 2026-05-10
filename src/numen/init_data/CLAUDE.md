@@ -200,9 +200,17 @@ uv run numen characterize test_plan.yaml -p     # re-plot without re-running
 - name: frf_vs_dc
   type: parameter_sweep
   sweep_param: excitation.dc_offset   # or: excitation.amplitude, excitation.frequency
-  values: [0.0, 0.3, 0.6, 1.0]       # or: osc.my_component.c1 (3-part: entity.component_kind.field)
+  values: [0.0, 0.3, 0.6, 1.0]
   sub_test: baseline_frf              # any other test name in the same plan
 ```
+
+⚠️ **Mandatory**: model parameter keys (`sweep_param`, `params:` keys, etc.)
+must use the **full three-level path** `entity_id.component_kind.field_name` —
+e.g. `osc.my_component.c1`, never `osc.c1`. Excitation parameters use the
+`excitation.*` prefix. The runner validates this at campaign start and fails
+immediately on bad keys. See [CHARACTERIZATION.md](CHARACTERIZATION.md) for
+the full schema and the JSON Schema (`test_plan.schema.json`) for IDE
+autocomplete.
 
 **Plot panel types:** `bode`, `chirp_timeseries`, `amplitude_sweep`, `dc_sweep`,
 `parameter_family` (family of curves coloured by sweep param), `doe_scatter`,

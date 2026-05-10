@@ -9,7 +9,48 @@ generates plots without any Python scripting.
 uv run numen characterize test_plan.yaml          # run tests + plot
 uv run numen characterize test_plan.yaml -c       # run tests only → results.json
 uv run numen characterize test_plan.yaml -p       # plot only → reads results.json
+uv run numen schema -o test_plan.schema.json     # generate IDE autocomplete schema
 ```
+
+## Mandatory parameter key format
+
+All references to model parameters in a test plan **must** use the full
+three-level path:
+
+```
+entity_id.component_kind.field_name
+```
+
+```yaml
+sweep_param: piston.pneumatic_dashpot.orifice_area   # ✓ correct
+sweep_param: osc.nl_oscillator.c1                    # ✓ correct
+sweep_param: piston.orifice_area                     # ✗ INVALID
+```
+
+Excitation parameters use the `excitation.*` prefix (`excitation.dc_offset`,
+`excitation.amplitude`, `excitation.frequency`); the framework translates them
+internally.
+
+The runner validates every key at campaign start (in
+`CharacterizationRunner.__init__`) and fails immediately with the full list of
+valid parameters if a key is wrong — before any backend opens.
+
+## IDE autocomplete + validation
+
+`numen init` and `numen new` install `test_plan.schema.json` in your project
+root. Reference it from the top of any test plan for live VS Code/Cursor
+autocomplete and validation:
+
+```yaml
+# yaml-language-server: $schema=test_plan.schema.json
+world_module: world
+tspan: [0.0, 10.0]
+...
+```
+
+Requires the [redhat.vscode-yaml](https://marketplace.visualstudio.com/items?itemName=redhat.vscode-yaml)
+extension. Regenerate the schema after upgrading Numen with
+`numen schema -o test_plan.schema.json`.
 
 ## Adding an ExcitationPort
 

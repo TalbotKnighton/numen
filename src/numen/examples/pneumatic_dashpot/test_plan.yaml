@@ -1,4 +1,9 @@
+# yaml-language-server: $schema=../../init_data/test_plan.schema.json
 # Characterization test plan — Pneumatic Dashpot
+#
+#  Model parameter keys must use the full three-level path
+#  "entity_id.component_kind.field_name" (e.g. piston.pneumatic_dashpot.orifice_area).
+#  Excitation parameters use the excitation.* prefix.
 #
 #  Piston (m = 0.5 kg) in a 40 mm bore cylinder.
 #  Both chambers vent to atmosphere through orifices.

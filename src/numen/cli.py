@@ -287,6 +287,7 @@ def init(
     _write_init_data("DESIGN.md", design_md,
                      substitutions={"project_name": project_name}, force=force)
     _write_init_data("JULIA.md", julia_md, force=force)
+    _write_init_data("test_plan.schema.json", target / "test_plan.schema.json", force=force)
 
     console.print(_logo_panel())
     _header("Project Initialized")
@@ -298,6 +299,7 @@ def init(
     _file("CHARACTERIZATION.md",  "Complete characterization framework guide")
     _file("DESIGN.md",            "Architecture reference + project decision log")
     _file("JULIA.md",             "Julia dynamics conventions + performance notes")
+    _file("test_plan.schema.json","JSON Schema for IDE autocomplete in test_plan.yaml")
     if model_path:
         _file(f"{model}/", f"{domain} model scaffold")
     console.print()
@@ -359,6 +361,9 @@ def new(
     julia_written = _write_init_data(
         "JULIA.md", project_dir / "JULIA.md", force=force,
     )
+    schema_written = _write_init_data(
+        "test_plan.schema.json", project_dir / "test_plan.schema.json", force=force,
+    )
 
     _header(f"Scaffolded: {name}  [{domain}, {backend}]")
     _file("components.py",  "Component classes (IntegratedField, ParameterField)")
@@ -375,6 +380,8 @@ def new(
         _file("../DESIGN.md",            "Architecture reference + project decision log (project root)")
     if julia_written:
         _file("../JULIA.md",             "Julia dynamics conventions + performance notes (project root)")
+    if schema_written:
+        _file("../test_plan.schema.json","JSON Schema for IDE autocomplete (project root)")
     console.print()
     console.print("  [dim]Next steps:[/dim]")
     _step(1, f"Edit [bold]{outdir}/components.py[/bold]  — define state and parameter fields")
@@ -721,6 +728,48 @@ def info() -> None:
         [dim]DESIGN.md[/dim]               architecture decisions and open questions""")))
 
     console.print()
+
+
+@app.command()
+def schema(
+    out: Optional[str] = typer.Option(
+        None, "--out", "-o",
+        help="Write schema to FILE instead of stdout. Use '-' for stdout.",
+    ),
+) -> None:
+    """Print the JSON Schema for test_plan.yaml.
+
+    Reference this from your test plan for IDE autocomplete and validation:
+
+        # yaml-language-server: $schema=test_plan.schema.json
+
+    Or pipe directly: numen schema -o test_plan.schema.json
+    """
+    import json
+    from numen.characterization.schema import CharacterizationConfig
+
+    spec = CharacterizationConfig.model_json_schema()
+    spec["$schema"] = "https://json-schema.org/draft/2020-12/schema"
+    spec["$id"]     = "https://TalbotKnighton.github.io/numen/test_plan.schema.json"
+    spec["title"]   = "Numen characterization test plan"
+    spec["description"] = (
+        "JSON Schema for Numen characterization test plans (test_plan.yaml). "
+        "Generated from numen.characterization.schema.CharacterizationConfig. "
+        "IMPORTANT: All model parameter keys (sweep_param, params keys) must use "
+        'the full three-level path "entity_id.component_kind.field_name" — never '
+        'two-level "entity_id.field_name". Excitation parameter paths use the '
+        "excitation.* prefix (e.g. excitation.dc_offset, excitation.amplitude, "
+        "excitation.frequency)."
+    )
+
+    text = json.dumps(spec, indent=2) + "\n"
+    if out is None or out == "-":
+        # Write to stdout without rich formatting (so output can be piped)
+        sys.stdout.write(text)
+    else:
+        Path(out).write_text(text, encoding="utf-8")
+        console.print(f"  [bold #10b981]✓[/]  Wrote schema to [bold]{out}[/bold] "
+                      f"({len(text):,} bytes)")
 
 
 # ─── Entry point ──────────────────────────────────────────────────────────────

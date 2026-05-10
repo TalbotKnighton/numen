@@ -309,7 +309,13 @@ if __name__ == "__main__":
     run()
 ''',
         "test_plan.yaml": '''\
+# yaml-language-server: $schema=test_plan.schema.json
 # Characterization campaign — see CHARACTERIZATION.md for the full schema.
+#
+# IMPORTANT: model parameter keys (sweep_param, params keys) must use the full
+# three-level path "entity_id.component_kind.field_name" — never two-level
+# "entity_id.field_name".  Excitation parameters use the excitation.* prefix.
+#
 # Run with:  uv run numen characterize test_plan.yaml
 #            uv run numen characterize test_plan.yaml -c   # compute only
 #            uv run numen characterize test_plan.yaml -p   # plot only
@@ -543,7 +549,13 @@ if __name__ == "__main__":
     run()
 ''',
         "test_plan.yaml": '''\
+# yaml-language-server: $schema=test_plan.schema.json
 # Characterization campaign — see CHARACTERIZATION.md for the full schema.
+#
+# IMPORTANT: model parameter keys (sweep_param, params keys) must use the full
+# three-level path "entity_id.component_kind.field_name" — never two-level
+# "entity_id.field_name".  Excitation parameters use the excitation.* prefix.
+#
 # Run with:  uv run numen characterize test_plan.yaml
 #            uv run numen characterize test_plan.yaml -c   # compute only
 #            uv run numen characterize test_plan.yaml -p   # plot only
@@ -655,7 +667,13 @@ if __name__ == "__main__":
     run()
 ''',
     "test_plan.yaml": '''\
+# yaml-language-server: $schema=test_plan.schema.json
 # Characterization campaign — see CHARACTERIZATION.md for the full schema.
+#
+# IMPORTANT: model parameter keys (sweep_param, params keys) must use the full
+# three-level path "entity_id.component_kind.field_name" — never two-level
+# "entity_id.field_name".  Excitation parameters use the excitation.* prefix.
+#
 # Run with:  uv run numen characterize test_plan.yaml
 #            uv run numen characterize test_plan.yaml -c   # compute only
 #            uv run numen characterize test_plan.yaml -p   # plot only

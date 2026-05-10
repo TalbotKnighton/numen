@@ -8,7 +8,58 @@ uv run numen characterize test_plan.yaml        # run tests + generate plot
 uv run numen characterize test_plan.yaml -c     # characterize only → results.json
 uv run numen characterize test_plan.yaml -p     # plot only → reads results.json
 uv run numen characterize test_plan.yaml -c -p  # explicit both
+uv run numen schema -o test_plan.schema.json   # regenerate IDE schema
 ```
+
+---
+
+## ⚠️ Mandatory: parameter key format
+
+All references to model parameters in a test plan **must** use the full
+three-level path:
+
+```
+entity_id.component_kind.field_name
+```
+
+Examples — note `.component_kind` is **never** omitted:
+
+```yaml
+sweep_param: piston.pneumatic_dashpot.orifice_area     # ✓ correct
+sweep_param: osc.nl_oscillator.c1                      # ✓ correct
+sweep_param: piston.orifice_area                       # ✗ INVALID (missing component_kind)
+sweep_param: osc.c1                                    # ✗ INVALID
+```
+
+Excitation parameters use the `excitation.*` prefix and are translated
+internally by the framework:
+
+```yaml
+sweep_param: excitation.dc_offset      # → _exc_<entity>_<port>.dc
+sweep_param: excitation.amplitude      # → _exc_<entity>_<port>.amp
+sweep_param: excitation.frequency      # → _exc_<entity>_<port>.freq
+```
+
+The runner validates every key at campaign start (in
+`CharacterizationRunner.__init__`) and fails immediately with the full list of
+valid parameter names if a key is wrong — before any backend is opened.
+
+### IDE autocomplete + validation
+
+`numen init` and `numen new` install `test_plan.schema.json` in the project
+root. Reference it from the top of your test plan for live VS Code/Cursor
+autocomplete:
+
+```yaml
+# yaml-language-server: $schema=test_plan.schema.json
+world_module: world
+tspan: [0.0, 10.0]
+...
+```
+
+Requires the `redhat.vscode-yaml` extension (or equivalent in your editor).
+Run `numen schema -o test_plan.schema.json` to regenerate after upgrading
+Numen.
 
 ---
 

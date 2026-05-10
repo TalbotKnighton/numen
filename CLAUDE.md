@@ -662,6 +662,23 @@ This is how DC-offset Bode families are generated: outer loop sets equilibrium
 bias, inner loop runs the FRF.  The result is a `ParameterFamilyResult` rendered
 by the `parameter_family` plot panel (curves coloured by sweep parameter).
 
+⚠️ **Mandatory parameter key format.** Model parameter keys (`sweep_param`,
+`params:` dict keys, etc.) must use the full three-level path
+`entity_id.component_kind.field_name` — e.g. `piston.pneumatic_dashpot.orifice_area`,
+never `piston.orifice_area`. Excitation parameters use the `excitation.*`
+prefix. The runner validates every test's keys at `__init__` and raises
+`KeyError` with the full list of valid parameters before any backend opens.
+
+A JSON Schema for `test_plan.yaml` ships with the package; reference it from
+the top of any test plan for IDE autocomplete:
+
+```yaml
+# yaml-language-server: $schema=test_plan.schema.json
+```
+
+`numen init` and `numen new` install this file in the project root; regenerate
+with `numen schema -o test_plan.schema.json` after upgrading.
+
 ### Parallel execution
 
 Add `n_workers: N` to `backend:` to run sweep tests in parallel across N Julia
