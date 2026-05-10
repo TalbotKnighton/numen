@@ -43,12 +43,12 @@ def main():
 
     collector = SnapshotCollector(world, spec, result)
 
-    _, x1 = collector.field_series("m1", "position")
-    _, v1 = collector.field_series("m1", "velocity")
-    _, x2 = collector.field_series("m2", "position")
-    _, v2 = collector.field_series("m2", "velocity")
-    _, x3 = collector.field_series("m3", "position")
-    _, v3 = collector.field_series("m3", "velocity")
+    _, x1 = collector.field_series("m1", "mass", "position")
+    _, v1 = collector.field_series("m1", "mass", "velocity")
+    _, x2 = collector.field_series("m2", "mass", "position")
+    _, v2 = collector.field_series("m2", "mass", "velocity")
+    _, x3 = collector.field_series("m3", "mass", "position")
+    _, v3 = collector.field_series("m3", "mass", "velocity")
 
     k = 10.0
     stretch1 = x2 - x1 - 1.0

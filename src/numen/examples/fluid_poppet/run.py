@@ -61,20 +61,20 @@ T      = 293.15  # K
 def make_world() -> World:
     return World(
         components={
-            "inlet_tank":  ControlVolumeComponent(pressure=P_HIGH, volume=1e-2, temperature=T),
-            "outlet_tank": ControlVolumeComponent(pressure=P_LOW,  volume=1e-2, temperature=T),
-            "inlet_pipe":  ControlVolumeComponent(pressure=P_HIGH, volume=5e-5, temperature=T),
-            "outlet_pipe": ControlVolumeComponent(pressure=P_LOW,  volume=5e-5, temperature=T),
-            "orifice_in":  OrificeComponent(Cd=0.7, area=2e-5, gamma=1.4),
-            "orifice_out": OrificeComponent(Cd=0.7, area=2e-5, gamma=1.4),
+            "inlet_tank":  {"control_volume": ControlVolumeComponent(pressure=P_HIGH, volume=1e-2, temperature=T)},
+            "outlet_tank": {"control_volume": ControlVolumeComponent(pressure=P_LOW,  volume=1e-2, temperature=T)},
+            "inlet_pipe":  {"control_volume": ControlVolumeComponent(pressure=P_HIGH, volume=5e-5, temperature=T)},
+            "outlet_pipe": {"control_volume": ControlVolumeComponent(pressure=P_LOW,  volume=5e-5, temperature=T)},
+            "orifice_in":  {"orifice": OrificeComponent(Cd=0.7, area=2e-5, gamma=1.4)},
+            "orifice_out": {"orifice": OrificeComponent(Cd=0.7, area=2e-5, gamma=1.4)},
             # Cracking ΔP = spring_preload / seat_area = 5 N / 5e-5 m² = 1 bar
-            "poppet": PoppetComponent(
+            "poppet": {"poppet": PoppetComponent(
                 position=0.0,    velocity=0.0,
                 mass=0.02,       spring_k=5_000.0,  spring_preload=5.0,
                 seat_area=5e-5,  max_travel=3e-3,
                 stop_stiffness=1e7, stop_damping=100.0,
                 max_flow_area=5e-5, Cd=0.7, gamma=1.4,
-            ),
+            )},
         },
         systems={
             "flow_in":    OrificeFlowSystem(entity_groups=[["inlet_tank", "orifice_in",  "inlet_pipe"]]),
@@ -116,12 +116,12 @@ def plot(world, spec, result):
     def sv(key):   # state vector row
         return x[spec.state_index_map[key][0]]
 
-    P_inlet_tank  = sv("inlet_tank.pressure")  / 1e5
-    P_inlet_pipe  = sv("inlet_pipe.pressure")  / 1e5
-    P_outlet_pipe = sv("outlet_pipe.pressure") / 1e5
-    P_outlet_tank = sv("outlet_tank.pressure") / 1e5
-    pos_mm        = sv("poppet.position") * 1e3
-    vel           = sv("poppet.velocity")
+    P_inlet_tank  = sv("inlet_tank.control_volume.pressure")  / 1e5
+    P_inlet_pipe  = sv("inlet_pipe.control_volume.pressure")  / 1e5
+    P_outlet_pipe = sv("outlet_pipe.control_volume.pressure") / 1e5
+    P_outlet_tank = sv("outlet_tank.control_volume.pressure") / 1e5
+    pos_mm        = sv("poppet.poppet.position") * 1e3
+    vel           = sv("poppet.poppet.velocity")
 
     # Reconstruct mass flow through valve at each saved time step
     poppet_c = world.components["poppet"]

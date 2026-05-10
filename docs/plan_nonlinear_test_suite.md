@@ -320,8 +320,8 @@ Phase 1 — no new framework machinery required (all four implemented)
   ├── free_decay                  (new runner; scipy.signal.hilbert only)
   └── phase_portrait              (new runner; trivial post-processing)
 
-Phase 2 — needs table excitation mode
-  └── broadband_noise             (needs lookup-table or noise ExcitationPort)
+Phase 2 — superseded by dedicated plan
+  └── broadband_noise             → see docs/plan_random_vibe_testing.md
 ```
 
 Phase 1 tests are self-contained in the `characterization/` runner module;
@@ -334,8 +334,12 @@ calls with different `port_name` values (e.g., `"force"` and `"force_tone2"`)
 produce two separate synthetic entities (`_exc_osc_force` and `_exc_osc_force_tone2`),
 both writing to the same velocity slot.  No code changes required.
 
-Phase 2 table excitation requires a new `ExcitationPort(mode="table")` field
-type plus a mechanism to load the table into the parameter vector — more involved.
+The `broadband_noise` / random vibe test type has been broken out into its own
+design plan (`docs/plan_random_vibe_testing.md`) because it requires a new
+`inject_table_excitation` function and covers a much wider set of input formats
+(PSD profiles, external files, multisine, time-series replay) than originally
+sketched here.  The table excitation approach stores the pre-computed signal
+directly in `p` — no new `ExcitationPort` field type required.
 
 ---
 

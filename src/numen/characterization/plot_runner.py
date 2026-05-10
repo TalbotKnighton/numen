@@ -593,6 +593,93 @@ def _render_phase_portrait(fig, subplot_spec, spec, results_by_name):
     ax.grid(True, alpha=0.3)
 
 
+def _render_stochastic_response(fig, subplot_spec, spec, results_by_name):
+    """Random vibration response: input PSD vs response PSD + BLA + coherence."""
+    from numen.characterization.results import StochasticExcitationResult
+    import matplotlib.pyplot as plt
+    import matplotlib.gridspec as mgs
+
+    result = results_by_name.get(spec.test)
+    if result is None or not isinstance(result, StochasticExcitationResult):
+        ax = fig.add_subplot(subplot_spec)
+        ax.text(0.5, 0.5, f"No StochasticExcitationResult for '{spec.test}'",
+                transform=ax.transAxes, ha="center", va="center", color="gray", fontsize=8)
+        return
+
+    # Determine number of sub-rows
+    show_bla  = spec.show_bla
+    show_coh  = spec.show_coherence
+    n_rows    = 2 + int(show_bla) + int(show_coh)
+    heights   = [1.0, 2.0] + ([1.5] if show_bla else []) + ([1.0] if show_coh else [])
+
+    gs  = mgs.GridSpecFromSubplotSpec(n_rows, 1, subplot_spec=subplot_spec,
+                                      hspace=0.55, height_ratios=heights)
+    row = 0
+
+    # Row 0 — input signal preview
+    ax0 = fig.add_subplot(gs[row]); row += 1
+    dt  = result.dt_sig
+    ax0.plot(result.t_input, result.input_signal, lw=0.6, color="#64748b", alpha=0.85)
+    ax0.set_xlabel("Time [s]", fontsize=7)
+    ax0.set_ylabel("Input [m/s²]", fontsize=7)
+    ax0.tick_params(labelsize=6)
+    ax0.set_title(spec.title or "Stochastic Response", fontsize=9, pad=3)
+    ax0.grid(True, alpha=0.25)
+
+    # Scalar info box
+    info = (f"input RMS={result.input_rms:.3g} m/s²  "
+            f"resp RMS={result.response_rms:.3g}  "
+            f"crest={result.crest_factor:.2f}  "
+            f"seed={result.seed_used}")
+    ax0.text(0.01, 0.97, info, transform=ax0.transAxes, fontsize=5.5,
+             va="top", ha="left", color="#374151",
+             bbox=dict(boxstyle="round,pad=0.2", fc="white", alpha=0.7, ec="none"))
+
+    # Row 1 — PSD comparison
+    ax1 = fig.add_subplot(gs[row]); row += 1
+    psd_x = result.input_psd
+    psd_y = result.response_psd
+    if spec.psd_db:
+        with np.errstate(divide="ignore"):
+            psd_x = 10.0 * np.log10(np.maximum(psd_x, 1e-300))
+            psd_y = 10.0 * np.log10(np.maximum(psd_y, 1e-300))
+        psd_label = "PSD [dB re 1 m²/s⁴/Hz]"
+    else:
+        psd_label = "PSD [m²/s⁴/Hz]"
+
+    ax1.semilogy(result.input_psd_freq,    np.maximum(result.input_psd, 1e-300),
+                 lw=1.0, color="#94a3b8", label="Input", alpha=0.85)
+    ax1.semilogy(result.response_psd_freq, np.maximum(result.response_psd, 1e-300),
+                 lw=1.2, color="#0ea5e9", label="Response")
+    ax1.set_xlabel("Frequency [Hz]", fontsize=7)
+    ax1.set_ylabel("PSD [m²/s⁴/Hz]", fontsize=7)
+    ax1.tick_params(labelsize=6)
+    ax1.legend(fontsize=7)
+    ax1.grid(True, alpha=0.25, which="both")
+
+    # Row 2 (optional) — BLA gain
+    if show_bla:
+        ax2 = fig.add_subplot(gs[row]); row += 1
+        ax2.semilogy(result.input_psd_freq, np.maximum(result.bla_gain, 1e-300),
+                     lw=1.2, color="#f59e0b")
+        ax2.set_ylabel("BLA gain", fontsize=7)
+        ax2.set_xlabel("Frequency [Hz]", fontsize=7)
+        ax2.tick_params(labelsize=6)
+        ax2.grid(True, alpha=0.25, which="both")
+
+    # Row 3 (optional) — Coherence
+    if show_coh:
+        ax3 = fig.add_subplot(gs[row]); row += 1
+        ax3.plot(result.input_psd_freq, result.bla_coherence,
+                 lw=1.0, color="#10b981")
+        ax3.axhline(1.0, lw=0.5, color="gray", ls="--")
+        ax3.set_ylim(-0.05, 1.1)
+        ax3.set_ylabel("Coherence γ²", fontsize=7)
+        ax3.set_xlabel("Frequency [Hz]", fontsize=7)
+        ax3.tick_params(labelsize=6)
+        ax3.grid(True, alpha=0.25)
+
+
 _PANEL_RENDERERS = {
     "bode":                   _render_bode,
     "chirp_timeseries":       _render_chirp_timeseries,
@@ -605,6 +692,7 @@ _PANEL_RENDERERS = {
     "thd_spectrum":           _render_thd_spectrum,
     "backbone_curve":         _render_backbone_curve,
     "phase_portrait_panel":   _render_phase_portrait,
+    "stochastic_response":    _render_stochastic_response,
 }
 
 

@@ -12,15 +12,15 @@ def plot_coupled_spring(
     title: str = "Coupled Spring-Mass",
 ) -> plt.Figure:
     t = collector.result.t
-    _, x1 = collector.field_series("m1", "position")
-    _, v1 = collector.field_series("m1", "velocity")
-    _, x2 = collector.field_series("m2", "position")
-    _, v2 = collector.field_series("m2", "velocity")
+    _, x1 = collector.field_series("m1", "mass", "position")
+    _, v1 = collector.field_series("m1", "mass", "velocity")
+    _, x2 = collector.field_series("m2", "mass", "position")
+    _, v2 = collector.field_series("m2", "mass", "velocity")
 
     # Conservation quantities
     snap0 = collector.at(t[0])
-    m1 = snap0.components["m1"].mass
-    m2 = snap0.components["m2"].mass
+    m1 = snap0.components["m1"]["mass"].mass
+    m2 = snap0.components["m2"]["mass"].mass
     total_mass = m1 + m2
 
     momentum = m1 * v1 + m2 * v2

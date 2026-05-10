@@ -12,15 +12,15 @@ def plot_oscillator(
     entity_id: str = "osc",
     title: str = "1D Oscillator",
 ) -> plt.Figure:
-    t, pos = collector.field_series(entity_id, "position")
-    t, vel = collector.field_series(entity_id, "velocity")
+    t, pos = collector.field_series(entity_id, "oscillator", "position")
+    t, vel = collector.field_series(entity_id, "oscillator", "velocity")
 
     spec = collector.spec
-    omega   = collector.spec.p[spec.param_idx(f"{entity_id}.omega")]
-    damping = collector.spec.p[spec.param_idx(f"{entity_id}.damping")]
+    omega   = collector.spec.p[spec.param_idx(f"{entity_id}.oscillator.omega")]
+    damping = collector.spec.p[spec.param_idx(f"{entity_id}.oscillator.damping")]
 
-    x0 = collector.spec.x0[spec.state_idx(f"{entity_id}.position")]
-    v0 = collector.spec.x0[spec.state_idx(f"{entity_id}.velocity")]
+    x0 = collector.spec.x0[spec.state_idx(f"{entity_id}.oscillator.position")]
+    v0 = collector.spec.x0[spec.state_idx(f"{entity_id}.oscillator.velocity")]
 
     # Analytical solution — undamped or underdamped depending on ζ
     if damping == 0.0:

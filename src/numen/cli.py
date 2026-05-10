@@ -460,6 +460,8 @@ def characterize(
     verbose:  bool = typer.Option(False, "--verbose", "-v", help="Enable DEBUG logging"),
     workers:  int  = typer.Option(0, "--workers", "-w",
                                   help="Parallel Julia server processes (0 = use YAML n_workers)"),
+    seed:     int  = typer.Option(-1, "--seed",
+                                  help="Override random seed for all stochastic tests (-1 = use YAML values)"),
 ) -> None:
     """Run a characterization campaign and/or generate plots.
 
@@ -472,6 +474,7 @@ def characterize(
         numen characterize test_plan.yaml -c       # characterise only
         numen characterize test_plan.yaml -p       # plot only
         numen characterize test_plan.yaml --workers 4   # parallel with 4 Julia servers
+        numen characterize test_plan.yaml --seed 42     # fixed random seed
     """
     import logging as _logging
     from pathlib import Path as _Path
@@ -528,6 +531,9 @@ def characterize(
             "backend": config.backend.model_copy(update={"n_workers": workers})
         })
 
+    # CLI --seed overrides per-test seeds for stochastic tests (-1 means "use YAML values")
+    _global_seed: int | None = seed if seed >= 0 else None
+
     out_json = resolve_path(config.output, yaml_dir)
 
     enabled_tests = [t for t in config.tests if getattr(t, "enabled", True)]
@@ -556,7 +562,7 @@ def characterize(
         with console.status("[dim]Running campaign...[/dim]", spinner="dots"):
             try:
                 from numen.characterization.runner import CharacterizationRunner
-                runner  = CharacterizationRunner.from_config(config)
+                runner  = CharacterizationRunner.from_config(config, global_seed=_global_seed)
                 results = runner.run()
             except Exception as e:
                 _fail(f"Campaign failed: {e}")

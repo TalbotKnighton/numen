@@ -46,7 +46,7 @@ def main() -> None:
         print(f"Solving: {label} …", end=" ", flush=True)
         col = run_ringdown(A_o, x0=x0)
         collectors.append((label, col))
-        t, pos = col.field_series("piston", "position")
+        t, pos = col.field_series("piston", "pneumatic_dashpot", "position")
         print(f"{len(t)} steps")
 
     # ── Plot ──────────────────────────────────────────────────────────────
@@ -56,9 +56,9 @@ def main() -> None:
     colors = ["#2196f3", "#4caf50", "#f44336"]
 
     for (label, col), color in zip(collectors, colors):
-        t, pos   = col.field_series("piston", "position")
-        _, p_L   = col.field_series("piston", "p_left")
-        _, p_R   = col.field_series("piston", "p_right")
+        t, pos   = col.field_series("piston", "pneumatic_dashpot", "position")
+        _, p_L   = col.field_series("piston", "pneumatic_dashpot", "p_left")
+        _, p_R   = col.field_series("piston", "pneumatic_dashpot", "p_right")
 
         ax_pos.plot(t, pos * 1e3, color=color, lw=1.2, label=label)
         ax_pres.plot(t, (p_L - p_R) * 1e-3, color=color, lw=1.2, label=label)

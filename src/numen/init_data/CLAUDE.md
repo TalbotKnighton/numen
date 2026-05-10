@@ -19,7 +19,7 @@ numen characterize test_plan.yaml -p     # plot only
 Component  (Pydantic data)          compile_spec(world) → CompiledSpec
   ├─ IntegratedField → state x                ├─ x0, p  (initial vectors)
   ├─ ParameterField  → param p                ├─ state_index_map
-  ├─ ExcitationPort  → param p (input)        └─ systems [CompiledSystem]
+  ├─ ExcitationPort  → *(not compiled)*          └─ systems [CompiledSystem]
   └─ ContinuousField → state x (output/alg)
 
 System  (stateless dynamics)        Backends:  ScipyBackend  (dev)
@@ -38,7 +38,7 @@ World  (components + systems)
 | `ParameterField()` | param `p` | Never (constant) | Material properties, geometry, gains |
 | `ContinuousField()` | state `x` | Every RHS call | Output / algebraic slots |
 | `DiscreteField(dt)` | state `x` | Forces tstops | Sampled sensors, event-driven state |
-| `ExcitationPort(...)` | param `p` | Via inject_excitation | Characterization input ports |
+| `ExcitationPort(...)` | *(not compiled)* | Port discovery only | Characterization input ports |
 
 Vector fields: add `size=N` to any field to store an array of N values.
 
@@ -82,7 +82,7 @@ from numen.compiler.flatten import compile_spec
 from numen.bridge.scipy_backend import ScipyBackend
 
 World  = GenericWorld[MassComponent, GravitySystem, None]
-world  = World(components={"ball": MassComponent(position=10.0)},
+world  = World(components={"ball": {"mass": MassComponent(position=10.0)}},
                systems={"g": GravitySystem()})
 spec   = compile_spec(world)
 result = ScipyBackend().solve(spec, tspan=(0.0, 2.0))
@@ -184,7 +184,7 @@ function orifice_mdot(
 from numen.reconstruction.collector import SnapshotCollector
 
 collector = SnapshotCollector(world, spec, result)
-t, pos = collector.field_series("entity_id", "position")   # time series
+t, pos = collector.field_series("entity_id", "mass", "position")   # time series
 snap   = collector.at(t=1.5)                                # typed snapshot
 ```
 
@@ -210,7 +210,7 @@ uv run numen characterize test_plan.yaml -p     # re-plot without re-running
 - name: frf_vs_dc
   type: parameter_sweep
   sweep_param: excitation.dc_offset   # or: excitation.amplitude, excitation.frequency
-  values: [0.0, 0.3, 0.6, 1.0]       # or: osc.c1 for a model ParameterField
+  values: [0.0, 0.3, 0.6, 1.0]       # or: osc.my_component.c1 (3-part: entity.component_kind.field)
   sub_test: baseline_frf              # any other test name in the same plan
 ```
 

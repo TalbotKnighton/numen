@@ -117,8 +117,8 @@ function kinematics_dynamics!(
     t::Float64, spec::CompiledSpec, sys::CompiledSystemSpec,
 )
     for id_body in sys.entity_ids
-        i_pos = state_idx(spec, id_body * ".position")
-        i_vel = state_idx(spec, id_body * ".velocity")
+        i_pos = state_idx(spec, id_body * ".body.position")
+        i_vel = state_idx(spec, id_body * ".body.velocity")
         dx[i_pos] += x[i_vel]
     end
 end
@@ -134,22 +134,22 @@ function spring_dynamics!(
         id_s = sys.entity_ids[i + 1]
         id_b = sys.entity_ids[i + 2]
 
-        pos_a = x[state_idx(spec, id_a * ".position")]
-        pos_b = x[state_idx(spec, id_b * ".position")]
-        vel_a = x[state_idx(spec, id_a * ".velocity")]
-        vel_b = x[state_idx(spec, id_b * ".velocity")]
-        mass_a     = p[param_idx(spec, id_a * ".mass")]
-        mass_b     = p[param_idx(spec, id_b * ".mass")]
-        stiffness  = p[param_idx(spec, id_s * ".stiffness")]
-        rest_len   = p[param_idx(spec, id_s * ".rest_length")]
-        damping    = p[param_idx(spec, id_s * ".damping")]
+        pos_a = x[state_idx(spec, id_a * ".body.position")]
+        pos_b = x[state_idx(spec, id_b * ".body.position")]
+        vel_a = x[state_idx(spec, id_a * ".body.velocity")]
+        vel_b = x[state_idx(spec, id_b * ".body.velocity")]
+        mass_a     = p[param_idx(spec, id_a * ".body.mass")]
+        mass_b     = p[param_idx(spec, id_b * ".body.mass")]
+        stiffness  = p[param_idx(spec, id_s * ".spring.stiffness")]
+        rest_len   = p[param_idx(spec, id_s * ".spring.rest_length")]
+        damping    = p[param_idx(spec, id_s * ".spring.damping")]
 
         stretch = (pos_b - pos_a) - rest_len
         rel_vel = vel_b - vel_a
         force   = stiffness * stretch + damping * rel_vel
 
-        dx[state_idx(spec, id_a * ".velocity")] +=  force / mass_a
-        dx[state_idx(spec, id_b * ".velocity")] += -force / mass_b
+        dx[state_idx(spec, id_a * ".body.velocity")] +=  force / mass_a
+        dx[state_idx(spec, id_b * ".body.velocity")] += -force / mass_b
     end
 end
 
@@ -172,9 +172,9 @@ def make_world() -> World:
     """Two bodies connected by a spring-damper.  body_b starts displaced by 0.5 m."""
     return World(
         components={
-            "body_a": BodyComponent(position=0.0, velocity=0.0, mass=1.0),
-            "spring": SpringComponent(stiffness=100.0, rest_length=1.0, damping=1.0),
-            "body_b": BodyComponent(position=1.5, velocity=0.0, mass=1.0),
+            "body_a": {"body": BodyComponent(position=0.0, velocity=0.0, mass=1.0)},
+            "spring": {"spring": SpringComponent(stiffness=100.0, rest_length=1.0, damping=1.0)},
+            "body_b": {"body": BodyComponent(position=1.5, velocity=0.0, mass=1.0)},
         },
         systems={
             "kinematics": KinematicsSystem(),
@@ -207,8 +207,8 @@ def run():
     print(f"Solved: {len(result.t)} steps over {result.t[-1]:.1f} s")
 
     collector = SnapshotCollector(world, spec, result)
-    t, pos_a = collector.field_series("body_a", "position")
-    _, pos_b  = collector.field_series("body_b", "position")
+    t, pos_a = collector.field_series("body_a", "body", "position")
+    _, pos_b  = collector.field_series("body_b", "body", "position")
 
     fig, ax = plt.subplots(figsize=(10, 4))
     ax.plot(t, pos_a, label="body_a")
@@ -342,17 +342,17 @@ function orifice_flow_dynamics!(
         id_o = sys.entity_ids[i + 1]
         id_b = sys.entity_ids[i + 2]
 
-        P_a = x[state_idx(spec, id_a * ".pressure")]
-        P_b = x[state_idx(spec, id_b * ".pressure")]
-        T_a = p[param_idx(spec, id_a * ".temperature")]
-        T_b = p[param_idx(spec, id_b * ".temperature")]
-        R_a = p[param_idx(spec, id_a * ".R_specific")]
-        R_b = p[param_idx(spec, id_b * ".R_specific")]
-        V_a = p[param_idx(spec, id_a * ".volume")]
-        V_b = p[param_idx(spec, id_b * ".volume")]
-        Cd  = p[param_idx(spec, id_o * ".Cd")]
-        A   = p[param_idx(spec, id_o * ".area")]
-        gam = p[param_idx(spec, id_o * ".gamma")]
+        P_a = x[state_idx(spec, id_a * ".control_volume.pressure")]
+        P_b = x[state_idx(spec, id_b * ".control_volume.pressure")]
+        T_a = p[param_idx(spec, id_a * ".control_volume.temperature")]
+        T_b = p[param_idx(spec, id_b * ".control_volume.temperature")]
+        R_a = p[param_idx(spec, id_a * ".control_volume.R_specific")]
+        R_b = p[param_idx(spec, id_b * ".control_volume.R_specific")]
+        V_a = p[param_idx(spec, id_a * ".control_volume.volume")]
+        V_b = p[param_idx(spec, id_b * ".control_volume.volume")]
+        Cd  = p[param_idx(spec, id_o * ".orifice.Cd")]
+        A   = p[param_idx(spec, id_o * ".orifice.area")]
+        gam = p[param_idx(spec, id_o * ".orifice.gamma")]
 
         if P_a >= P_b
             mdot = orifice_mdot(P_a, P_b, T_a, R_a, Cd, A, gam)
@@ -360,8 +360,8 @@ function orifice_flow_dynamics!(
             mdot = -orifice_mdot(P_b, P_a, T_b, R_b, Cd, A, gam)
         end
 
-        dx[state_idx(spec, id_a * ".pressure")] += -(R_a * T_a / V_a) * mdot
-        dx[state_idx(spec, id_b * ".pressure")] +=  (R_b * T_b / V_b) * mdot
+        dx[state_idx(spec, id_a * ".control_volume.pressure")] += -(R_a * T_a / V_a) * mdot
+        dx[state_idx(spec, id_b * ".control_volume.pressure")] +=  (R_b * T_b / V_b) * mdot
     end
 end
 
@@ -388,9 +388,9 @@ def make_world() -> World:
     """Two tanks connected by an orifice.  Inlet at 3 bar, outlet at 1 bar."""
     return World(
         components={
-            "inlet":  ControlVolumeComponent(pressure=P_HIGH, volume=1e-2, temperature=T),
-            "orifice": OrificeComponent(Cd=0.7, area=1e-5, gamma=1.4),
-            "outlet": ControlVolumeComponent(pressure=P_LOW,  volume=1e-2, temperature=T),
+            "inlet":   {"control_volume": ControlVolumeComponent(pressure=P_HIGH, volume=1e-2, temperature=T)},
+            "orifice": {"orifice": OrificeComponent(Cd=0.7, area=1e-5, gamma=1.4)},
+            "outlet":  {"control_volume": ControlVolumeComponent(pressure=P_LOW,  volume=1e-2, temperature=T)},
         },
         systems={
             "flow": OrificeFlowSystem(entity_groups=[["inlet", "orifice", "outlet"]]),
@@ -421,8 +421,8 @@ def run():
     print(f"Solved: {len(result.t)} steps over {result.t[-1]:.2f} s")
 
     collector = SnapshotCollector(world, spec, result)
-    t, P_in  = collector.field_series("inlet",  "pressure")
-    _, P_out  = collector.field_series("outlet", "pressure")
+    t, P_in  = collector.field_series("inlet",  "control_volume", "pressure")
+    _, P_out  = collector.field_series("outlet", "control_volume", "pressure")
 
     fig, ax = plt.subplots(figsize=(10, 4))
     ax.plot(t, P_in  / 1e5, label="inlet (bar)")
@@ -490,7 +490,7 @@ function my_dynamics!(
     t::Float64, spec::CompiledSpec, sys::CompiledSystemSpec,
 )
     for id_e in sys.entity_ids
-        i_state = state_idx(spec, id_e * ".state")
+        i_state = state_idx(spec, id_e * ".my.state")
         # TODO: dx[i_state] += ...
     end
 end
@@ -512,7 +512,7 @@ World        = GenericWorld[AnyComponent, AnySystem, None]
 
 def make_world() -> World:
     return World(
-        components={"entity": MyComponent()},
+        components={"entity": {"my": MyComponent()}},
         systems={"system": MySystem()},
     )
 ''',

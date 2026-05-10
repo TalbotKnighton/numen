@@ -35,10 +35,12 @@ from numen.characterization.schema import (
     ParameterGridSpec,
     ParameterSweepSpec,
     PhasePortraitSpec,
+    StochasticExcitationSpec,
     TestSpec,
     TwoToneSpec,
 )
 from numen.characterization.excitation import (
+    ExcitationPortInfo,
     find_excitation_ports,
     inject_excitation,
     set_excitation_params,
@@ -137,17 +139,19 @@ def _build_world(model_spec: ModelSpec) -> Any:
 
 def _make_exc_spec(base_spec: Any, world: Any, exc: ExcitationSpec) -> Any:
     """Inject excitation into a compiled spec with placeholder parameters."""
-    ports = find_excitation_ports(world, exc.entity)
+    ports = find_excitation_ports(world, exc.entity, exc.component)
     if exc.port not in ports:
         raise ValueError(
-            f"Entity '{exc.entity}' has no ExcitationPort '{exc.port}'. "
+            f"Entity '{exc.entity}' (component '{exc.component}') has no ExcitationPort '{exc.port}'. "
             f"Available: {list(ports)}"
         )
+    port_info: ExcitationPortInfo = ports[exc.port]
     return inject_excitation(
         base_spec,
-        entity_id    = exc.entity,
-        port_name    = exc.port,
-        target_field = ports[exc.port].targets,
+        entity_id      = exc.entity,
+        component_kind = port_info.component_kind,
+        port_name      = exc.port,
+        target_field   = port_info.targets,
         amp=0.0, freq=1.0, dc=0.0,
     )
 
@@ -159,16 +163,26 @@ def _make_exc_spec(base_spec: Any, world: Any, exc: ExcitationSpec) -> Any:
 class CharacterizationRunner:
     """Orchestrates a full characterization campaign from a validated config."""
 
-    def __init__(self, config: CharacterizationConfig) -> None:
+    def __init__(
+        self,
+        config: CharacterizationConfig,
+        plan_dir: "Path | None" = None,
+        global_seed: int | None = None,
+    ) -> None:
         self.config      = config
+        self._plan_dir   = plan_dir          # for resolving relative file paths
+        self._global_seed = global_seed       # CLI --seed override (None = no override)
         self._world      = _build_world(config.model)
         self._base_spec  = compile_spec(self._world)
-        self._exc_spec   = _make_exc_spec(self._base_spec, self._world, config.excitation)
-        self._output_key = f"{config.excitation.entity}.{config.excitation.output_state}"
-        # The ExcitationPort's target field (e.g. "velocity") — used by runners
-        # that need to inject multiple excitations or override initial conditions.
-        ports = find_excitation_ports(self._world, config.excitation.entity)
-        self._exc_target_field = ports[config.excitation.port].targets
+        self._exc_spec = _make_exc_spec(self._base_spec, self._world, config.excitation)
+        exc = config.excitation
+        out_component = exc.output_component or exc.component
+        self._output_key = f"{exc.entity}.{out_component}.{exc.output_state}"
+        # The ExcitationPort's target field (e.g. "velocity") and component kind —
+        # used by runners that need to inject or override initial conditions.
+        ports = find_excitation_ports(self._world, exc.entity, exc.component)
+        self._exc_target_field   = ports[exc.port].targets
+        self._exc_component_kind = ports[exc.port].component_kind
         _log.info(
             "Runner ready: state_size=%d  param_size=%d  tests=%d",
             self._exc_spec.state_size,
@@ -179,16 +193,18 @@ class CharacterizationRunner:
     # --- Constructors ---
 
     @classmethod
-    def from_yaml(cls, path: str | Path) -> "CharacterizationRunner":
-        return cls(CharacterizationConfig.from_yaml(path))
+    def from_yaml(cls, path: str | Path, global_seed: int | None = None) -> "CharacterizationRunner":
+        p = Path(path)
+        return cls(CharacterizationConfig.from_yaml(p), plan_dir=p.parent, global_seed=global_seed)
 
     @classmethod
-    def from_json(cls, path: str | Path) -> "CharacterizationRunner":
-        return cls(CharacterizationConfig.from_json(path))
+    def from_json(cls, path: str | Path, global_seed: int | None = None) -> "CharacterizationRunner":
+        p = Path(path)
+        return cls(CharacterizationConfig.from_json(p), plan_dir=p.parent, global_seed=global_seed)
 
     @classmethod
-    def from_config(cls, config: CharacterizationConfig) -> "CharacterizationRunner":
-        return cls(config)
+    def from_config(cls, config: CharacterizationConfig, global_seed: int | None = None) -> "CharacterizationRunner":
+        return cls(config, global_seed=global_seed)
 
     # --- Public API ---
 
@@ -265,7 +281,10 @@ class CharacterizationRunner:
         if isinstance(test, TwoToneSpec):
             from numen.characterization.tests.two_tone import run_two_tone
             exc_s = set_excitation_params(self._exc_spec, e_id, e_port, dc=0.0)
-            return run_two_tone(test, exc_s, e_id, e_port, self._exc_target_field, out, backend)
+            return run_two_tone(
+                test, exc_s, e_id, e_port,
+                self._exc_component_kind, self._exc_target_field, out, backend,
+            )
 
         if isinstance(test, HarmonicDistortionSweepSpec):
             from numen.characterization.tests.harmonic_distortion import run_harmonic_distortion_sweep
@@ -275,14 +294,25 @@ class CharacterizationRunner:
         if isinstance(test, FreeDecaySpec):
             from numen.characterization.tests.free_decay import run_free_decay
             return run_free_decay(
-                test, self._base_spec, e_id, e_port, self._exc_target_field, out, backend,
+                test, self._base_spec, e_id, e_port,
+                self._exc_component_kind, self._exc_target_field, out, backend,
             )
 
         if isinstance(test, PhasePortraitSpec):
             from numen.characterization.tests.phase_portrait import run_phase_portrait
             exc_s = set_excitation_params(self._exc_spec, e_id, e_port, dc=0.0)
             return run_phase_portrait(
-                test, exc_s, e_id, e_port, self._exc_target_field, out, backend,
+                test, exc_s, e_id, e_port,
+                self._exc_component_kind, self._exc_target_field, out, backend,
+            )
+
+        if isinstance(test, StochasticExcitationSpec):
+            from numen.characterization.tests.stochastic_excitation import run_stochastic_excitation
+            return run_stochastic_excitation(
+                test, self._base_spec, e_id, e_port,
+                self._exc_component_kind, self._exc_target_field, out, backend,
+                plan_dir=self._plan_dir,
+                global_seed=self._global_seed,
             )
 
         _log.warning("Unknown test type '%s'. Skipping '%s'.", test.type, test.name)
@@ -314,15 +344,17 @@ class CharacterizationRunner:
                 return run_continuous_chirp(sub_spec_obj, spec_v, e_id, e_port, out, backend)
             if isinstance(sub_spec_obj, TwoToneSpec):
                 from numen.characterization.tests.two_tone import run_two_tone
+                ck  = self._exc_component_kind
                 tgt = self._exc_target_field
-                return run_two_tone(sub_spec_obj, spec_v, e_id, e_port, tgt, out, backend)
+                return run_two_tone(sub_spec_obj, spec_v, e_id, e_port, ck, tgt, out, backend)
             if isinstance(sub_spec_obj, HarmonicDistortionSweepSpec):
                 from numen.characterization.tests.harmonic_distortion import run_harmonic_distortion_sweep
                 return run_harmonic_distortion_sweep(sub_spec_obj, spec_v, e_id, e_port, out, backend)
             if isinstance(sub_spec_obj, PhasePortraitSpec):
                 from numen.characterization.tests.phase_portrait import run_phase_portrait
                 tgt = self._exc_target_field
-                return run_phase_portrait(sub_spec_obj, spec_v, e_id, e_port, tgt, out, backend)
+                ck  = self._exc_component_kind
+                return run_phase_portrait(sub_spec_obj, spec_v, e_id, e_port, ck, tgt, out, backend)
             raise NotImplementedError(
                 f"'{context}' sub_test type '{sub_spec_obj.type}' not supported as sub_test. "
                 f"Supported: discrete_frequency_sweep, dc_operating_point_sweep, "

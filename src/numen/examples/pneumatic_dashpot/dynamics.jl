@@ -87,23 +87,23 @@ function pneumatic_dashpot_dynamics!(
         eid = sys.entity_ids[i]
 
         # ── Index lookups ─────────────────────────────────────────────────
-        i_pos     = state_idx(spec, eid * ".position")
-        i_vel     = state_idx(spec, eid * ".velocity")
-        i_pl      = state_idx(spec, eid * ".p_left")
-        i_pr      = state_idx(spec, eid * ".p_right")
+        i_pos     = state_idx(spec, eid * ".pneumatic_dashpot.position")
+        i_vel     = state_idx(spec, eid * ".pneumatic_dashpot.velocity")
+        i_pl      = state_idx(spec, eid * ".pneumatic_dashpot.p_left")
+        i_pr      = state_idx(spec, eid * ".pneumatic_dashpot.p_right")
 
-        i_bore    = param_idx(spec, eid * ".bore_area")
-        i_hstroke = param_idx(spec, eid * ".half_stroke")
-        i_clr     = param_idx(spec, eid * ".clearance")
-        i_ao      = param_idx(spec, eid * ".orifice_area")
-        i_cd      = param_idx(spec, eid * ".cd")
-        i_mass    = param_idx(spec, eid * ".mass")
-        i_fric    = param_idx(spec, eid * ".friction")
-        i_kstop   = param_idx(spec, eid * ".k_stop")
-        i_pamb    = param_idx(spec, eid * ".p_ambient")
-        i_temp    = param_idx(spec, eid * ".temp")
-        i_R       = param_idx(spec, eid * ".R_gas")
-        i_gamma   = param_idx(spec, eid * ".gamma")
+        i_bore    = param_idx(spec, eid * ".pneumatic_dashpot.bore_area")
+        i_hstroke = param_idx(spec, eid * ".pneumatic_dashpot.half_stroke")
+        i_clr     = param_idx(spec, eid * ".pneumatic_dashpot.clearance")
+        i_ao      = param_idx(spec, eid * ".pneumatic_dashpot.orifice_area")
+        i_cd      = param_idx(spec, eid * ".pneumatic_dashpot.cd")
+        i_mass    = param_idx(spec, eid * ".pneumatic_dashpot.mass")
+        i_fric    = param_idx(spec, eid * ".pneumatic_dashpot.friction")
+        i_kstop   = param_idx(spec, eid * ".pneumatic_dashpot.k_stop")
+        i_pamb    = param_idx(spec, eid * ".pneumatic_dashpot.p_ambient")
+        i_temp    = param_idx(spec, eid * ".pneumatic_dashpot.temp")
+        i_R       = param_idx(spec, eid * ".pneumatic_dashpot.R_gas")
+        i_gamma   = param_idx(spec, eid * ".pneumatic_dashpot.gamma")
 
         # ── State & params ────────────────────────────────────────────────
         pos     = x[i_pos];    vel    = x[i_vel]

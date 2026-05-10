@@ -71,10 +71,18 @@ class ModelSpec(BaseModel):
 # ---------------------------------------------------------------------------
 
 class ExcitationSpec(BaseModel):
-    """Which entity / port to drive and which state to measure."""
-    entity:       str
-    port:         str
-    output_state: str
+    """Which entity / port to drive and which state to measure.
+
+    Full path for the excitation port:  entity / component (kind) / port (field name).
+    Full path for the output state:     entity / output_component (kind) / output_state (field name).
+    ``output_component`` defaults to ``component`` when omitted (most models drive and
+    measure on the same component).
+    """
+    entity:           str
+    component:        str          # component kind that owns the ExcitationPort field
+    port:             str
+    output_state:     str
+    output_component: str | None = None  # component kind for output_state; defaults to component
 
 
 # ---------------------------------------------------------------------------
@@ -262,6 +270,82 @@ class PhasePortraitSpec(BaseModel):
     poincare:           bool  = True
 
 
+# ---------------------------------------------------------------------------
+# Stochastic excitation (random vibration) — signal sub-specs
+# ---------------------------------------------------------------------------
+
+class PSDProfileSignalSpec(BaseModel):
+    """Inline PSD breakpoints with log-log interpolation."""
+    type:        Literal["psd_profile"]
+    breakpoints: list[tuple[float, float]]            # [(f_hz, psd_level), …]
+    units:       Literal["g_rms", "m_s2"] = "g_rms"  # psd_level units
+    target_grms: float | None = None                  # optional RMS normalisation [g]
+
+
+class PSDFileSignalSpec(BaseModel):
+    """External PSD file (CSV / JSON / NPY). Resolved relative to test_plan.yaml."""
+    type:        Literal["psd_file"]
+    path:        str
+    units:       Literal["g_rms", "m_s2"] = "g_rms"
+    target_grms: float | None = None
+
+
+class MultisineSignalSpec(BaseModel):
+    """Deterministic multi-sine — PHASE 2, implementation deferred."""
+    type:           Literal["multisine"]
+    tones:          list[dict] | None = None   # [{frequency, amplitude, phase}, …]
+    file:           str | None = None
+    optimize_phase: bool = False
+
+
+class TimeSeriesFileSignalSpec(BaseModel):
+    """Replay a pre-computed waveform from a file (CSV / JSON / NPY)."""
+    type:     Literal["time_series_file"]
+    path:     str
+    resample: bool = True   # interpolate to outer spec's dt_sig grid
+
+
+AnySignalSpec = Annotated[
+    Union[
+        PSDProfileSignalSpec,
+        PSDFileSignalSpec,
+        MultisineSignalSpec,
+        TimeSeriesFileSignalSpec,
+    ],
+    Field(discriminator="type"),
+]
+
+
+class StochasticExcitationSpec(BaseModel):
+    """Broadband random vibration test.
+
+    Generates a pre-computed forcing time series from a PSD specification
+    (or an external file) and replays it via table interpolation during the
+    ODE solve.  The response PSD, RMS, and crest factor are extracted.  A
+    Best Linear Approximation (BLA) is computed from the input/output cross-
+    spectrum — coherence below 1 identifies nonlinear or noise contributions.
+
+    Seed management:
+        ``seed: null`` draws from os.urandom and the used seed is stored in
+        the result so the realisation is always replayable.  The CLI
+        ``--seed`` flag overrides all per-test seeds in the plan.
+
+    Note:
+        JAX backends are not supported (variable-length parameter vector).
+        Use ``julia_server`` or ``scipy`` backends.
+    """
+    name:                str
+    type:                Literal["stochastic_excitation"]
+    enabled:             bool        = True
+    duration:            float                    # total simulation length [s]
+    dt_sig:              float                    # signal sample period [s]
+    signal:              AnySignalSpec
+    seed:                int | None  = None       # None → os.urandom; recorded in result
+    transient_fraction:  float       = 0.2        # fraction discarded from PSD/BLA estimate
+    n_welch_segments:    int         = 8          # Welch periodogram segments
+    dc_offset:           float       = 0.0
+
+
 TestSpec = Annotated[
     Union[
         DiscreteFrequencySweepSpec,
@@ -275,6 +359,7 @@ TestSpec = Annotated[
         HarmonicDistortionSweepSpec,
         FreeDecaySpec,
         PhasePortraitSpec,
+        StochasticExcitationSpec,
     ],
     Field(discriminator="type"),
 ]
@@ -391,6 +476,17 @@ class PhasePortraitPanelSpec(BaseModel):
     show_poincare:   bool       = True
 
 
+class StochasticResponsePanelSpec(BaseModel):
+    """Random vibration response: input PSD vs response PSD + BLA + coherence."""
+    type:            Literal["stochastic_response"] = "stochastic_response"
+    enabled:         bool       = True
+    title:           str | None = None
+    test:            str        = ""    # name of a StochasticExcitationSpec test
+    show_bla:        bool       = True
+    show_coherence:  bool       = True
+    psd_db:          bool       = False  # True → dB re 1 g²/Hz (or m²/s⁴)
+
+
 AnyPanelSpec = Annotated[
     Union[
         BodePanelSpec,
@@ -404,6 +500,7 @@ AnyPanelSpec = Annotated[
         THDSpectrumPanelSpec,
         BackboneCurvePanelSpec,
         PhasePortraitPanelSpec,
+        StochasticResponsePanelSpec,
     ],
     Field(discriminator="type"),
 ]

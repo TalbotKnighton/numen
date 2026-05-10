@@ -18,6 +18,7 @@ def run_phase_portrait(
     exc_spec: Any,
     exc_entity_id: str,
     exc_port_name: str,
+    exc_component_kind: str,
     exc_target_field: str,
     output_state_key: str,
     backend: Any,
@@ -35,14 +36,16 @@ def run_phase_portrait(
     area.
 
     Args:
-        test:             Validated PhasePortraitSpec.
-        exc_spec:         CompiledSpec with excitation injected (placeholder params).
-        exc_entity_id:    Entity that owns the ExcitationPort.
-        exc_port_name:    Name of the ExcitationPort field.
-        exc_target_field: IntegratedField driven by excitation (also the velocity
-                          state used as the y-axis), e.g. "velocity".
-        output_state_key: Dot-key for the x-axis state, e.g. "osc.position".
-        backend:          Open solver backend.
+        test:               Validated PhasePortraitSpec.
+        exc_spec:           CompiledSpec with excitation injected (placeholder params).
+        exc_entity_id:      Entity that owns the ExcitationPort.
+        exc_port_name:      Name of the ExcitationPort field.
+        exc_component_kind: Component kind that owns the ExcitationPort, e.g. "oscillator".
+        exc_target_field:   IntegratedField driven by excitation (also the velocity
+                            state used as the y-axis), e.g. "velocity".
+        output_state_key:   3-part dot-key for the x-axis state,
+                            e.g. "osc.oscillator.position".
+        backend:            Open solver backend.
 
     Returns:
         PhasePortraitResult with limit cycle arrays and optional Poincaré dots.
@@ -64,7 +67,7 @@ def run_phase_portrait(
 
     result  = backend.solve(spec, tspan=tspan)
     out_idx = spec.state_idx(output_state_key)
-    vel_key = f"{exc_entity_id}.{exc_target_field}"
+    vel_key = f"{exc_entity_id}.{exc_component_kind}.{exc_target_field}"
     vel_idx = spec.state_idx(vel_key)
 
     t    = result.t

@@ -10,6 +10,7 @@ def reconstruct_snapshot(world: any, spec: CompiledSpec, result: SolveResult, t:
     """Rebuild a GenericWorld snapshot from solver output at time t.
 
     Returns a deep copy of world with all compiled fields updated to their values at t.
+    State keys use the full path ``entity_id.component_kind.field_name``.
     """
     idx = int(np.searchsorted(result.t, t))
     idx = min(idx, result.x.shape[1] - 1)
@@ -17,16 +18,17 @@ def reconstruct_snapshot(world: any, spec: CompiledSpec, result: SolveResult, t:
 
     snapshot = world.model_copy(deep=True)
 
-    for entity_id, component in snapshot.components.items():
-        updates: dict[str, any] = {}
-        for key, (start, end) in spec.state_index_map.items():
-            eid, field_name = key.split(".", 1)
-            if eid != entity_id:
-                continue
-            value = float(x[start]) if end - start == 1 else x[start:end].tolist()
-            updates[field_name] = value
-
-        if updates:
-            snapshot.components[entity_id] = component.model_copy(update=updates)
+    for entity_id, comps_by_kind in snapshot.components.items():
+        for kind, component in list(comps_by_kind.items()):
+            updates: dict[str, any] = {}
+            prefix = f"{entity_id}.{kind}."
+            for key, (start, end) in spec.state_index_map.items():
+                if not key.startswith(prefix):
+                    continue
+                field_name = key[len(prefix):]
+                value = float(x[start]) if end - start == 1 else x[start:end].tolist()
+                updates[field_name] = value
+            if updates:
+                snapshot.components[entity_id][kind] = component.model_copy(update=updates)
 
     return snapshot

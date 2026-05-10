@@ -38,8 +38,9 @@ model:
 
 excitation:
   entity: piston
+  component: pneumatic_dashpot   # component kind; disambiguates if multiple components share field names
   port: force
-  output_state: position   # measure piston displacement
+  output_state: position         # measure piston displacement
 
 tests:
 

@@ -25,12 +25,23 @@ class SnapshotCollector:
         times = np.linspace(self.result.t[0], self.result.t[-1], n)
         return self.at_times(times.tolist())
 
-    def field_series(self, entity_id: str, field_name: str) -> tuple[np.ndarray, np.ndarray]:
+    def field_series(
+        self,
+        entity_id: str,
+        component_kind: str,
+        field_name: str,
+    ) -> tuple[np.ndarray, np.ndarray]:
         """Extract a single field's time series directly from the result arrays.
 
-        Returns (t, values) — faster than reconstructing full snapshots.
+        Args:
+            entity_id:      Entity key (e.g. "osc").
+            component_kind: Component kind string (e.g. "nl_oscillator").
+            field_name:     Field name on the component (e.g. "position").
+
+        Returns:
+            (t, values) — faster than reconstructing full snapshots.
         """
-        key = f"{entity_id}.{field_name}"
+        key = f"{entity_id}.{component_kind}.{field_name}"
         if key in self.spec.state_index_map:
             start, end = self.spec.state_index_map[key]
             values = self.result.x[start:end, :]

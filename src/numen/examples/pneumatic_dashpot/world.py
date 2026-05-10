@@ -28,11 +28,11 @@ def make_world(
         entity_id:    Name for the piston entity (used by SnapshotCollector).
     """
     return World(
-        components={entity_id: PneumaticDashpotComponent(
+        components={entity_id: {"pneumatic_dashpot": PneumaticDashpotComponent(
             position=x0, velocity=v0,
             p_left=p_left, p_right=p_right,
             orifice_area=orifice_area,
             friction=friction,
-        )},
+        )}},
         systems={"dashpot_sys": PneumaticDashpotSystem()},
     )

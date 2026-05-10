@@ -30,11 +30,11 @@ def make_world() -> World:
     """
     return World(
         components={
-            "m1": MassComponent(position=0.0, velocity=0.0, mass=1.0),
-            "s1": SpringComponent(k=10.0, rest_length=1.0),
-            "m2": MassComponent(position=1.0, velocity=0.0, mass=1.0),
-            "s2": SpringComponent(k=10.0, rest_length=1.0),
-            "m3": MassComponent(position=3.0, velocity=0.0, mass=1.0),
+            "m1": {"mass":   MassComponent(position=0.0, velocity=0.0, mass=1.0)},
+            "s1": {"spring": SpringComponent(k=10.0, rest_length=1.0)},
+            "m2": {"mass":   MassComponent(position=1.0, velocity=0.0, mass=1.0)},
+            "s2": {"spring": SpringComponent(k=10.0, rest_length=1.0)},
+            "m3": {"mass":   MassComponent(position=3.0, velocity=0.0, mass=1.0)},
         },
         systems={
             "kinematics": MassKinematicsSystem(),

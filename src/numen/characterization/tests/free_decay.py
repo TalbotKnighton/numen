@@ -23,6 +23,7 @@ def run_free_decay(
     base_spec: Any,
     exc_entity_id: str,
     exc_port_name: str,
+    exc_component_kind: str,
     exc_target_field: str,
     output_state_key: str,
     backend: Any,
@@ -36,14 +37,16 @@ def run_free_decay(
     trace the backbone curve.
 
     Args:
-        test:             Validated FreeDecaySpec.
-        base_spec:        Compiled spec WITHOUT excitation injected (from compile_spec).
-        exc_entity_id:    Entity that owns the ExcitationPort.
-        exc_port_name:    Name of the ExcitationPort field.
-        exc_target_field: IntegratedField whose derivative is driven (also the velocity
-                          field used for initial conditions), e.g. "velocity".
-        output_state_key: Dot-key for the position state, e.g. "osc.position".
-        backend:          Open solver backend.
+        test:               Validated FreeDecaySpec.
+        base_spec:          Compiled spec WITHOUT excitation injected (from compile_spec).
+        exc_entity_id:      Entity that owns the ExcitationPort.
+        exc_port_name:      Name of the ExcitationPort field.
+        exc_component_kind: Component kind that owns the ExcitationPort, e.g. "oscillator".
+        exc_target_field:   IntegratedField whose derivative is driven (also the velocity
+                            field used for initial conditions), e.g. "velocity".
+        output_state_key:   3-part dot-key for the position state,
+                            e.g. "osc.oscillator.position".
+        backend:            Open solver backend.
 
     Returns:
         FreeDecayResult with time series, envelope, instantaneous frequency and
@@ -51,13 +54,13 @@ def run_free_decay(
     """
     # Inject excitation with zero amplitude so the Julia side loads NumenCharacterization
     spec = inject_excitation(
-        base_spec, exc_entity_id, exc_port_name, exc_target_field,
+        base_spec, exc_entity_id, exc_component_kind, exc_port_name, exc_target_field,
         amp=0.0, freq=1.0, dc=0.0,
     )
 
     # Override initial conditions in x0 (list[float])
     pos_idx = spec.state_idx(output_state_key)
-    vel_key = f"{exc_entity_id}.{exc_target_field}"
+    vel_key = f"{exc_entity_id}.{exc_component_kind}.{exc_target_field}"
     vel_idx = spec.state_idx(vel_key)
 
     x0 = list(spec.x0)

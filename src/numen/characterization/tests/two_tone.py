@@ -23,6 +23,7 @@ def run_two_tone(
     exc_spec: Any,
     exc_entity_id: str,
     exc_port_name: str,
+    exc_component_kind: str,
     exc_target_field: str,
     output_state_key: str,
     backend: Any,
@@ -43,10 +44,11 @@ def run_two_tone(
         test:             Validated TwoToneSpec from the test plan.
         exc_spec:         CompiledSpec with the first excitation system injected
                           (placeholder parameters; will be updated to amp=A1, freq=f1).
-        exc_entity_id:    Entity that owns the ExcitationPort.
-        exc_port_name:    Name of the primary ExcitationPort field.
-        exc_target_field: IntegratedField whose derivative is driven (e.g. "velocity").
-        output_state_key: Dot-key for the measured state, e.g. "osc.position".
+        exc_entity_id:      Entity that owns the ExcitationPort.
+        exc_port_name:      Name of the primary ExcitationPort field.
+        exc_component_kind: Component kind that owns the port, e.g. "nl_oscillator".
+        exc_target_field:   IntegratedField whose derivative is driven (e.g. "velocity").
+        output_state_key:   3-part dot-key for the measured state, e.g. "osc.nl_oscillator.position".
         backend:          Open solver backend.
 
     Returns:
@@ -59,7 +61,7 @@ def run_two_tone(
     )
     # Second tone is a fresh inject with a unique synthetic port name
     spec = inject_excitation(
-        spec, exc_entity_id, exc_port_name + "_tone2", exc_target_field,
+        spec, exc_entity_id, exc_component_kind, exc_port_name + "_tone2", exc_target_field,
         amp=test.amplitude2, freq=test.f2, dc=0.0,
     )
 

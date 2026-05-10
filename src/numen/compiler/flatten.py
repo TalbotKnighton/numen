@@ -44,46 +44,66 @@ class DxBuffer:
         return object.__getattribute__(self, "_arr")
 
 
+def _kind_of(component_type: type) -> str:
+    """Extract the kind literal value from a Component subclass.
+
+    Reads ``ComponentType.model_fields['kind'].default`` (Pydantic v2).
+    """
+    if hasattr(component_type, "model_fields") and "kind" in component_type.model_fields:
+        default = component_type.model_fields["kind"].default
+        if default is not None:
+            return str(default)
+    raise ValueError(
+        f"Cannot determine 'kind' for component type {component_type.__name__}. "
+        f"Ensure it has a 'kind: Literal[\"...\"]' field with a default value."
+    )
+
+
 class ComponentView:
     """Read-only accessor for a single entity's component fields during a dynamics call.
 
     Attribute reads resolve to values in the flat state/param arrays.
+    Keys in the spec index maps use the full path ``entity_id.component_kind.field_name``.
     Raises AttributeError with a clear message if an unknown field is accessed.
     """
 
-    __slots__ = ("_entity_id", "_component_type", "_x", "_p", "_spec")
+    __slots__ = ("_entity_id", "_component_kind", "_component_type", "_x", "_p", "_spec")
 
     def __init__(
         self,
         entity_id: str,
+        component_kind: str,
         component_type: type,
         x: np.ndarray,
         p: np.ndarray,
         spec: CompiledSpec,
     ) -> None:
-        object.__setattr__(self, "_entity_id", entity_id)
+        object.__setattr__(self, "_entity_id",      entity_id)
+        object.__setattr__(self, "_component_kind", component_kind)
         object.__setattr__(self, "_component_type", component_type)
-        object.__setattr__(self, "_x", x)
-        object.__setattr__(self, "_p", p)
-        object.__setattr__(self, "_spec", spec)
+        object.__setattr__(self, "_x",              x)
+        object.__setattr__(self, "_p",              p)
+        object.__setattr__(self, "_spec",           spec)
 
     def __getattr__(self, name: str) -> Any:
-        entity_id = object.__getattribute__(self, "_entity_id")
-        comp_type = object.__getattribute__(self, "_component_type")
-        x         = object.__getattribute__(self, "_x")
-        p         = object.__getattribute__(self, "_p")
-        spec      = object.__getattribute__(self, "_spec")
-        key = f"{entity_id}.{name}"
+        entity_id      = object.__getattribute__(self, "_entity_id")
+        component_kind = object.__getattribute__(self, "_component_kind")
+        comp_type      = object.__getattribute__(self, "_component_type")
+        x              = object.__getattribute__(self, "_x")
+        p              = object.__getattribute__(self, "_p")
+        spec           = object.__getattribute__(self, "_spec")
+        key = f"{entity_id}.{component_kind}.{name}"
         if key in spec.state_index_map:
             s, e = spec.state_index_map[key]
             return x[s] if e - s == 1 else x[s:e]
         if key in spec.param_index_map:
             s, e = spec.param_index_map[key]
             return p[s] if e - s == 1 else p[s:e]
+        prefix = f"{entity_id}.{component_kind}."
         raise AttributeError(
             f"{comp_type.__name__} entity '{entity_id}' has no field '{name}'. "
-            f"Available state fields: {[k.split('.', 1)[1] for k in spec.state_index_map if k.startswith(entity_id + '.')]}, "
-            f"param fields: {[k.split('.', 1)[1] for k in spec.param_index_map if k.startswith(entity_id + '.')]}"
+            f"Available state fields: {[k[len(prefix):] for k in spec.state_index_map if k.startswith(prefix)]}, "
+            f"param fields: {[k[len(prefix):] for k in spec.param_index_map if k.startswith(prefix)]}"
         )
 
     def __setattr__(self, name: str, value: Any) -> None:
@@ -98,26 +118,29 @@ class DerivativeView:
     attempting to write a ParameterField raises AttributeError.
     """
 
-    __slots__ = ("_entity_id", "_component_type", "_dx", "_spec")
+    __slots__ = ("_entity_id", "_component_kind", "_component_type", "_dx", "_spec")
 
     def __init__(
         self,
         entity_id: str,
+        component_kind: str,
         component_type: type,
         dx: np.ndarray,
         spec: CompiledSpec,
     ) -> None:
-        object.__setattr__(self, "_entity_id", entity_id)
+        object.__setattr__(self, "_entity_id",      entity_id)
+        object.__setattr__(self, "_component_kind", component_kind)
         object.__setattr__(self, "_component_type", component_type)
-        object.__setattr__(self, "_dx", dx)
-        object.__setattr__(self, "_spec", spec)
+        object.__setattr__(self, "_dx",             dx)
+        object.__setattr__(self, "_spec",           spec)
 
     def __setattr__(self, name: str, value: Any) -> None:
-        entity_id  = object.__getattribute__(self, "_entity_id")
-        comp_type  = object.__getattribute__(self, "_component_type")
-        dx         = object.__getattribute__(self, "_dx")
-        spec       = object.__getattribute__(self, "_spec")
-        key = f"{entity_id}.{name}"
+        entity_id      = object.__getattribute__(self, "_entity_id")
+        component_kind = object.__getattribute__(self, "_component_kind")
+        comp_type      = object.__getattribute__(self, "_component_type")
+        dx             = object.__getattribute__(self, "_dx")
+        spec           = object.__getattribute__(self, "_spec")
+        key = f"{entity_id}.{component_kind}.{name}"
         if key in spec.state_index_map:
             s, e = spec.state_index_map[key]
             if e - s == 1:
@@ -130,22 +153,25 @@ class DerivativeView:
                 f"{comp_type.__name__} field '{name}' is a ParameterField (constant) — "
                 f"derivatives cannot be assigned to parameters."
             )
+        prefix = f"{entity_id}.{component_kind}."
         raise AttributeError(
             f"{comp_type.__name__} entity '{entity_id}' has no state field '{name}'. "
-            f"Available: {[k.split('.', 1)[1] for k in spec.state_index_map if k.startswith(entity_id + '.')]}"
+            f"Available: {[k[len(prefix):] for k in spec.state_index_map if k.startswith(prefix)]}"
         )
 
     def __getattr__(self, name: str) -> Any:
-        entity_id = object.__getattribute__(self, "_entity_id")
-        dx        = object.__getattribute__(self, "_dx")
-        spec      = object.__getattribute__(self, "_spec")
-        key = f"{entity_id}.{name}"
+        entity_id      = object.__getattribute__(self, "_entity_id")
+        component_kind = object.__getattribute__(self, "_component_kind")
+        dx             = object.__getattribute__(self, "_dx")
+        spec           = object.__getattribute__(self, "_spec")
+        key = f"{entity_id}.{component_kind}.{name}"
         if key in spec.state_index_map:
             s, e = spec.state_index_map[key]
             return dx[s] if e - s == 1 else dx[s:e]
+        prefix = f"{entity_id}.{component_kind}."
         raise AttributeError(
             f"DerivativeView has no slot '{name}'. "
-            f"Available: {[k.split('.', 1)[1] for k in spec.state_index_map if k.startswith(entity_id + '.')]}"
+            f"Available: {[k[len(prefix):] for k in spec.state_index_map if k.startswith(prefix)]}"
         )
 
 
@@ -172,8 +198,8 @@ class CompiledCallback:
 class CompiledSpec:
     state_size:         int
     param_size:         int
-    state_index_map:    dict[str, tuple[int, int]]   # "entity.field" → (start, end) into x
-    param_index_map:    dict[str, tuple[int, int]]   # "entity.field" → (start, end) into p
+    state_index_map:    dict[str, tuple[int, int]]   # "entity.kind.field" → (start, end) into x
+    param_index_map:    dict[str, tuple[int, int]]   # "entity.kind.field" → (start, end) into p
     discrete_dts:       list[float]
     x0:                 list[float]
     p:                  list[float]
@@ -196,8 +222,13 @@ class CompiledSpec:
         x: np.ndarray,
         p: np.ndarray,
     ) -> CT:
-        """Read-only accessor for an entity's fields. Use inside dynamics functions."""
-        return ComponentView(entity_id, component_type, x, p, self)  # type: ignore[return-value]
+        """Read-only accessor for an entity's component fields. Use inside dynamics functions.
+
+        The component_type's ``kind`` literal is used to construct the key prefix
+        ``entity_id.kind.*`` for all field lookups.
+        """
+        kind = _kind_of(component_type)
+        return ComponentView(entity_id, kind, component_type, x, p, self)  # type: ignore[return-value]
 
     def dx_view(
         self,
@@ -206,7 +237,8 @@ class CompiledSpec:
         dx: "DxBuffer | np.ndarray",
     ) -> CT:
         """Write accessor for an entity's derivative slots. Use inside dynamics functions."""
-        return DerivativeView(entity_id, component_type, dx, self)  # type: ignore[return-value]
+        kind = _kind_of(component_type)
+        return DerivativeView(entity_id, kind, component_type, dx, self)  # type: ignore[return-value]
 
     # --- Low-level index accessors (for advanced use / Julia interop) ---
 
@@ -258,6 +290,11 @@ def _get_numen_fields(component: Any) -> list[tuple[str, Any, Any]]:
     return results
 
 
+def _has_component_of_type(world: Any, entity_id: str, comp_types: tuple[type, ...]) -> bool:
+    comps = world.components.get(entity_id, {})
+    return any(isinstance(c, comp_types) for c in comps.values())
+
+
 def _validate_group(
     world: Any,
     dynamics_fn: str,
@@ -271,20 +308,26 @@ def _validate_group(
             f"but entity_slot_types declares {len(slot_types)} slots"
         )
     for eid, expected in zip(group, slot_types):
-        comp = world.components.get(eid)
-        if comp is None:
+        comps = world.components.get(eid)
+        if comps is None:
             raise ValueError(
                 f"System '{dynamics_fn}': entity '{eid}' not found in world"
             )
-        if not isinstance(comp, expected):
+        if not any(isinstance(c, expected) for c in comps.values()):
+            found = [type(c).__name__ for c in comps.values()]
             raise TypeError(
                 f"System '{dynamics_fn}': slot for {expected.__name__!r} "
-                f"received entity '{eid}' of type {type(comp).__name__!r}"
+                f"received entity '{eid}' with components {found!r}"
             )
 
 
 def compile_spec(world: Any) -> CompiledSpec:
-    """Walk a GenericWorld and produce a flat CompiledSpec for the solver."""
+    """Walk a GenericWorld and produce a flat CompiledSpec for the solver.
+
+    State/param keys use the full path ``entity_id.component_kind.field_name``.
+    ExcitationPort-annotated fields are skipped (pure metadata for the
+    characterization framework; not compiled into p).
+    """
     state_cursor = 0
     param_cursor = 0
     state_index_map: dict[str, tuple[int, int]] = {}
@@ -295,38 +338,41 @@ def compile_spec(world: Any) -> CompiledSpec:
     discrete_dts: set[float] = set()
     features: set[str] = set()
 
-    for entity_id, component in world.components.items():
-        for field_name, meta, value in _get_numen_fields(component):
-            key = f"{entity_id}.{field_name}"
-            size = meta.size
-            values = [value] if size == 1 else list(value)
+    for entity_id, comps_by_kind in world.components.items():
+        for kind, component in comps_by_kind.items():
+            for field_name, meta, value in _get_numen_fields(component):
+                key  = f"{entity_id}.{kind}.{field_name}"
+                size = meta.size
+                values = [value] if size == 1 else list(value)
 
-            if size > 1:
-                features.add("vector_fields")
+                if size > 1:
+                    features.add("vector_fields")
 
-            if isinstance(meta, (ParameterField, ExcitationPort)):
-                param_index_map[key] = (param_cursor, param_cursor + size)
-                p.extend(values)
-                param_cursor += size
-            else:
-                state_index_map[key] = (state_cursor, state_cursor + size)
-                x0.extend(values)
-                state_cursor += size
-                if isinstance(meta, DiscreteField):
-                    features.add("discrete_fields")
-                    if meta.dt > 0:
-                        discrete_dts.add(meta.dt)
-                    differential_mask.extend([1.0] * size)
-                elif isinstance(meta, ContinuousField):
-                    if getattr(meta, "algebraic", False):
-                        features.add("dae_constraints")
-                        differential_mask.extend([0.0] * size)
-                    else:
-                        features.add("continuous_fields")
-                        differential_mask.extend([1.0] * size)
+                if isinstance(meta, ExcitationPort):
+                    pass  # pure metadata — not compiled into p
+                elif isinstance(meta, ParameterField):
+                    param_index_map[key] = (param_cursor, param_cursor + size)
+                    p.extend(values)
+                    param_cursor += size
                 else:
-                    # IntegratedField
-                    differential_mask.extend([1.0] * size)
+                    state_index_map[key] = (state_cursor, state_cursor + size)
+                    x0.extend(values)
+                    state_cursor += size
+                    if isinstance(meta, DiscreteField):
+                        features.add("discrete_fields")
+                        if meta.dt > 0:
+                            discrete_dts.add(meta.dt)
+                        differential_mask.extend([1.0] * size)
+                    elif isinstance(meta, ContinuousField):
+                        if getattr(meta, "algebraic", False):
+                            features.add("dae_constraints")
+                            differential_mask.extend([0.0] * size)
+                        else:
+                            features.add("continuous_fields")
+                            differential_mask.extend([1.0] * size)
+                    else:
+                        # IntegratedField
+                        differential_mask.extend([1.0] * size)
 
     systems = []
     for sys_model in (world.systems or {}).values():
@@ -350,23 +396,23 @@ def compile_spec(world: Any) -> CompiledSpec:
         elif sys_model.entity_ids:
             if comp_types:
                 for eid in sys_model.entity_ids:
-                    comp = world.components.get(eid)
-                    if comp is None:
+                    if eid not in world.components:
                         raise ValueError(
                             f"System '{sys_model.dynamics_fn}': entity '{eid}' not found in world"
                         )
-                    if not isinstance(comp, comp_types):
+                    if not _has_component_of_type(world, eid, comp_types):
                         names = ", ".join(t.__name__ for t in comp_types)
+                        found = [type(c).__name__ for c in world.components[eid].values()]
                         raise TypeError(
-                            f"System '{sys_model.dynamics_fn}': entity '{eid}' has type "
-                            f"{type(comp).__name__!r}, expected one of ({names})"
+                            f"System '{sys_model.dynamics_fn}': entity '{eid}' has components "
+                            f"{found!r}, expected one of ({names})"
                         )
             entity_ids = list(sys_model.entity_ids)
 
         elif comp_types:
             entity_ids = [
-                eid for eid, comp in world.components.items()
-                if isinstance(comp, comp_types)
+                eid for eid in world.components
+                if _has_component_of_type(world, eid, comp_types)
             ]
             if not entity_ids:
                 names = ", ".join(t.__name__ for t in comp_types)

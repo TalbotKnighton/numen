@@ -35,7 +35,8 @@ class MassComponent(Component):
         targets   = "velocity",   # IntegratedField whose derivative gets F(t)
         port_type = "effort",     # "effort" (force/pressure/voltage) or "flow"
         units     = "N",
-    )] = 0.0
+    )]
+    # No default needed — ExcitationPort is metadata only; not compiled into x or p
 ```
 
 The framework injects `F(t) = amp·sin(2π·freq·t) + dc` automatically.
@@ -68,8 +69,10 @@ model:
 
 excitation:
   entity: osc                 # entity_id in the world
+  component: my_component     # component kind that owns the ExcitationPort
   port: force                 # ExcitationPort field name on that component
   output_state: position      # state field to measure (response signal)
+  output_component: null      # component kind for output_state; defaults to component if null
 
 tests:
   - name: my_test
@@ -208,10 +211,10 @@ Repeat a named sub-test for each value of one parameter.  The `sweep_param`
 can be a **model parameter** or an **excitation input**:
 
 ```yaml
-# ── Model parameter (dot-path: entity_id.field_name) ──
+# ── Model parameter (3-part path: entity_id.component_kind.field_name) ──
 - name: damping_family
   type: parameter_sweep
-  sweep_param: osc.c1         # ParameterField on the component
+  sweep_param: osc.my_component.c1   # ParameterField: entity.component_kind.field
   values: [0.5, 1.0, 2.0, 5.0]
   sub_test: baseline_frf      # must match another test name in this plan
 
@@ -251,8 +254,8 @@ Supports the same `excitation.*` paths as `parameter_sweep`.
 - name: c0_c1_grid
   type: parameter_grid
   params:
-    osc.c0: [0.05, 0.1, 0.2]
-    osc.c1: [0.5, 1.0, 2.0]
+    osc.my_component.c0: [0.05, 0.1, 0.2]   # 3-part: entity.component_kind.field
+    osc.my_component.c1: [0.5, 1.0, 2.0]
   sub_test: baseline_frf
   mode: full_factorial        # full_factorial | pairs
 ```
@@ -270,8 +273,8 @@ Supports the same `excitation.*` paths.
                               # full_factorial
   n_samples: 50
   params:
-    osc.c0: { min: 0.05, max: 0.5, scale: linear }
-    osc.c1: { min: 0.1,  max: 5.0, scale: log    }
+    osc.my_component.c0: { min: 0.05, max: 0.5, scale: linear }   # 3-part path
+    osc.my_component.c1: { min: 0.1,  max: 5.0, scale: log    }
   sub_test: baseline_frf
 ```
 
@@ -366,6 +369,65 @@ period T:
   dc_offset: 0.0
 ```
 
+### 3.12  `stochastic_excitation`
+
+Apply a broadband random forcing signal synthesised from a PSD specification
+(or an external file) and measure the response.  The signal is pre-computed on
+the Python side using inverse FFT with random phases, then stored in the
+parameter vector and replayed via table interpolation during the solve (the ODE
+is deterministic).
+
+Three input formats are supported:
+
+**`psd_profile`** — inline log-log breakpoints:
+```yaml
+- name: mil_std_810
+  type: stochastic_excitation
+  duration: 60.0           # simulation length [s]
+  dt_sig: 0.001            # signal sample period [s]  (use 1/(10·f_max) as rule of thumb)
+  seed: 42                 # reproducible realisation; null → os.urandom (seed stored in result)
+  transient_fraction: 0.2  # discard first 20% from PSD/BLA analysis
+  n_welch_segments: 8      # Welch periodogram segments
+  dc_offset: 0.0
+  signal:
+    type: psd_profile
+    breakpoints:
+      # [frequency Hz, psd_level g²/Hz]
+      - [20.0,   0.01]
+      - [80.0,   0.04]
+      - [350.0,  0.04]
+      - [2000.0, 0.007]
+    units: g_rms            # g²/Hz → signal in m/s² (×9.80665)
+    target_grms: null       # optional RMS normalisation [g]; omit for natural RMS
+```
+
+**`psd_file`** — external CSV or JSON:
+```yaml
+  signal:
+    type: psd_file
+    path: specs/customer_psd.csv   # resolved relative to test_plan.yaml
+    units: g_rms
+```
+
+File formats: two-column CSV `frequency,psd` (header optional); JSON
+`{"breakpoints": [[f, psd], …], "units": "g_rms"}`.
+
+**Seed management:**
+- `seed: null` → samples from `os.urandom`; the used seed is always stored in
+  the result JSON so the realisation is replayable.
+- `numen characterize test_plan.yaml --seed 42` → global CLI override that
+  sets the seed for every stochastic test in the plan.
+
+**Outputs:** `StochasticExcitationResult` with:
+- Response PSD (Welch estimate)
+- Input PSD (estimated from generated signal)
+- BLA gain `|Sxy|/Sxx` — Best Linear Approximation
+- BLA coherence `|Sxy|²/(Sxx·Syy)` — coherence below 1 indicates nonlinearity
+- RMS, crest factor, seed used
+
+**Backend note:** JAX is not supported (variable-length parameter vector).
+Use `julia_server` or `scipy`.
+
 ---
 
 ## 4  Plot panel types
@@ -450,9 +512,9 @@ Scatter plot of a scalar metric vs one DOE parameter, with optional colour axis.
 - type: doe_scatter
   title: "Sensitivity — f₀ vs c₀"
   test: sensitivity_study
-  x_param: osc.c0
-  y_metric: f0                # f0 | Q | damping_ratio | peak_magnitude
-  color_param: osc.c1         # optional third dimension
+  x_param: osc.my_component.c0   # 3-part: entity.component_kind.field
+  y_metric: f0                   # f0 | Q | damping_ratio | peak_magnitude
+  color_param: osc.my_component.c1   # optional third dimension
 ```
 
 ### 4.7  `parameter_grid_heatmap`
@@ -512,6 +574,26 @@ by amplitude.  Poincaré dots are shown as small filled circles.
   tests: [portrait_small, portrait_large]   # list of phase_portrait test names
   show_poincare: true
 ```
+
+### 4.12  `stochastic_response`
+
+Random vibration response panel.  Shows:
+- Row 1: Input signal preview (first 5 s)
+- Row 2: PSD comparison — input (grey) vs response (blue), log-scale
+- Row 3 (optional): BLA gain |H_BLA(f)| — the best linear approximation of the FRF
+- Row 4 (optional): BLA coherence γ²(f) — values < 1 identify nonlinear contributions
+
+```yaml
+- type: stochastic_response
+  enabled: true
+  title: "Random Vibe — MIL-STD-810"
+  test: mil_std_810        # name of a stochastic_excitation test
+  show_bla: true
+  show_coherence: true
+  psd_db: false            # true → dB re 1 m²/s⁴/Hz
+```
+
+An info box in the input preview shows: input RMS, response RMS, crest factor, seed used.
 
 ---
 

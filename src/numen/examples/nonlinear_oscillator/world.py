@@ -14,8 +14,8 @@ def make_world(
     entity_id: str = "osc",
 ) -> World:
     return World(
-        components={entity_id: NLOscillatorComponent(
+        components={entity_id: {"nl_oscillator": NLOscillatorComponent(
             position=x0, velocity=v0, omega=omega, c0=c0, c1=c1,
-        )},
+        )}},
         systems={"osc_sys": NLOscillatorSystem()},
     )

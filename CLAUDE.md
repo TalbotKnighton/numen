@@ -70,6 +70,9 @@ Rules:
 | `ParameterField()` | param `p` | Never (constant for the solve) | ✓ all backends |
 | `ContinuousField()` | state `x` | Every RHS call (dynamics fn writes) | ✓ (output/algebraic slot) |
 | `DiscreteField(dt)` | state `x` | Forces solver tstops at multiples of `dt` | ✓ tstops; controller callback pending |
+| `ExcitationPort()` | *(none)* | Pure annotation metadata — NOT compiled | ✓ (characterization only) |
+
+`ExcitationPort` fields are **not** compiled into the parameter vector `p`. They are pure annotation metadata used by the characterization framework to identify which fields accept excitation signals. The compiler ignores them; no slot is allocated in `x` or `p`.
 
 #### Vector / array fields — `size=N`
 
@@ -86,7 +89,7 @@ class VibeComponent(Component):
 ```
 
 - In dynamics: `spec.view(eid, VibeComponent, x, p).frequencies` returns a numpy/JAX slice.
-- In Julia: `p[param_idx(spec, id * ".frequencies") : param_idx(spec, id * ".frequencies") + 7]`
+- In Julia: `p[param_idx(spec, id * ".vibe.frequencies") : param_idx(spec, id * ".vibe.frequencies") + 7]`
   or use `param_slice` helper (returns a `UnitRange{Int}`).
 - Size is inferred at `compile_spec()` time from the field annotation — no need to
   specify it twice; just make sure the default value has the right length.
@@ -160,7 +163,7 @@ World        = GenericWorld[AnyComponent, AnySystem, None]
 
 def make_world():
     return World(
-        components={"ball": BallComponent(position=10.0, velocity=0.0, mass=2.0)},
+        components={"ball": {"ball": BallComponent(position=10.0, velocity=0.0, mass=2.0)}},
         systems={"gravity": GravitySystem()},
     )
 ```
@@ -180,7 +183,7 @@ result = ScipyBackend(rtol=1e-8, atol=1e-10).solve(spec, tspan=(0.0, 2.0))
 # result.t  : shape (n_steps,)
 # result.x  : shape (state_size, n_steps)
 # Access individual fields:
-idx = spec.state_index_map["ball.position"][0]
+idx = spec.state_index_map["ball.ball.position"][0]
 position = result.x[idx]   # array of position over time
 ```
 
@@ -366,8 +369,8 @@ function gravity_dynamics!(
     t  :: Real, spec :: CompiledSpec, sys :: CompiledSystemSpec,
 ) where {T <: Real, S <: Real}
     for id_ball in sys.entity_ids
-        i_pos = state_idx(spec, id_ball * ".position")
-        i_vel = state_idx(spec, id_ball * ".velocity")
+        i_pos = state_idx(spec, id_ball * ".ball.position")
+        i_vel = state_idx(spec, id_ball * ".ball.velocity")
         dx[i_pos] += x[i_vel]
         dx[i_vel] += -9.81
     end
@@ -463,8 +466,8 @@ Callbacks fire at a fixed period `dt` and can read and write state.
 # dynamics.py
 def pid_controller(t, x, p, spec):
     """scipy-side: returns {field_key: new_value}."""
-    err = x[spec.state_idx("sensor.angle")] - p[spec.param_idx("ctrl.setpoint")]
-    return {"actuator.force": p[spec.param_idx("ctrl.kp")] * err}
+    err = x[spec.state_idx("sensor.sensor.angle")] - p[spec.param_idx("ctrl.pid.setpoint")]
+    return {"actuator.actuator.force": p[spec.param_idx("ctrl.pid.kp")] * err}
 
 class PIDCallback(Callback):
     kind:      Literal["pid"] = "pid"
@@ -489,8 +492,8 @@ world = World(
 **Julia callback** (in `dynamics.jl`):
 ```julia
 function pid!(integrator, spec, params)
-    i_force  = state_idx(spec, "actuator.force")
-    i_angle  = state_idx(spec, "sensor.angle")
+    i_force  = state_idx(spec, "actuator.actuator.force")
+    i_angle  = state_idx(spec, "sensor.sensor.angle")
     err = integrator.u[i_angle] - params["setpoint"]
     integrator.u[i_force] = params["kp"] * err
 end
@@ -545,12 +548,12 @@ from numen.reconstruction.collector import SnapshotCollector
 
 collector = SnapshotCollector(world, spec, result)
 
-# Time series for a single field
-t, pos = collector.field_series("ball", "position")
+# Time series for a single field — 3 args: entity_id, component_kind, field_name
+t, pos = collector.field_series("ball", "ball", "position")
 
 # World snapshot at a specific time
 snap = collector.at(t=1.5)
-ball = snap.components["ball"]   # typed ComponentView
+ball = snap.components["ball"]["ball"]   # typed ComponentView
 print(ball.position, ball.velocity)
 ```
 
@@ -694,6 +697,7 @@ Current active plans:
 | `docs/plan_parallel_characterization.md` | Complete | Parallel characterization: `n_workers`, DOE-level dispatch, `JuliaServerPool`, `precompile()`, chunked response protocol |
 | `docs/plan_symbolic_codegen.md` | Planned | SymPy → Julia auto-codegen to eliminate dual Python/Julia dynamics authoring |
 | `docs/plan_nonlinear_test_suite.md` | Planned | Two-tone/IMD, harmonic distortion sweep, free-decay backbone, phase portrait, broadband noise — five new test types |
+| `docs/plan_random_vibe_testing.md` | Planned | Random vibe testing: PSD-driven stochastic excitation via table lookup in p; psd_profile / psd_file / multisine / time_series_file input formats; --seed CLI override; BLA / coherence / crest-factor analysis |
 
 When starting a new session, check `docs/` for active plans before writing any
 code — they contain the full context of prior design decisions that should not

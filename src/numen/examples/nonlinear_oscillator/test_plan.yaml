@@ -36,8 +36,9 @@ model:
 
 excitation:
   entity: osc
-  port: force            # ExcitationPort field on NLOscillatorComponent
-  output_state: position # state we measure
+  component: nl_oscillator   # component kind; disambiguates if multiple components share field names
+  port: force                # ExcitationPort field on NLOscillatorComponent
+  output_state: position     # state we measure
 
 tests:
 
@@ -199,6 +200,28 @@ tests:
     n_record_cycles: 10
     poincare: true
 
+  # ── 11. Stochastic excitation — random vibration baseline ─────────────────
+  # Pre-compute a random signal from a simple flat PSD (0.3–3 Hz band)
+  # at a low level (small amplitudes → near-linear regime).
+  # The BLA should match the stepped-sine FRF; coherence near 1 confirms
+  # linear behaviour at this amplitude.
+  # dt_sig = 0.02 s → 50 Hz sample rate → Nyquist at 25 Hz >> 3 Hz band ceiling.
+  # Seed 99 → reproducible for CI; use null for independent realisations.
+  - name: stochastic_baseline
+    type: stochastic_excitation
+    duration: 60.0
+    dt_sig: 0.02
+    seed: 99
+    transient_fraction: 0.2
+    n_welch_segments: 8
+    dc_offset: 0.0
+    signal:
+      type: psd_profile
+      breakpoints:
+        - [0.3,  1.0e-4]   # flat band between f0/3 and 3·f0
+        - [3.0,  1.0e-4]
+      units: m_s2          # m²/s⁴/Hz → signal in m/s² (no g conversion needed)
+
 # ── Plot configuration ───────────────────────────────────────────────────────
 #
 # Controls what numen characterize -p (or the default both-in-one run) renders.
@@ -295,3 +318,14 @@ plots:
       title: "Phase Portrait — Limit Cycles at f=1 Hz"
       tests: [portrait_small, portrait_large]
       show_poincare: true
+
+    # Stochastic response: input PSD vs response PSD + BLA + coherence.
+    # For a linear system the BLA should match the stepped-sine FRF and
+    # coherence should be ~1 across the excitation band.
+    - type: stochastic_response
+      enabled: true
+      title: "Stochastic Response (flat PSD 0.3–3 Hz)"
+      test: stochastic_baseline
+      show_bla: true
+      show_coherence: true
+      psd_db: false

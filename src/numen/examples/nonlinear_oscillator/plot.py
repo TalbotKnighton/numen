@@ -11,13 +11,13 @@ def plot_nl_oscillator(
     title: str = "Nonlinear Oscillator",
     linear_collector: SnapshotCollector | None = None,
 ) -> plt.Figure:
-    t, pos = collector.field_series(entity_id, "position")
-    t, vel = collector.field_series(entity_id, "velocity")
+    t, pos = collector.field_series(entity_id, "nl_oscillator", "position")
+    t, vel = collector.field_series(entity_id, "nl_oscillator", "velocity")
 
     spec  = collector.spec
-    omega = spec.p[spec.param_idx(f"{entity_id}.omega")]
-    c0    = spec.p[spec.param_idx(f"{entity_id}.c0")]
-    c1    = spec.p[spec.param_idx(f"{entity_id}.c1")]
+    omega = spec.p[spec.param_idx(f"{entity_id}.nl_oscillator.omega")]
+    c0    = spec.p[spec.param_idx(f"{entity_id}.nl_oscillator.c0")]
+    c1    = spec.p[spec.param_idx(f"{entity_id}.nl_oscillator.c1")]
 
     effective_damping = c0 + c1 * pos ** 2
     energy            = 0.5 * vel ** 2 + 0.5 * omega ** 2 * pos ** 2
@@ -33,7 +33,7 @@ def plot_nl_oscillator(
     ax1 = fig.add_subplot(gs[0, 0])
     ax1.plot(t, pos, lw=2, label="nonlinear")
     if linear_collector is not None:
-        tl, posl = linear_collector.field_series(entity_id, "position")
+        tl, posl = linear_collector.field_series(entity_id, "nl_oscillator", "position")
         ax1.plot(tl, posl, "--", lw=1.5, alpha=0.7, label="linear (c₁=0)")
     ax1.set_xlabel("t [s]")
     ax1.set_ylabel("position [m]")

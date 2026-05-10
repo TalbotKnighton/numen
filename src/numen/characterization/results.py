@@ -367,6 +367,71 @@ class PhasePortraitResult:
         }
 
 
+@dataclass
+class StochasticExcitationResult:
+    """Result of a random vibration (stochastic excitation) test.
+
+    Contains the response time series, PSD estimates (input and output),
+    Best Linear Approximation, coherence, and scalar summary metrics.
+    The ``seed_used`` field enables exact replay of the random realisation.
+    """
+    name:              str
+    seed_used:         int           # always recorded, even when seed=None in spec
+
+    # Time domain (transient-stripped)
+    t:                 np.ndarray    # shape (n_response,)
+    response:          np.ndarray    # shape (n_response,)
+
+    # Input signal preview (first few seconds — capped at ~5 s for storage)
+    t_input:           np.ndarray    # shape (n_preview,)
+    input_signal:      np.ndarray    # shape (n_preview,)
+
+    # PSD estimates (Welch)
+    input_psd_freq:    np.ndarray    # shape (n_fft,) [Hz]
+    input_psd:         np.ndarray    # shape (n_fft,) [input signal PSD, m²/s⁴/Hz]
+    response_psd_freq: np.ndarray    # shape (n_fft,)
+    response_psd:      np.ndarray    # shape (n_fft,) [response PSD, output_unit²/Hz]
+
+    # BLA: Best Linear Approximation
+    bla_gain:          np.ndarray    # |Sxy| / Sxx  (shape n_fft,)
+    bla_coherence:     np.ndarray    # |Sxy|² / (Sxx·Syy)  (shape n_fft,)
+
+    # Scalar metrics
+    input_rms:         float         # RMS of input signal [m/s²]
+    response_rms:      float
+    crest_factor:      float         # peak / rms of response
+
+    # Metadata
+    duration:          float
+    dt_sig:            float
+    dc_offset:         float
+    signal_type:       str           # "psd_profile", "psd_file", etc.
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "name":              self.name,
+            "type":              "stochastic_excitation",
+            "seed_used":         self.seed_used,
+            "t":                 self.t.tolist(),
+            "response":          self.response.tolist(),
+            "t_input":           self.t_input.tolist(),
+            "input_signal":      self.input_signal.tolist(),
+            "input_psd_freq":    self.input_psd_freq.tolist(),
+            "input_psd":         self.input_psd.tolist(),
+            "response_psd_freq": self.response_psd_freq.tolist(),
+            "response_psd":      self.response_psd.tolist(),
+            "bla_gain":          self.bla_gain.tolist(),
+            "bla_coherence":     self.bla_coherence.tolist(),
+            "input_rms":         self.input_rms,
+            "response_rms":      self.response_rms,
+            "crest_factor":      self.crest_factor,
+            "duration":          self.duration,
+            "dt_sig":            self.dt_sig,
+            "dc_offset":         self.dc_offset,
+            "signal_type":       self.signal_type,
+        }
+
+
 # ---------------------------------------------------------------------------
 # DataFrame flattening helpers
 # ---------------------------------------------------------------------------
@@ -603,6 +668,29 @@ def _dict_to_result(d: dict[str, Any]) -> Any:
             param_keys   = d["param_keys"],
             combinations = d["combinations"],
             sub_results  = [_dict_to_result(r) for r in d.get("sub_results", [])],
+        )
+
+    if t == "stochastic_excitation":
+        return StochasticExcitationResult(
+            name              = d["name"],
+            seed_used         = d["seed_used"],
+            t                 = np.array(d["t"]),
+            response          = np.array(d["response"]),
+            t_input           = np.array(d["t_input"]),
+            input_signal      = np.array(d["input_signal"]),
+            input_psd_freq    = np.array(d["input_psd_freq"]),
+            input_psd         = np.array(d["input_psd"]),
+            response_psd_freq = np.array(d["response_psd_freq"]),
+            response_psd      = np.array(d["response_psd"]),
+            bla_gain          = np.array(d["bla_gain"]),
+            bla_coherence     = np.array(d["bla_coherence"]),
+            input_rms         = d["input_rms"],
+            response_rms      = d["response_rms"],
+            crest_factor      = d["crest_factor"],
+            duration          = d["duration"],
+            dt_sig            = d["dt_sig"],
+            dc_offset         = d.get("dc_offset", 0.0),
+            signal_type       = d.get("signal_type", "unknown"),
         )
 
     # Unknown type — return the raw dict so callers can still iterate
