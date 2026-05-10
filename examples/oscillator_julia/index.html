@@ -1318,7 +1318,7 @@ function, one entity group of size 1.</p>
 <h2 id="full-source">Full source</h2>
 <pre><code class="language-julia">module OscillatorDynamics
 
-import Main: CompiledSpec, CompiledSystemSpec, state_idx, param_idx
+import Main: CompiledSpec, CompiledSystemSpec, state_idx, param_idx, groups
 
 &quot;&quot;&quot;
     oscillator_dynamics!(dx, x, p, t, spec, sys)
@@ -1333,10 +1333,7 @@ function oscillator_dynamics!(
     spec:: CompiledSpec,
     sys :: CompiledSystemSpec,
 ) where {T &lt;: Real, S &lt;: Real}
-    gs = sys.group_size   # = 1; each entity is its own group
-    for i in 1:gs:length(sys.entity_ids)
-        eid = sys.entity_ids[i]
-
+    for (eid,) in groups(sys)
         pos_idx     = state_idx(spec, eid * &quot;.oscillator.position&quot;)
         vel_idx     = state_idx(spec, eid * &quot;.oscillator.velocity&quot;)
         omega_idx   = param_idx(spec, eid * &quot;.oscillator.omega&quot;)
@@ -1356,15 +1353,15 @@ end  # module OscillatorDynamics
 </code></pre>
 <hr />
 <h2 id="key-points">Key points</h2>
-<p><strong><code>group_size = 1</code></strong> — each entity is handled individually. The stride loop
-<code>for i in 1:gs:length(sys.entity_ids)</code> still works correctly for <code>gs=1</code>, and
-makes the pattern uniform across all example dynamics files.</p>
+<p><strong><code>for (eid,) in groups(sys)</code></strong> — <code>groups(sys)</code> yields tuples of length
+<code>sys.group_size</code> (here, 1). The trailing comma in <code>(eid,)</code> destructures the
+single element. This mirrors the Python <code>for (entity_id,) in system.entity_groups:</code>
+pattern.</p>
 <p><strong>Reading state vs params</strong> — <code>x[state_idx(...)]</code> for integrated fields
 (position, velocity); <code>p[param_idx(...)]</code> for parameter fields (omega, damping).</p>
 <p><strong><code>+=</code> accumulation</strong> — even though only one system writes to these slots in
 this example, using <code>+=</code> is the correct pattern throughout. If a second system
-also touched velocity (e.g. an external force system), both contributions would
-add correctly.</p>
+also touched velocity, both contributions would add correctly.</p>
 <hr />
 <h2 id="connecting-to-python">Connecting to Python</h2>
 <pre><code class="language-python"># dynamics.py

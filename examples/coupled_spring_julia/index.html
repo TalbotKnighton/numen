@@ -1319,7 +1319,7 @@ different <code>group_size</code> values sharing the same entity slots.</p>
 <h2 id="full-source">Full source</h2>
 <pre><code class="language-julia">module SpringDynamics
 
-import Main: CompiledSpec, CompiledSystemSpec, state_idx, param_idx
+import Main: CompiledSpec, CompiledSystemSpec, state_idx, param_idx, groups
 
 # -------------------------------------------------------------------
 # MassKinematicsSystem  (group_size = 1)
@@ -1338,9 +1338,7 @@ function mass_kinematics_dynamics!(
     spec:: CompiledSpec,
     sys :: CompiledSystemSpec,
 ) where {T &lt;: Real, S &lt;: Real}
-    gs = sys.group_size   # = 1
-    for i in 1:gs:length(sys.entity_ids)
-        eid     = sys.entity_ids[i]
+    for (eid,) in groups(sys)
         pos_idx = state_idx(spec, eid * &quot;.mass.position&quot;)
         vel_idx = state_idx(spec, eid * &quot;.mass.velocity&quot;)
         dx[pos_idx] += x[vel_idx]
@@ -1366,12 +1364,7 @@ function spring_force_dynamics!(
     spec:: CompiledSpec,
     sys :: CompiledSystemSpec,
 ) where {T &lt;: Real, S &lt;: Real}
-    gs = sys.group_size   # = 3: [mass_a, spring, mass_b]
-    for i in 1:gs:length(sys.entity_ids)
-        id_a = sys.entity_ids[i]
-        id_s = sys.entity_ids[i + 1]
-        id_b = sys.entity_ids[i + 2]
-
+    for (id_a, id_s, id_b) in groups(sys)
         pos_a    = state_idx(spec, id_a * &quot;.mass.position&quot;)
         pos_b    = state_idx(spec, id_b * &quot;.mass.position&quot;)
         vel_a    = state_idx(spec, id_a * &quot;.mass.velocity&quot;)
@@ -1393,18 +1386,18 @@ end  # module SpringDynamics
 </code></pre>
 <hr />
 <h2 id="key-points">Key points</h2>
-<p><strong>Two systems with different <code>group_size</code></strong></p>
-<p><code>mass_kinematics_dynamics!</code> has <code>group_size=1</code> — each mass is independent.
-<code>spring_force_dynamics!</code> has <code>group_size=3</code> — each group is <code>[mass_a, spring, mass_b]</code>.</p>
-<p>Both functions are registered on the same entity pool. The <code>+=</code> rule means
-<code>dx[vel_a]</code> from the spring force accumulates on top of whatever kinematics
-wrote (in this case nothing, since kinematics writes position, not velocity).</p>
+<p><strong>Tuple destructuring in <code>groups(sys)</code></strong> — the spring system declares
+<code>entity_slots = EntityGroup(MassComponent, SpringComponent, MassComponent)</code> on
+the Python side, so each group tuple has three entries in slot order. Naming
+them <code>(id_a, id_s, id_b)</code> makes the topology explicit at the loop header
+instead of buried in <code>entity_ids[i+1]</code> arithmetic.</p>
+<p><strong>Two systems with different <code>group_size</code></strong> — <code>mass_kinematics_dynamics!</code> uses
+<code>group_size=1</code> (each mass independent); <code>spring_force_dynamics!</code> uses
+<code>group_size=3</code> (each group is <code>[mass_a, spring, mass_b]</code>). The loop header
+makes the difference obvious at a glance.</p>
 <p><strong>Force accumulation at shared masses</strong> — mass <code>m2</code> appears in <em>both</em> spring
 groups (<code>[m1, s1, m2]</code> and <code>[m2, s2, m3]</code>). Because we use <code>+=</code>, both springs
 contribute to <code>dx[m2.mass.velocity]</code> correctly.</p>
-<p><strong>Index reuse</strong> — <code>pos_a</code>, <code>pos_b</code>, etc. are computed fresh each group
-iteration. There is no caching between groups (the compiler provides the index
-maps; the dynamics function looks them up each time).</p>
 <hr />
 <h2 id="connecting-to-python">Connecting to Python</h2>
 <pre><code class="language-python">class MassKinematicsSystem(System):

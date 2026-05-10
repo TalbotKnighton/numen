@@ -1322,7 +1322,7 @@ stiff relative to the mechanical motion.</p>
 <h2 id="full-source">Full source</h2>
 <pre><code class="language-julia">module PneumaticDashpotDynamics
 
-import Main: CompiledSpec, CompiledSystemSpec, state_idx, param_idx
+import Main: CompiledSpec, CompiledSystemSpec, state_idx, param_idx, groups
 
 const STOP_DELTA = 1e-6
 
@@ -1387,10 +1387,7 @@ function pneumatic_dashpot_dynamics!(
     spec:: CompiledSpec,
     sys :: CompiledSystemSpec,
 ) where {T &lt;: Real, S &lt;: Real}
-    gs = sys.group_size  # 1
-    for i in 1:gs:length(sys.entity_ids)
-        eid = sys.entity_ids[i]
-
+    for (eid,) in groups(sys)
         # Index lookups
         i_pos   = state_idx(spec, eid * &quot;.pneumatic_dashpot.position&quot;)
         i_vel   = state_idx(spec, eid * &quot;.pneumatic_dashpot.velocity&quot;)

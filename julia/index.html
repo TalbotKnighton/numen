@@ -1266,10 +1266,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#index-helpers" class="md-nav__link">
+  <a href="#helpers-available-in-dynamics-files" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Index helpers
+        Helpers available in dynamics files
       
     </span>
   </a>
@@ -1277,10 +1277,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#multi-entity-systems-group_size" class="md-nav__link">
+  <a href="#iterating-entity-groups" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Multi-entity systems (group_size)
+        Iterating entity groups
       
     </span>
   </a>
@@ -1454,13 +1454,13 @@ the file once, then resolves function names from <code>dynamics_fn</code> string
 <code>"MyModule.my_fn!"</code>:</p>
 <pre><code class="language-julia"># dynamics.jl
 module MyDynamics
-import Main: CompiledSpec, CompiledSystemSpec, state_idx, param_idx
+import Main: CompiledSpec, CompiledSystemSpec, state_idx, param_idx, groups
 
 function gravity_dynamics!(
     dx :: AbstractVector{T}, x :: AbstractVector{S}, p :: Vector{Float64},
     t  :: Real, spec :: CompiledSpec, sys :: CompiledSystemSpec,
 ) where {T &lt;: Real, S &lt;: Real}
-    for eid in sys.entity_ids
+    for (eid,) in groups(sys)
         i_pos = state_idx(spec, eid * &quot;.ball.position&quot;)
         i_vel = state_idx(spec, eid * &quot;.ball.velocity&quot;)
         dx[i_pos] += x[i_vel]
@@ -1472,8 +1472,8 @@ end  # module MyDynamics
 </code></pre>
 <p>In Python, set <code>dynamics_fn = "MyDynamics.gravity_dynamics!"</code> on the <code>System</code>.</p>
 <hr />
-<h2 id="index-helpers">Index helpers</h2>
-<p>These four functions are always available via <code>import Main: ...</code>:</p>
+<h2 id="helpers-available-in-dynamics-files">Helpers available in dynamics files</h2>
+<p>These five functions are always available via <code>import Main: ...</code>:</p>
 <table>
 <thead>
 <tr>
@@ -1503,6 +1503,11 @@ end  # module MyDynamics
 <td><code>UnitRange{Int}</code></td>
 <td>Full slice for vector parameter fields</td>
 </tr>
+<tr>
+<td><code>groups(sys)</code></td>
+<td>iterator</td>
+<td>Yields entity-id groups for destructuring</td>
+</tr>
 </tbody>
 </table>
 <p>Keys use the full path <code>"entity_id.component_kind.field_name"</code>, matching Python's <code>spec.state_index_map</code>.</p>
@@ -1514,23 +1519,28 @@ r = state_range(spec, &quot;node.beam.displacement&quot;)   # UnitRange 1:8
 x[r]                                               # 8-element view
 </code></pre>
 <hr />
-<h2 id="multi-entity-systems-group_size">Multi-entity systems (<code>group_size</code>)</h2>
-<p>When a system couples multiple entities, entity IDs are stored flat in
-<code>sys.entity_ids</code> with <code>sys.group_size</code> per group:</p>
-<pre><code class="language-julia">gs = sys.group_size   # e.g. 3 for [cv_a, orifice, cv_b]
-for i in 1:gs:length(sys.entity_ids)
-    id_a = sys.entity_ids[i]
-    id_o = sys.entity_ids[i + 1]
-    id_b = sys.entity_ids[i + 2]
+<h2 id="iterating-entity-groups">Iterating entity groups</h2>
+<p>Use <code>groups(sys)</code> and tuple-destructure each group — this mirrors the Python
+<code>for entity_group in system.entity_groups:</code> pattern and gives semantic names to
+the entities in each group:</p>
+<pre><code class="language-julia"># group_size = 1 — one entity per group
+for (eid,) in groups(sys)
+    i_pos = state_idx(spec, eid * &quot;.oscillator.position&quot;)
+    # ...
+end
+
+# group_size = 3 — coupled triplet [cv_a, orifice, cv_b]
+for (cv_a, orifice, cv_b) in groups(sys)
+    P_a = x[state_idx(spec, cv_a * &quot;.control_volume.pressure&quot;)]
+    A   = p[param_idx(spec, orifice * &quot;.orifice.area&quot;)]
+    P_b = x[state_idx(spec, cv_b * &quot;.control_volume.pressure&quot;)]
     # ...
 end
 </code></pre>
-<p>For single-entity systems (<code>group_size = 1</code>), iterate directly:</p>
-<pre><code class="language-julia">for eid in sys.entity_ids
-    i_pos = state_idx(spec, eid * &quot;.mass.position&quot;)
-    # ...
-end
-</code></pre>
+<p>Internally, <code>groups(sys) === Iterators.partition(sys.entity_ids, sys.group_size)</code>
+— a zero-allocation iterator over fixed-size slices of <code>sys.entity_ids</code>.
+Destructure into whatever names match your topology's slot order (defined by the
+<code>entity_slots = EntityGroup(...)</code> declaration on the Python <code>System</code> class).</p>
 <hr />
 <h2 id="smooth-contact-hard-stop-helper">Smooth contact / hard-stop helper</h2>
 <p>A bare <code>max(0, -pos)</code> stop force has a C0 kink that causes thousands of tiny

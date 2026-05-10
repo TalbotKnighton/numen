@@ -1362,6 +1362,12 @@ flow coupling across multi-entity groups.</p>
 <p>Network layout:</p>
 <pre><code>[inlet_tank] --orifice_in--&gt; [inlet_pipe] --poppet--&gt; [outlet_pipe] --orifice_out--&gt; [outlet_tank]
 </code></pre>
+<p>The dynamics file imports the standard helpers at the top:</p>
+<pre><code class="language-julia">module FluidPoppetDynamics
+import Main: CompiledSpec, CompiledSystemSpec, state_idx, param_idx, groups
+</code></pre>
+<p>All four systems below use <code>groups(sys)</code> with tuple destructuring to name the
+entities in each group instead of indexing <code>sys.entity_ids[i+1]</code>.</p>
 <hr />
 <h2 id="smooth-contact-helper">Smooth contact helper</h2>
 <pre><code class="language-julia">const STOP_DELTA = 1e-6  # 1 µm — matches Python _STOP_DELTA
@@ -1414,12 +1420,7 @@ function orifice_flow_dynamics!(
     dx :: AbstractVector{T}, x :: AbstractVector{S}, p :: Vector{Float64},
     t  :: Real, spec :: CompiledSpec, sys :: CompiledSystemSpec,
 ) where {T &lt;: Real, S &lt;: Real}
-    gs = sys.group_size  # 3
-    for i in 1:gs:length(sys.entity_ids)
-        id_a = sys.entity_ids[i]
-        id_o = sys.entity_ids[i + 1]
-        id_b = sys.entity_ids[i + 2]
-
+    for (id_a, id_o, id_b) in groups(sys)
         P_a = x[state_idx(spec, id_a * &quot;.control_volume.pressure&quot;)]
         P_b = x[state_idx(spec, id_b * &quot;.control_volume.pressure&quot;)]
         T_a = p[param_idx(spec, id_a * &quot;.control_volume.temperature&quot;)]
@@ -1452,12 +1453,7 @@ function poppet_flow_dynamics!(
     dx :: AbstractVector{T}, x :: AbstractVector{S}, p :: Vector{Float64},
     t  :: Real, spec :: CompiledSpec, sys :: CompiledSystemSpec,
 ) where {T &lt;: Real, S &lt;: Real}
-    gs = sys.group_size  # 3
-    for i in 1:gs:length(sys.entity_ids)
-        id_a = sys.entity_ids[i]
-        id_p = sys.entity_ids[i + 1]
-        id_b = sys.entity_ids[i + 2]
-
+    for (id_a, id_p, id_b) in groups(sys)
         pos           = x[state_idx(spec, id_p * &quot;.poppet.position&quot;)]
         max_travel    = p[param_idx(spec, id_p * &quot;.poppet.max_travel&quot;)]
         max_flow_area = p[param_idx(spec, id_p * &quot;.poppet.max_flow_area&quot;)]
@@ -1498,7 +1494,7 @@ function poppet_kinematics_dynamics!(
     dx :: AbstractVector{T}, x :: AbstractVector{S}, p :: Vector{Float64},
     t  :: Real, spec :: CompiledSpec, sys :: CompiledSystemSpec,
 ) where {T &lt;: Real, S &lt;: Real}
-    for id_p in sys.entity_ids
+    for (id_p,) in groups(sys)
         i_pos = state_idx(spec, id_p * &quot;.poppet.position&quot;)
         i_vel = state_idx(spec, id_p * &quot;.poppet.velocity&quot;)
         dx[i_pos] += x[i_vel]
@@ -1518,12 +1514,7 @@ function poppet_mechanics_dynamics!(
     dx :: AbstractVector{T}, x :: AbstractVector{S}, p :: Vector{Float64},
     t  :: Real, spec :: CompiledSpec, sys :: CompiledSystemSpec,
 ) where {T &lt;: Real, S &lt;: Real}
-    gs = sys.group_size  # 3
-    for i in 1:gs:length(sys.entity_ids)
-        id_inlet  = sys.entity_ids[i]
-        id_p      = sys.entity_ids[i + 1]
-        id_outlet = sys.entity_ids[i + 2]
-
+    for (id_inlet, id_p, id_outlet) in groups(sys)
         pos  = x[state_idx(spec, id_p     * &quot;.poppet.position&quot;)]
         vel  = x[state_idx(spec, id_p     * &quot;.poppet.velocity&quot;)]
         P_in = x[state_idx(spec, id_inlet  * &quot;.control_volume.pressure&quot;)]
