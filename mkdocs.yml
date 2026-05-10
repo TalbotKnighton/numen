@@ -27,8 +27,11 @@ plugins:
       handlers:
         python:
           options:
-            show_source: false
+            show_source: true
             docstring_style: google
+            show_root_heading: true
+            show_symbol_type_heading: true
+            show_symbol_type_toc: true
 
 nav:
   - Home: index.md
@@ -39,9 +42,15 @@ nav:
     - Backends: guide/backends.md
     - Characterization: guide/characterization.md
   - Examples:
-    - Oscillator: examples/oscillator.md
-    - Coupled Spring: examples/coupled_spring.md
-    - Fluid Poppet: examples/fluid_poppet.md
+    - Python:
+      - Oscillator: examples/oscillator.md
+      - Coupled Spring: examples/coupled_spring.md
+      - Fluid Poppet: examples/fluid_poppet.md
+    - Julia dynamics files:
+      - Oscillator: examples/oscillator_julia.md
+      - Coupled Spring: examples/coupled_spring_julia.md
+      - Fluid Poppet: examples/fluid_poppet_julia.md
+      - Pneumatic Dashpot: examples/pneumatic_dashpot_julia.md
   - API Reference:
     - Fields: api/fields.md
     - Compiler: api/compiler.md
