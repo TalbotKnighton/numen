@@ -5,13 +5,17 @@ Numen is an ECS-style (Entity-Component-System) physics simulation framework.
 Models are **defined in Python** using Pydantic components, then solved by
 Python (scipy), JAX (diffrax), or Julia (OrdinaryDiffEq) backends.
 
-The `numen` CLI helps you explore, verify, and scaffold new models:
+The `numen` CLI helps you explore, verify, scaffold, and characterize models:
 
 ```bash
 uv run numen check          # verify all backends work
 uv run numen list           # show built-in examples
 uv run numen new mymodel    # scaffold a new model directory
 uv run numen run oscillator # run a built-in example
+
+uv run numen characterize test_plan.yaml        # run tests + plot
+uv run numen characterize test_plan.yaml -c     # characterize only → results.json
+uv run numen characterize test_plan.yaml -p     # plot only → reads results.json
 ```
 
 ---
@@ -66,6 +70,9 @@ Rules:
 | `ParameterField()` | param `p` | Never (constant for the solve) | ✓ all backends |
 | `ContinuousField()` | state `x` | Every RHS call (dynamics fn writes) | ✓ (output/algebraic slot) |
 | `DiscreteField(dt)` | state `x` | Forces solver tstops at multiples of `dt` | ✓ tstops; controller callback pending |
+| `ExcitationPort()` | *(none)* | Pure annotation metadata — NOT compiled | ✓ (characterization only) |
+
+`ExcitationPort` fields are **not** compiled into the parameter vector `p`. They are pure annotation metadata used by the characterization framework to identify which fields accept excitation signals. The compiler ignores them; no slot is allocated in `x` or `p`.
 
 #### Vector / array fields — `size=N`
 
@@ -82,7 +89,7 @@ class VibeComponent(Component):
 ```
 
 - In dynamics: `spec.view(eid, VibeComponent, x, p).frequencies` returns a numpy/JAX slice.
-- In Julia: `p[param_idx(spec, id * ".frequencies") : param_idx(spec, id * ".frequencies") + 7]`
+- In Julia: `p[param_idx(spec, id * ".vibe.frequencies") : param_idx(spec, id * ".vibe.frequencies") + 7]`
   or use `param_slice` helper (returns a `UnitRange{Int}`).
 - Size is inferred at `compile_spec()` time from the field annotation — no need to
   specify it twice; just make sure the default value has the right length.
@@ -156,7 +163,7 @@ World        = GenericWorld[AnyComponent, AnySystem, None]
 
 def make_world():
     return World(
-        components={"ball": BallComponent(position=10.0, velocity=0.0, mass=2.0)},
+        components={"ball": {"ball": BallComponent(position=10.0, velocity=0.0, mass=2.0)}},
         systems={"gravity": GravitySystem()},
     )
 ```
@@ -176,7 +183,7 @@ result = ScipyBackend(rtol=1e-8, atol=1e-10).solve(spec, tspan=(0.0, 2.0))
 # result.t  : shape (n_steps,)
 # result.x  : shape (state_size, n_steps)
 # Access individual fields:
-idx = spec.state_index_map["ball.position"][0]
+idx = spec.state_index_map["ball.ball.position"][0]
 position = result.x[idx]   # array of position over time
 ```
 
@@ -249,13 +256,21 @@ Tsit5 produces pathological step rejection (>99%). Use Dopri5 instead:
 
 ```python
 # scipy (development / debugging)
-ScipyBackend(rtol=1e-8, atol=1e-10)       # uses RK45 (Dormand-Prince)
+ScipyBackend(rtol=1e-8, atol=1e-10)
 
 # JAX (fast repeated solves — ~1500x faster than scipy warm)
 JAXBackend(rtol=1e-8, atol=1e-10, solver="Dopri5", max_steps=100_000)
 
-# Julia (long simulations — ~600x faster than scipy warm, subprocess)
+# Julia single-shot (long simulations, ~600x faster than scipy warm)
 JuliaBackend(julia_file="dynamics.jl", rtol=1e-8, atol=1e-10)
+
+# Julia persistent server (pay JIT once; all solves reuse compiled kernel)
+JuliaServerBackend(julia_file="dynamics.jl", method="Tsit5",
+                   rtol=1e-8, atol=1e-10, n_save_points=2000)
+
+# Julia pool (parallel parameter sweeps — N processes, DOE-level dispatch)
+JuliaServerPool(n_workers=4, julia_file="dynamics.jl", method="Tsit5",
+                rtol=1e-8, atol=1e-10, n_save_points=2000)
 ```
 
 **Backend warm timings for the fluid poppet example (150 ms pneumatic + poppet):**
@@ -267,8 +282,64 @@ JuliaBackend(julia_file="dynamics.jl", rtol=1e-8, atol=1e-10)
 | JuliaBackend (Tsit5) | 14 ms | 634× |
 
 JAX cold (first call, JIT compile): ~550 ms. Subsequent calls hit the compiled kernel.
-Julia cold (subprocess startup + JIT): ~6700 ms. Warm calls reuse compiled dynamics if
-you batch multiple solves via `reps` parameter.
+Julia cold (subprocess startup + JIT): ~6700 ms. `JuliaServerBackend` amortises JIT
+across all solves in a session. `JuliaServerPool` additionally runs `precompile()` on
+all dynamics functions after startup so the first real solve carries no JIT latency.
+
+### Output density and step control
+
+All Julia backends and ScipyBackend accept these kwargs (also available in YAML `backend:`):
+
+| Kwarg | Default | Meaning |
+|---|---|---|
+| `n_save_points=N` | 0 | Save N uniformly-spaced output points instead of every adaptive step |
+| `dtsave=dt` | None | Save every `dt` time units (mutually exclusive with `n_save_points`) |
+| `dtmax=dt` | None | Cap the adaptive step size — prevents aliasing or missing brief transients |
+
+Rule of thumb: `dtmax = dtsave = 1 / (10 × f_max)` for 10 samples per period of the
+highest-frequency content you care about.
+
+### Stiff solvers (Rodas5P, Rodas4, Rosenbrock23, …)
+
+Rosenbrock-type stiff solvers need both a state Jacobian ∂f/∂x and a time
+gradient ∂f/∂t.  Numen handles both automatically:
+
+**State Jacobian** — OrdinaryDiffEq uses ForwardDiff with a sparse
+`jac_prototype` built from the ECS entity-group graph.  `compile_spec()` computes
+the Jacobian sparsity pattern: within each system's entity group all state slots
+are treated as fully coupled (dense block); states from different groups are
+independent.  Julia passes this as a `SparseMatrixCSC` to `ODEFunction`, and
+OrdinaryDiffEq applies SparseDiffTools matrix coloring.  The effective color count
+equals the maximum coupled-state width per group — typically 4–16 — regardless of
+how many entities the system has.  This makes Jacobian cost O(1) in the number of
+entities for models with bounded per-group coupling.
+
+**Time gradient** — OrdinaryDiffEq normally computes ∂f/∂t by calling the
+dynamics function with `t::ForwardDiff.Dual`.  This fails because the solver wraps
+the dynamics closure in a `FunctionWrapper{…, Float64}` at problem-construction
+time (inferred from `tspan::Tuple{Float64,Float64}`), which rejects Dual `t` at
+runtime.  Numen provides an explicit `tgrad!` built by `build_tgrad()` in
+`solver.jl` using central finite differences: two Float64 RHS calls per step,
+constant cost regardless of state size.  This leaves the ForwardDiff Jacobian path
+untouched while fully bypassing the FunctionWrapper restriction.
+
+**User dynamics signatures** — the two-parameter convention `{T, S}` is still
+required for scalar helper functions:
+
+```julia
+function soft_pen(x::T) where T <: Real
+    x <= 0.0 && return zero(T)
+    ...
+end
+```
+
+`t :: Real` in user dynamics functions covers both `Float64` (normal/Jacobian
+calls) and `ForwardDiff.Dual` (any future path where Dual `t` is needed).
+
+**Why NOT `autodiff=AutoFiniteDiff()`** — this switches the Jacobian to finite
+differences too.  For n states it costs n RHS evaluations per Jacobian vs.
+O(color_count) with sparse ForwardDiff.  For large models this is catastrophically
+slower.  Always use the `jac_prototype` + explicit `tgrad!` combination instead.
 
 ---
 
@@ -318,12 +389,12 @@ module MyDynamics
 import Main: CompiledSpec, CompiledSystemSpec, state_idx, param_idx
 
 function gravity_dynamics!(
-    dx::Vector{Float64}, x::Vector{Float64}, p::Vector{Float64},
-    t::Float64, spec::CompiledSpec, sys::CompiledSystemSpec,
-)
+    dx :: AbstractVector{T}, x :: AbstractVector{S}, p :: Vector{Float64},
+    t  :: Real, spec :: CompiledSpec, sys :: CompiledSystemSpec,
+) where {T <: Real, S <: Real}
     for id_ball in sys.entity_ids
-        i_pos = state_idx(spec, id_ball * ".position")
-        i_vel = state_idx(spec, id_ball * ".velocity")
+        i_pos = state_idx(spec, id_ball * ".ball.position")
+        i_vel = state_idx(spec, id_ball * ".ball.velocity")
         dx[i_pos] += x[i_vel]
         dx[i_vel] += -9.81
     end
@@ -402,8 +473,11 @@ src/numen/
 examples/
 ├── oscillator/            Minimal: single 1D harmonic oscillator
 ├── coupled_spring/        Multi-entity: 3-mass spring chain
-└── fluid_poppet/          Full: 4-CV pneumatic network + spring-mass poppet
-                           ← Best reference for new models
+├── fluid_poppet/          Full: 4-CV pneumatic network + spring-mass poppet
+│                          ← Best reference for complex multi-system models
+├── nonlinear_oscillator/  Characterization campaign reference (FRF, chirp, parameter sweep)
+└── pneumatic_dashpot/     Piston with orifice vents — stiff ODE, Rodas5P, orifice sweep
+                           ← Best reference for stiff systems + parameter sweeps
 ```
 
 ---
@@ -416,8 +490,8 @@ Callbacks fire at a fixed period `dt` and can read and write state.
 # dynamics.py
 def pid_controller(t, x, p, spec):
     """scipy-side: returns {field_key: new_value}."""
-    err = x[spec.state_idx("sensor.angle")] - p[spec.param_idx("ctrl.setpoint")]
-    return {"actuator.force": p[spec.param_idx("ctrl.kp")] * err}
+    err = x[spec.state_idx("sensor.sensor.angle")] - p[spec.param_idx("ctrl.pid.setpoint")]
+    return {"actuator.actuator.force": p[spec.param_idx("ctrl.pid.kp")] * err}
 
 class PIDCallback(Callback):
     kind:      Literal["pid"] = "pid"
@@ -442,8 +516,8 @@ world = World(
 **Julia callback** (in `dynamics.jl`):
 ```julia
 function pid!(integrator, spec, params)
-    i_force  = state_idx(spec, "actuator.force")
-    i_angle  = state_idx(spec, "sensor.angle")
+    i_force  = state_idx(spec, "actuator.actuator.force")
+    i_angle  = state_idx(spec, "sensor.sensor.angle")
     err = integrator.u[i_angle] - params["setpoint"]
     integrator.u[i_force] = params["kp"] * err
 end
@@ -498,12 +572,12 @@ from numen.reconstruction.collector import SnapshotCollector
 
 collector = SnapshotCollector(world, spec, result)
 
-# Time series for a single field
-t, pos = collector.field_series("ball", "position")
+# Time series for a single field — 3 args: entity_id, component_kind, field_name
+t, pos = collector.field_series("ball", "ball", "position")
 
 # World snapshot at a specific time
 snap = collector.at(t=1.5)
-ball = snap.components["ball"]   # typed ComponentView
+ball = snap.components["ball"]["ball"]   # typed ComponentView
 print(ball.position, ball.velocity)
 ```
 
@@ -532,3 +606,123 @@ See `DESIGN.md` for the full architectural rationale. Key open questions:
   Requires the DAE path above.
 - Automatic Julia codegen — SymPy → `sympy.julia_code()` could auto-generate `dynamics.jl`
   from Python symbolic expressions. Currently hand-written; see DESIGN.md for the trade-off.
+
+---
+
+## Characterization framework
+
+The characterization system runs test campaigns from a single YAML file and
+generates plots without any Python scripting.  See `CHARACTERIZATION.md` (in
+every project scaffolded with `numen new`) for the full reference.
+
+### Test types
+
+| Type | What it does |
+|---|---|
+| `discrete_frequency_sweep` | Stepped sine; one solve per freq; lock-in FRF |
+| `continuous_chirp` | Single chirp solve; fast survey |
+| `amplitude_sweep` | Fixed freq, varying amplitude; nonlinearity signature |
+| `dc_operating_point_sweep` | DC bias sweep; small-signal FRF at each point |
+| `parameter_sweep` | Outer loop over one param; inner loop is any test above |
+| `parameter_grid` | Outer grid over multiple params (full_factorial or pairs) |
+| `doe_sweep` | Space-filling / classical DOE over continuous ranges |
+
+Planned nonlinear test types (see `docs/plan_nonlinear_test_suite.md`):
+
+| Type | What it does |
+|---|---|
+| `two_tone` | Two simultaneous sinusoids; extracts IM products, IP3, IMD₃ |
+| `harmonic_distortion_sweep` | Stepped sine + THD; measures H₂, H₃ vs. frequency |
+| `free_decay` | Ring-down + Hilbert transform; backbone curve, amplitude-dep. damping |
+| `phase_portrait` | Steady-state limit cycle in (x, ẋ); Poincaré section for chaos detection |
+| `broadband_noise` | Band-limited noise; Best Linear Approximation + NL distortion spectrum |
+
+### `excitation.*` parameter paths
+
+`parameter_sweep`, `parameter_grid`, and `doe_sweep` can vary excitation inputs
+as the outer dimension — not just model `ParameterField` values:
+
+```yaml
+- name: frf_vs_dc
+  type: parameter_sweep
+  sweep_param: excitation.dc_offset   # also: excitation.amplitude, excitation.frequency
+  values: [0.0, 0.3, 0.6, 1.0]
+  sub_test: baseline_frf              # any other test in the same plan
+```
+
+This is how DC-offset Bode families are generated: outer loop sets equilibrium
+bias, inner loop runs the FRF.  The result is a `ParameterFamilyResult` rendered
+by the `parameter_family` plot panel (curves coloured by sweep parameter).
+
+### Parallel execution
+
+Add `n_workers: N` to `backend:` to run sweep tests in parallel across N Julia
+server processes.  Each worker precompiles all dynamics at startup (via Julia's
+`precompile()`) so the first real solve carries no JIT latency.
+
+```yaml
+backend:
+  type: julia_server
+  julia_file: dynamics.jl
+  n_workers: 4          # 4 parallel processes
+  n_save_points: 2000   # cap output size to avoid huge JSON payloads
+```
+
+CLI override: `numen characterize test_plan.yaml --workers 4`
+
+- `parameter_sweep`, `parameter_grid`, `doe_sweep` dispatch each design point to
+  a free worker in parallel; results are returned in input order.
+- Top-level leaf tests (chirp, FRF, amplitude sweep) run on one worker sequentially.
+
+### Key implementation detail
+
+Inner test runners (`freq_sweep`, `amplitude_sweep`, `chirp_sweep`) do NOT apply
+`dc_offset` themselves.  `CharacterizationRunner._run_leaf_test` pre-applies the
+test's own `dc_offset` once before calling the runner (standalone path).  The
+sub-runner path passes `spec_v` (outer-sweep DC already set) straight through.
+This is why outer `excitation.*` sweeps work correctly.
+
+### Julia server response protocol
+
+Server responses use a chunked line protocol (since the last major update):
+- Line 1: `{"n_t": <int>, "n_states": <int>}` — header
+- Line 2: `[t0, t1, …]` — time vector
+- Lines 3…: one line per state row
+
+This prevents single huge `readline()` calls for long simulations.  Use
+`n_save_points` or `dtsave` in the backend config to cap output density.
+
+### Plot panel types
+
+`bode`, `chirp_timeseries`, `amplitude_sweep`, `dc_sweep`, `parameter_family`,
+`doe_scatter`, `parameter_grid_heatmap`.  All configured in the `plots:` section
+of the same YAML file as the tests.  Use `enabled: false` on any test or panel
+to skip it without deleting it.
+
+---
+
+## Documentation workflow
+
+Active design work lives in `docs/plan_*.md` files. These are **living documents**:
+every time a design decision is refined during implementation, update the relevant
+plan file in the same commit as the code change. Never let the plan drift from the
+code.
+
+When a feature is complete, its design rationale graduates:
+- Architectural decisions → `DESIGN.md`
+- Model-authoring guidance (field types, patterns, gotchas) → this file (`CLAUDE.md`)
+
+Current active plans:
+
+| File | Status | Contents |
+|---|---|---|
+| `docs/plan_characterization_framework.md` | Complete | Characterization test framework: ExcitationPort, test types, DOE, bond graph abstraction, Julia-first architecture |
+| `docs/plan_characterization_plots.md` | Complete | YAML-driven plots: `-c`/`-p` CLI, `plots:` schema, all panel types, excitation.* outer-loop sweeps |
+| `docs/plan_parallel_characterization.md` | Complete | Parallel characterization: `n_workers`, DOE-level dispatch, `JuliaServerPool`, `precompile()`, chunked response protocol |
+| `docs/plan_symbolic_codegen.md` | Planned | SymPy → Julia auto-codegen to eliminate dual Python/Julia dynamics authoring |
+| `docs/plan_nonlinear_test_suite.md` | Planned | Two-tone/IMD, harmonic distortion sweep, free-decay backbone, phase portrait, broadband noise — five new test types |
+| `docs/plan_random_vibe_testing.md` | Planned | Random vibe testing: PSD-driven stochastic excitation via table lookup in p; psd_profile / psd_file / multisine / time_series_file input formats; --seed CLI override; BLA / coherence / crest-factor analysis |
+
+When starting a new session, check `docs/` for active plans before writing any
+code — they contain the full context of prior design decisions that should not
+be relitigated.

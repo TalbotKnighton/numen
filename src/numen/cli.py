@@ -6,8 +6,34 @@ import subprocess
 import sys
 import textwrap
 import traceback
+from importlib.resources import files as _pkg_files
 from pathlib import Path
 from typing import Optional
+
+
+def _read_init_data(filename: str) -> str:
+    """Return the text content of a file from numen/init_data/."""
+    return (_pkg_files("numen") / "init_data" / filename).read_text(encoding="utf-8")
+
+
+def _write_init_data(
+    filename: str,
+    dest: Path,
+    substitutions: dict[str, str] | None = None,
+    force: bool = False,
+) -> bool:
+    """Copy an init_data file to dest, applying substitutions.
+
+    Returns True if the file was written, False if it was skipped (already exists).
+    """
+    if dest.exists() and not force:
+        return False
+    content = _read_init_data(filename)
+    if substitutions:
+        for k, v in substitutions.items():
+            content = content.replace("{" + k + "}", v)
+    dest.write_text(content, encoding="utf-8")
+    return True
 
 import typer
 from rich import box
@@ -19,7 +45,7 @@ from rich.syntax import Syntax
 from rich.table import Table
 from rich.text import Text
 
-from numen._scaffold import EXAMPLES, TEMPLATES
+from numen._scaffold import EXAMPLES, TEMPLATES, VALID_BACKENDS, get_substitutions
 
 # Ensure UTF-8 output on Windows (cmd.exe / PowerShell default to CP1252)
 if sys.platform == "win32":
@@ -106,12 +132,13 @@ def callback(ctx: typer.Context) -> None:
         t = Table(box=box.SIMPLE, show_header=False, padding=(0, 2))
         t.add_column(style="bold #06b6d4", no_wrap=True)
         t.add_column(style="dim")
-        t.add_row("check",  "Verify scipy, JAX, and Julia backends")
-        t.add_row("init",   "Bootstrap a new project with CLAUDE.md")
-        t.add_row("new",    "Scaffold a model directory")
-        t.add_row("list",   "Show built-in examples")
-        t.add_row("run",    "Run a built-in example")
-        t.add_row("info",   "Quick-reference cheat sheet")
+        t.add_row("check",        "Verify scipy, JAX, and Julia backends")
+        t.add_row("characterize", "Run tests (-c), plot results (-p), or both")
+        t.add_row("init",         "Bootstrap a new project with CLAUDE.md")
+        t.add_row("new",          "Scaffold a model directory")
+        t.add_row("list",         "Show built-in examples")
+        t.add_row("run",          "Run a built-in example")
+        t.add_row("info",         "Quick-reference cheat sheet")
         console.print(t)
         console.print()
         console.print(f"  [dim]Run [bold]numen <command> --help[/bold] for details.[/dim]")
@@ -131,10 +158,10 @@ def check() -> None:
             from numen._check_model import _CheckOsc, _CheckOscSys, CheckWorld
             from numen.compiler.flatten import compile_spec
             from numen.bridge.scipy_backend import ScipyBackend
-            world = CheckWorld(components={"o": _CheckOsc()}, systems={"s": _CheckOscSys()})
+            world = CheckWorld(components={"o": {"_check_osc": _CheckOsc()}}, systems={"s": _CheckOscSys()})
             spec = compile_spec(world)
             result = ScipyBackend(rtol=1e-8, atol=1e-10).solve(spec, (0.0, 1.0))
-            final = result.x[spec.state_index_map["o.position"][0], -1]
+            final = result.x[spec.state_index_map["o._check_osc.position"][0], -1]
             assert abs(final - 1.0) < 1e-4, f"wrong: {final}"
             scipy_ok = True
         except Exception as e:
@@ -152,10 +179,10 @@ def check() -> None:
             from numen._check_model import _CheckOsc, _CheckOscSysJax, CheckWorldJax
             from numen.compiler.flatten import compile_spec
             from numen.bridge.jax_backend import JAXBackend
-            world2 = CheckWorldJax(components={"o": _CheckOsc()}, systems={"s": _CheckOscSysJax()})
+            world2 = CheckWorldJax(components={"o": {"_check_osc": _CheckOsc()}}, systems={"s": _CheckOscSysJax()})
             spec2 = compile_spec(world2)
             result2 = JAXBackend(rtol=1e-8, atol=1e-10, solver="Dopri5").solve(spec2, (0.0, 1.0))
-            final2 = float(result2.x[spec2.state_index_map["o.position"][0], -1])
+            final2 = float(result2.x[spec2.state_index_map["o._check_osc.position"][0], -1])
             assert abs(final2 - 1.0) < 1e-3, f"wrong: {final2}"
             jax_ok = True
         except ImportError:
@@ -226,12 +253,14 @@ def init(
     target = Path(directory).resolve() if directory else Path.cwd()
     target.mkdir(parents=True, exist_ok=True)
 
-    claude_md = target / "CLAUDE.md"
+    claude_md    = target / "CLAUDE.md"
+    char_md      = target / "CHARACTERIZATION.md"
+    design_md    = target / "DESIGN.md"
+
     if claude_md.exists() and not force:
         console.print(f"  [bold #f59e0b]⚠[/]  CLAUDE.md already exists. Use [bold]--force[/bold] to overwrite.")
         raise typer.Exit(code=1)
 
-    model_dirs = ""
     model_path = None
     if model:
         if domain not in TEMPLATES:
@@ -243,14 +272,19 @@ def init(
             raise typer.Exit(code=1)
         model_path.mkdir(parents=True, exist_ok=True)
         model_name = model.replace("-", "_").replace(" ", "_").title().replace("_", "")
+        subs = get_substitutions(model_name, "scipy")
         tmpl = TEMPLATES.get(domain, TEMPLATES["generic"])
         for filename, content in tmpl.items():
-            (model_path / filename).write_text(content.replace("{{MODEL_NAME}}", model_name), encoding="utf-8")
-        model_dirs = f"├── {model}/        ({domain} model)\n"
+            for key, val in subs.items():
+                content = content.replace(key, val)
+            (model_path / filename).write_text(content, encoding="utf-8")
 
     project_name = target.name
-    claude_content = _INIT_CLAUDE_MD.format(project_name=project_name, model_dirs=model_dirs)
-    claude_md.write_text(claude_content, encoding="utf-8")
+    _write_init_data("CLAUDE.md", claude_md,
+                     substitutions={"project_name": project_name}, force=force)
+    _write_init_data("CHARACTERIZATION.md", char_md, force=force)
+    _write_init_data("DESIGN.md", design_md,
+                     substitutions={"project_name": project_name}, force=force)
 
     console.print(_logo_panel())
     _header("Project Initialized")
@@ -258,7 +292,9 @@ def init(
     console.print(f"  [bold]Location:[/bold] {target}")
     console.print()
     console.print("  [dim]Created:[/dim]")
-    _file("CLAUDE.md", "AI assistant context — loaded automatically by Claude Code")
+    _file("CLAUDE.md",            "AI assistant context — loaded automatically by Claude Code")
+    _file("CHARACTERIZATION.md",  "Complete characterization framework guide")
+    _file("DESIGN.md",            "Architecture reference + project decision log")
     if model_path:
         _file(f"{model}/", f"{domain} model scaffold")
     console.print()
@@ -276,12 +312,16 @@ def init(
 def new(
     name: str = typer.Argument(..., help="Model name (becomes directory name)"),
     domain: str = typer.Option("generic", "--domain", "-d", help="Template: mechanical | fluid | generic"),
+    backend: str = typer.Option("scipy", "--backend", "-b", help=f"Solver backend: {' | '.join(VALID_BACKENDS)}"),
     output: Optional[str] = typer.Option(None, "--output", "-o", help="Parent directory (default: cwd)"),
     force: bool = typer.Option(False, "--force", "-f", help="Overwrite if exists"),
 ) -> None:
     """Scaffold a new model directory."""
     if domain not in TEMPLATES:
         console.print(f"  [bold #ef4444]✗[/]  Unknown domain [bold]{domain!r}[/]. Choose: {', '.join(TEMPLATES)}")
+        raise typer.Exit(code=1)
+    if backend not in VALID_BACKENDS:
+        console.print(f"  [bold #ef4444]✗[/]  Unknown backend [bold]{backend!r}[/]. Choose: {' | '.join(VALID_BACKENDS)}")
         raise typer.Exit(code=1)
 
     outdir = Path(output) / name if output else Path(name)
@@ -291,26 +331,57 @@ def new(
 
     outdir.mkdir(parents=True, exist_ok=True)
     model_name = name.replace("-", "_").replace(" ", "_").title().replace("_", "")
+    subs = get_substitutions(model_name, backend)
     tmpl = TEMPLATES[domain]
     for filename, content in tmpl.items():
-        (outdir / filename).write_text(content.replace("{{MODEL_NAME}}", model_name), encoding="utf-8")
+        for key, val in subs.items():
+            content = content.replace(key, val)
+        (outdir / filename).write_text(content, encoding="utf-8")
 
-    _header(f"Scaffolded: {name}  [{domain}]")
-    _file("components.py", "Component classes (IntegratedField, ParameterField)")
-    _file("dynamics.py",   "Physics functions — JAX-compatible, use jnp.*")
-    _file("dynamics.jl",   "Julia mirror for JuliaBackend / JuliaServerBackend")
-    _file("world.py",      "World assembly and make_world()")
-    _file("run.py",        "Solve and plot")
+    # Write CLAUDE.md / CHARACTERIZATION.md into the project root (outdir's parent)
+    # if they aren't already there — silently skip if present.
+    project_dir  = outdir.parent.resolve()
+    project_name = project_dir.name
+    claude_written = _write_init_data(
+        "CLAUDE.md", project_dir / "CLAUDE.md",
+        substitutions={"project_name": project_name}, force=force,
+    )
+    char_written = _write_init_data(
+        "CHARACTERIZATION.md", project_dir / "CHARACTERIZATION.md", force=force,
+    )
+    design_written = _write_init_data(
+        "DESIGN.md", project_dir / "DESIGN.md",
+        substitutions={"project_name": project_name}, force=force,
+    )
+
+    _header(f"Scaffolded: {name}  [{domain}, {backend}]")
+    _file("components.py",  "Component classes (IntegratedField, ParameterField)")
+    _file("dynamics.py",    "Physics functions — JAX-compatible, use jnp.*")
+    _file("dynamics.jl",    "Julia mirror for JuliaBackend / JuliaServerBackend")
+    _file("world.py",       "World assembly and make_world()")
+    _file("run.py",         f"Solve and plot  ({backend} active; others commented)")
+    _file("test_plan.yaml", f"Characterization campaign  ({backend} active; others commented)")
+    if claude_written:
+        _file("../CLAUDE.md",            "AI assistant context (project root)")
+    if char_written:
+        _file("../CHARACTERIZATION.md",  "Characterization framework guide (project root)")
+    if design_written:
+        _file("../DESIGN.md",            "Architecture reference + project decision log (project root)")
     console.print()
     console.print("  [dim]Next steps:[/dim]")
     _step(1, f"Edit [bold]{outdir}/components.py[/bold]  — define state and parameter fields")
     _step(2, f"Edit [bold]{outdir}/dynamics.py[/bold]    — write physics (use [bold]jnp.*[/bold], not np.*)")
     _step(3, f"Edit [bold]{outdir}/world.py[/bold]       — set initial conditions")
     _step(4, f"Run:  [bold]cd {outdir} && python run.py[/bold]")
-    console.print()
-    console.print("  [dim]Julia backend (optional, ~300–600× faster):[/dim]")
-    _step(5, f"Edit [bold]{outdir}/dynamics.jl[/bold]    — mirror Python dynamics in Julia")
-    _step(6, "Use [bold]JuliaServerBackend[/bold] or [bold]JuliaBackend[/bold] in run.py")
+    if backend in ("julia", "julia_server"):
+        console.print()
+        console.print("  [dim]Julia backend selected — also edit:[/dim]")
+        _step(5, f"Edit [bold]{outdir}/dynamics.jl[/bold]    — mirror Python dynamics in Julia")
+    else:
+        console.print()
+        console.print("  [dim]Julia backend (optional, ~300–600× faster):[/dim]")
+        _step(5, f"Edit [bold]{outdir}/dynamics.jl[/bold]    — mirror Python dynamics in Julia")
+        _step(6, f"Uncomment [bold]JuliaServerBackend[/bold] in run.py and test_plan.yaml")
     console.print()
 
 
@@ -326,9 +397,15 @@ def list_examples() -> None:
         t.add_row(name, meta["domain"], meta["description"])
     console.print(t)
     console.print()
-    console.print("  [bold]numen run [dim]<name>[/dim][/bold]    Run with scipy (no plot window)")
-    console.print("  [bold]numen new [dim]<name>[/dim][/bold]    Scaffold a new model")
+    console.print("  [bold]numen run  [dim]<name>[/dim][/bold]          Run with scipy (no plot window)")
+    console.print("  [bold]numen copy [dim]<name> [dest][/dim][/bold]   Copy source files to a local directory")
+    console.print("  [bold]numen new  [dim]<name>[/dim][/bold]          Scaffold a new blank model")
     console.print()
+
+
+def _example_dir(name: str) -> Path:
+    """Return the filesystem path to a bundled example directory."""
+    return Path(str(_pkg_files("numen") / "examples" / name))
 
 
 @app.command()
@@ -340,10 +417,9 @@ def run(
         console.print(f"  [bold #ef4444]✗[/]  Unknown example [bold]{example!r}[/]. Run [bold]numen list[/bold] to see options.")
         raise typer.Exit(code=1)
 
-    examples_dir = Path(__file__).parent.parent.parent / "examples" / example
+    examples_dir = _example_dir(example)
     if not examples_dir.exists():
-        console.print(f"  [bold #f59e0b]⚠[/]  Example directory not found: {examples_dir}")
-        console.print("  [dim](Examples are only available in the development checkout, not an installed package.)[/dim]")
+        console.print(f"  [bold #ef4444]✗[/]  Example directory not found: {examples_dir}")
         raise typer.Exit(code=1)
 
     run_py = examples_dir / "run.py"
@@ -359,6 +435,216 @@ def run(
     console.print()
     if proc.returncode != 0:
         raise typer.Exit(code=proc.returncode)
+
+
+# Files to skip when copying an example to a user directory
+_COPY_SKIP_NAMES  = {"results.json", "benchmark_results.txt"}
+_COPY_SKIP_SUFFIX = {".pyc", ".png"}
+_COPY_SKIP_DIRS   = {"__pycache__"}
+
+
+def _should_copy(p: Path) -> bool:
+    if p.name.startswith(".!"):
+        return False
+    if any(part in _COPY_SKIP_DIRS for part in p.parts):
+        return False
+    return p.suffix not in _COPY_SKIP_SUFFIX and p.name not in _COPY_SKIP_NAMES
+
+
+@app.command()
+def copy(
+    example: str          = typer.Argument(..., help=f"Example name ({', '.join(EXAMPLES)})"),
+    dest:    Optional[Path] = typer.Argument(None, help="Destination directory (default: ./<example>)"),
+) -> None:
+    """Copy a built-in example to a local directory so you can edit it."""
+    import shutil
+
+    if example not in EXAMPLES:
+        console.print(f"  [bold #ef4444]✗[/]  Unknown example [bold]{example!r}[/]. Run [bold]numen list[/bold] to see options.")
+        raise typer.Exit(code=1)
+
+    src_dir = _example_dir(example)
+    if not src_dir.exists():
+        console.print(f"  [bold #ef4444]✗[/]  Example directory not found: {src_dir}")
+        raise typer.Exit(code=1)
+
+    out_dir = dest or Path.cwd() / example
+    if out_dir.exists():
+        console.print(f"  [bold #ef4444]✗[/]  Destination already exists: [bold]{out_dir}[/]")
+        console.print("  [dim]Remove it first or choose a different path.[/dim]")
+        raise typer.Exit(code=1)
+
+    count = 0
+    for src_file in sorted(src_dir.rglob("*")):
+        if src_file.is_file() and _should_copy(src_file):
+            dst_file = out_dir / src_file.relative_to(src_dir)
+            dst_file.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src_file, dst_file)
+            count += 1
+
+    console.print()
+    console.print(f"  [bold #22c55e]✓[/]  Copied [bold]{example}[/] → [bold]{out_dir}[/]  ({count} files)")
+    console.print()
+    console.print(f"  [dim]cd {out_dir}[/dim]")
+    console.print(f"  [dim]uv run python run.py[/dim]")
+    if (out_dir / "test_plan.yaml").exists():
+        console.print(f"  [dim]uv run numen characterize test_plan.yaml[/dim]")
+    console.print()
+
+
+@app.command()
+def characterize(
+    plan:     str  = typer.Argument(..., help="Path to YAML or JSON test plan"),
+    do_char:  bool = typer.Option(False, "-c", is_eager=False,
+                                  help="Run characterisation (write results JSON)"),
+    do_plot:  bool = typer.Option(False, "-p", is_eager=False,
+                                  help="Generate plots (read results JSON)"),
+    verbose:  bool = typer.Option(False, "--verbose", "-v", help="Enable DEBUG logging"),
+    workers:  int  = typer.Option(0, "--workers", "-w",
+                                  help="Parallel Julia server processes (0 = use YAML n_workers)"),
+    seed:     int  = typer.Option(-1, "--seed",
+                                  help="Override random seed for all stochastic tests (-1 = use YAML values)"),
+) -> None:
+    """Run a characterization campaign and/or generate plots.
+
+    Output paths are read from the YAML ``output:`` and ``plots.output:`` keys.
+    When neither -c nor -p is given, both run (characterise then plot).
+
+    Examples::
+
+        numen characterize test_plan.yaml          # characterise + plot
+        numen characterize test_plan.yaml -c       # characterise only
+        numen characterize test_plan.yaml -p       # plot only
+        numen characterize test_plan.yaml --workers 4   # parallel with 4 Julia servers
+        numen characterize test_plan.yaml --seed 42     # fixed random seed
+    """
+    import logging as _logging
+    from pathlib import Path as _Path
+    from numen.characterization.plot_runner import resolve_path
+
+    # Default: run both when no flag is given
+    if not do_char and not do_plot:
+        do_char = do_plot = True
+
+    if verbose:
+        from numen.logging import configure_logging
+        configure_logging(level=_logging.DEBUG)
+
+    plan_path = _Path(plan).resolve()
+    if not plan_path.exists():
+        _fail(f"Plan file not found: {plan_path}")
+        raise typer.Exit(code=1)
+
+    yaml_dir = plan_path.parent
+    plan_dir = str(yaml_dir)
+    if plan_dir not in sys.path:
+        sys.path.insert(0, plan_dir)
+
+    console.print(_logo_panel())
+    _header(f"Characterize  ·  {plan_path.name}")
+    console.print(f"  [dim]Plan:[/dim]  {plan_path}")
+    console.print()
+
+    # Load and validate the plan
+    with console.status("[dim]Loading test plan...[/dim]", spinner="dots"):
+        try:
+            from numen.characterization.schema import CharacterizationConfig
+            if plan_path.suffix in (".yaml", ".yml"):
+                config = CharacterizationConfig.from_yaml(plan_path)
+            else:
+                config = CharacterizationConfig.from_json(plan_path)
+        except Exception as e:
+            _fail(f"Failed to load plan: {e}")
+            raise typer.Exit(code=1)
+
+    # Resolve julia_file relative to the YAML directory when it's a relative path
+    if config.backend.julia_file:
+        jf = _Path(config.backend.julia_file)
+        if not jf.is_absolute():
+            config = config.model_copy(update={
+                "backend": config.backend.model_copy(
+                    update={"julia_file": str(yaml_dir / jf)}
+                )
+            })
+
+    # CLI --workers overrides YAML n_workers (0 means "use YAML value")
+    if workers > 0:
+        config = config.model_copy(update={
+            "backend": config.backend.model_copy(update={"n_workers": workers})
+        })
+
+    # CLI --seed overrides per-test seeds for stochastic tests (-1 means "use YAML values")
+    _global_seed: int | None = seed if seed >= 0 else None
+
+    out_json = resolve_path(config.output, yaml_dir)
+
+    enabled_tests = [t for t in config.tests if getattr(t, "enabled", True)]
+    n_tests = len(enabled_tests)
+    skipped = len(config.tests) - n_tests
+    skip_str = f"  [dim]({skipped} skipped)[/dim]" if skipped else ""
+    _ok(f"Plan validated  ({n_tests} test{'s' if n_tests != 1 else ''}{skip_str})")
+    console.print()
+
+    # Print test table
+    t = Table(box=box.SIMPLE, show_header=True, padding=(0, 2))
+    t.add_column("#",      style="dim",           no_wrap=True, min_width=3)
+    t.add_column("Name",   style="bold #06b6d4",  no_wrap=True)
+    t.add_column("Type",   style="dim")
+    t.add_column("",       style="dim",           no_wrap=True)
+    for i, test in enumerate(config.tests, 1):
+        enabled = getattr(test, "enabled", True)
+        row_style = "" if enabled else "dim"
+        t.add_row(str(i), test.name, test.type, "" if enabled else "skip",
+                  style=row_style)
+    console.print(t)
+    console.print()
+
+    # ── Characterise ─────────────────────────────────────────────────────────
+    if do_char:
+        with console.status("[dim]Running campaign...[/dim]", spinner="dots"):
+            try:
+                from numen.characterization.runner import CharacterizationRunner
+                runner  = CharacterizationRunner.from_config(config, global_seed=_global_seed)
+                results = runner.run()
+            except Exception as e:
+                _fail(f"Campaign failed: {e}")
+                if verbose:
+                    console.print_exception()
+                raise typer.Exit(code=1)
+
+        _ok(f"Campaign complete  ({len(results)} tests)")
+        results.save(out_json)
+        _ok(f"Results saved → {out_json}")
+        console.print()
+
+    # ── Plot ─────────────────────────────────────────────────────────────────
+    if do_plot:
+        if not out_json.exists():
+            _fail(f"Results not found: {out_json}  (run with -c first)")
+            raise typer.Exit(code=1)
+
+        enabled_panels = [p for p in config.plots.panels if p.enabled]
+        if not enabled_panels:
+            console.print("  [dim]No enabled panels in plots: — skipping plot step.[/dim]")
+        else:
+            with console.status("[dim]Generating plots...[/dim]", spinner="dots"):
+                try:
+                    from numen.characterization.results import CampaignResults
+                    from numen.characterization.plot_runner import CharacterizationPlotter
+                    loaded  = CampaignResults.load(out_json)
+                    plotter = CharacterizationPlotter(config, loaded, yaml_dir)
+                    out_png = plotter.run()
+                except Exception as e:
+                    _fail(f"Plot generation failed: {e}")
+                    if verbose:
+                        console.print_exception()
+                    raise typer.Exit(code=1)
+
+            _ok(f"Plot saved → {out_png}")
+            console.print()
+
+    console.print(Rule(style="dim #7c3aed"))
+    console.print()
 
 
 @app.command()
@@ -409,7 +695,7 @@ def info() -> None:
         [bold]_D = 1e-6[/bold]
         [bold]def _soft_pen(x):[/bold]
         [bold]    return jnp.where(x<=0, 0, jnp.where(x>=_D, x-0.5*_D, 0.5*x*x/_D))[/bold]
-        See [dim]examples/fluid_poppet/dynamics.py[/dim] for the full pattern.""")))
+        See [dim]fluid_poppet/dynamics.py[/dim] (copy with [bold]numen copy fluid_poppet[/bold]) for the full pattern.""")))
 
     # Parameter sweeps
     console.print(_panel("Parameter Sweeps", textwrap.dedent("""\
@@ -422,367 +708,11 @@ def info() -> None:
 
     # Reference
     console.print(_panel("Reference", textwrap.dedent("""\
-        [dim]examples/fluid_poppet/[/dim]   most complete reference (6-state pneumatic system)
+        [bold]numen copy fluid_poppet[/bold]   most complete reference (6-state pneumatic system)
         [dim]CLAUDE.md[/dim]               AI assistant context — auto-loaded by Claude Code
         [dim]DESIGN.md[/dim]               architecture decisions and open questions""")))
 
     console.print()
-
-
-# ─── _INIT_CLAUDE_MD ──────────────────────────────────────────────────────────
-
-_INIT_CLAUDE_MD = '''\
-# {project_name} — Numen Physics Simulation Project
-
-This project uses the **Numen** framework (`pip install numen`) for
-engineering dynamics simulation.  Models are defined in Python and
-solved by scipy, JAX, or Julia backends.
-
-Run `numen check` to verify your installation, then `numen info` for a
-quick reference.
-
----
-
-## Core pattern
-
-```python
-# 1. Components — data (state + parameters)
-from numen.spec.component import Component
-from numen.fields import IntegratedField, ParameterField
-from typing import Annotated, Literal
-
-class MyComponent(Component):
-    kind:     Literal["my"] = "my"
-    position: Annotated[float, IntegratedField()] = 0.0   # state (integrated)
-    mass:     Annotated[float, ParameterField()]  = 1.0   # param (constant)
-
-# 2. Systems — stateless dynamics functions
-import jax.numpy as jnp   # always jnp, never np, inside dynamics
-from numen.spec.system import System, DynamicsFn
-from typing import ClassVar
-
-def my_dynamics(dx, x, p, t, spec, system):
-    for (eid,) in system.entity_groups:
-        c  = spec.view(eid, MyComponent, x, p)     # read
-        dc = spec.dx_view(eid, MyComponent, dx)    # write
-        dc.position += c.velocity                  # accumulate with +=
-
-class MySystem(System):
-    component_types: ClassVar[tuple[type, ...]] = (MyComponent,)
-    python_fn:       ClassVar[DynamicsFn]       = staticmethod(my_dynamics)
-    kind:            Literal["my_sys"]          = "my_sys"
-    dynamics_fn:     str = "MyDynamics.my_dynamics!"   # Julia function name
-
-# 3. Assemble world + solve
-from numen.spec.world import GenericWorld
-from numen.compiler.flatten import compile_spec
-from numen.bridge.scipy_backend import ScipyBackend
-
-World  = GenericWorld[MyComponent, MySystem, None]
-world  = World(components={{"e": MyComponent()}}, systems={{"s": MySystem()}})
-spec   = compile_spec(world)
-result = ScipyBackend(rtol=1e-8, atol=1e-10).solve(spec, tspan=(0.0, 1.0))
-```
-
----
-
-## Field types
-
-| Field | Where | Updated | Backed |
-|---|---|---|---|
-| `IntegratedField()` | state `x` | Every ODE step | ✓ all backends |
-| `ParameterField()` | param `p` | Never (constant) | ✓ all backends |
-| `ContinuousField()` | state `x` | Every RHS call (fn writes) | ✓ output/algebraic slot |
-| `DiscreteField(dt)` | state `x` | Forces tstops at multiples of `dt` | ✓ tstops; controller callback pending |
-
-### Vector / array fields (`size=N`)
-
-Any field can hold an array by setting `size=N` — all backends support this today:
-
-```python
-class VibeComponent(Component):
-    kind:        Literal["vibe"] = "vibe"
-    frequencies: Annotated[list[float], ParameterField(size=8)] = [0.0] * 8
-    amplitudes:  Annotated[list[float], ParameterField(size=8)] = [0.0] * 8
-    phases:      Annotated[list[float], ParameterField(size=8)] = [0.0] * 8
-```
-
-In dynamics, `spec.view(eid, VibeComponent, x, p).frequencies` returns a slice.
-In Julia, index with `param_idx(spec, id * ".frequencies")` as the start of the slice.
-
----
-
-## Backend compatibility
-
-`compile_spec()` sets `spec.required_features` based on which field types are present.
-Every `backend.solve()` checks this **before starting** and raises `NumenFeatureError`
-with an actionable message if the backend can't handle the spec.
-
-### Logging
-
-```python
-from numen.logging import configure_logging
-import logging
-configure_logging(level=logging.DEBUG)   # see all diagnostics + Julia output
-```
-
-Julia stderr is routed to `numen.backend.julia*` loggers in real time.
-
----
-
-## Controller callbacks
-
-Callbacks fire at a fixed period and can write to `DiscreteField` state.
-
-```python
-from numen.spec.callback import Callback
-
-def my_ctrl(t, x, p, spec):
-    return {{"actuator.force": -1.0 * x[spec.state_idx("sensor.angle")]}}
-
-class MyCallback(Callback):
-    kind:      Literal["my"] = "my"
-    dt:        float = 0.01
-    julia_fn:  str   = "MyDyn.my_ctrl!"
-    params:    dict[str, float] = {{"kp": 1.0}}
-    python_fn: ClassVar = staticmethod(my_ctrl)
-```
-
-Wire into world: `callbacks={{"ctrl": MyCallback()}}` in `GenericWorld`.
-
-**Scipy** — segment-solve, zero jitter.  **JAX** — unsupported (`NumenFeatureError`).
-**Julia** — `PeriodicCallback` inside the integrator.
-
-Julia signature: `function my_ctrl!(integrator, spec, params)` — write via `integrator.u[i]`.
-
----
-
-## DAE — algebraic constraints
-
-`ContinuousField(algebraic=True)` marks a slot with no time derivative.
-The dynamics fn writes a residual `g(x) = 0`; the solver enforces the manifold.
-
-```python
-# Component
-constraint: Annotated[float, ContinuousField(algebraic=True)] = 0.0
-
-# Dynamics fn writes residual (not derivative):
-da.constraint += a.pressure - b.pressure   # enforces P_a = P_b
-```
-
-**Julia-only** (scipy/JAX raise `NumenFeatureError("dae_constraints")`).
-**Requires an implicit solver**: `method="Rodas5P"` or `"FBDF"`.
-
-Physical values (mass, heat capacity, etc.) are always divided out in the dynamics fn —
-the `differential_mask` is structural 0/1 only. See `docs/architecture.md`.
-
----
-
-## JAX rules  ⚠️
-
-Inside any dynamics function, always use `jnp.*` — never `np.*`.
-Never use `if`/`else` on state values; use `jnp.where(cond, a, b)`.
-Guard both branches of every `jnp.where` against NaN/Inf.
-Use solver `Dopri5` (not `Tsit5`) when absolute tolerance is tight.
-
-## Smooth contact  ⚠️
-
-Hard-stop forces (`max(0,-pos)`) cause catastrophic step rejection.
-Use a C1-smooth 1 µm ramp instead:
-
-```python
-_D = 1e-6   # 1 µm
-def _soft_pen(x):
-    return jnp.where(x <= 0, 0.0, jnp.where(x >= _D, x - 0.5*_D, 0.5*x*x/_D))
-
-pen   = _soft_pen(-pos)                            # penetration at closed stop
-alpha = jnp.clip(-pos / _D, 0.0, 1.0)             # contact activation (0→1)
-F_stop = k_stop * pen + c_stop * jnp.maximum(0,-vel) * alpha
-```
-
----
-
-## Backends
-
-| Backend | Warm speed | Use when |
-|---|---|---|
-| `ScipyBackend(rtol, atol)` | baseline | development, debugging |
-| `JAXBackend(solver="Dopri5", max_steps=100_000)` | ~1500× faster | repeated solves, Monte Carlo, differentiable |
-| `JuliaBackend(julia_file="dynamics.jl", method, rtol, atol)` | ~300–600× faster | long runs, stiff systems, one-off solves |
-| `JuliaServerBackend(julia_file, method, rtol, atol)` | ~300–600× faster | parameter sweeps — pays JIT cost once |
-
-JAX requires `jnp.*` dynamics (see rules above).
-Julia backends require a `.jl` file that mirrors the Python dynamics (see below).
-
-For stiff problems (multiple timescales, high-frequency oscillations):
-- **Julia**: use `method="Rodas5P"` or `method="FBDF"` — Rosenbrock/BDF implicit
-  solvers take far larger steps than explicit methods (Tsit5, Vern7)
-- **JAX**: try `solver="Kvaerno5"` (implicit SDIRK) before giving up on JAX;
-  if the problem is highly stiff, Rodas5P in Julia will outperform anything JAX can do
-
-If JAX hits `max_steps`, install `equinox` (`pip install equinox`) for clearer
-error messages, then either increase `max_steps` or switch to an implicit solver.
-
----
-
-## Parameter sweeps — JuliaServerBackend and JuliaServerPool
-
-`JuliaBackend` spawns a fresh Julia process per call (~6–12 s startup + JIT).
-`JuliaServerBackend` keeps one process alive — pay JIT once, warm-solve forever.
-`JuliaServerPool` runs N servers in parallel for multi-core sweeps.
-
-### Single server (sequential sweep)
-
-```python
-from numen.bridge.server_backend import JuliaServerBackend
-
-with JuliaServerBackend(
-    julia_file="dynamics.jl",
-    method="Rodas5P",   # implicit solver — best for stiff problems
-    rtol=1e-6,
-    atol=1e-8,
-    eager=True,         # start Julia immediately, not on first solve
-) as server:
-    results = []
-    for params in parameter_grid:
-        spec   = compile_spec(make_world(params))
-        result = server.solve(spec, tspan=(0.0, 3600.0))
-        results.append(result)
-```
-
-### Parallel pool (multi-core sweep)
-
-```python
-from numen.bridge.server_backend import JuliaServerPool
-import numpy as np
-
-params = [{{"spring_k": k}} for k in np.linspace(100, 1000, 50)]
-
-with JuliaServerPool(
-    n_workers=4,                  # 4 Julia processes running simultaneously
-    julia_file="dynamics.jl",
-    method="Rodas5P",
-    rtol=1e-6,
-    atol=1e-8,
-) as pool:
-    results = pool.map(
-        lambda server, p: server.solve(compile_spec(make_world(p)), (0.0, 3600.0)),
-        params,
-        progress=True,            # tqdm bar over completed tasks
-    )
-```
-
-`pool.map` distributes tasks across all workers and returns results in the
-same order as the input list.  Each worker is a full Julia process with
-compiled dynamics — no JIT overhead after the first solve per worker.
-
-You can also call `pool.solve(spec, tspan)` directly to acquire an idle
-worker (blocking if all are busy) without using `map`.
-
-### Progress bars
-
-`ScipyBackend` supports a real integration-progress bar (tracks `t`):
-
-```python
-result = ScipyBackend().solve(spec, tspan, progress=True)
-```
-
-`JuliaServerBackend` and `JAXBackend` show an elapsed-time spinner:
-
-```python
-result = server.solve(spec, tspan, progress=True)
-result = jax_backend.solve(spec, tspan, progress=True)
-```
-
-All progress display requires `tqdm` (`pip install tqdm`) and is silently
-skipped if tqdm is not installed.  `progress=False` is the default.
-
----
-
-## Multi-entity topology
-
-When a system couples multiple entity types (spring between two masses,
-orifice between two control volumes), declare slots in `entity_slots`
-and provide the connections at instantiation:
-
-```python
-from numen.fields import EntityGroup
-
-class SpringSystem(System):
-    entity_slots: ClassVar[EntityGroup] = EntityGroup(
-        MassComponent, SpringComponent, MassComponent   # group_size = 3
-    )
-    ...
-
-SpringSystem(entity_groups=[["m1", "spring", "m2"], ["m2", "spring2", "m3"]])
-```
-
----
-
-## Accessing results
-
-```python
-from numen.reconstruction.collector import SnapshotCollector
-
-collector = SnapshotCollector(world, spec, result)
-
-# Time series for one field
-t, pos = collector.field_series("entity_id", "position")
-
-# Typed snapshot at a specific time
-snap  = collector.at(t=1.5)
-state = snap.components["entity_id"]   # read .position, .velocity, etc.
-```
-
----
-
-## Writing Julia dynamics
-
-```julia
-# dynamics.jl
-module MyDynamics
-import Main: CompiledSpec, CompiledSystemSpec, state_idx, param_idx
-
-function my_dynamics!(dx, x, p, t, spec, sys)
-    for id_e in sys.entity_ids
-        i = state_idx(spec, id_e * ".position")
-        dx[i] += x[state_idx(spec, id_e * ".velocity")]
-    end
-end
-
-end  # module MyDynamics
-```
-
-Pass to the subprocess backend:
-`JuliaBackend(julia_file="dynamics.jl", method="Tsit5", rtol=1e-8, atol=1e-10)`
-
-Pass to the persistent server backend (parameter sweeps):
-`JuliaServerBackend(julia_file="dynamics.jl", method="Rodas5P", rtol=1e-6, atol=1e-8)`
-
-Available solvers: `Tsit5` (default, fast explicit), `Vern7` (higher-order explicit),
-`Rodas5P` (stiff, implicit — best for multi-timescale problems), `FBDF` (stiff, implicit).
-
----
-
-## Project layout
-
-```
-{project_name}/
-{model_dirs}\\
-├── CLAUDE.md          this file
-└── (add more models with: numen new <name> --domain mechanical|fluid|generic)
-```
-
----
-
-## CLI reference
-
-```bash
-numen check                          # verify scipy + JAX + Julia
-numen new <name> --domain <domain>   # scaffold a model (mechanical / fluid / generic)
-numen info                           # framework cheat-sheet
-```
-'''
 
 
 # ─── Entry point ──────────────────────────────────────────────────────────────

@@ -1,3 +1,13 @@
+"""System base class and DynamicsFn protocol for Numen ECS systems.
+
+A system declares which entities it operates on (via ``component_types`` or
+``entity_slots``) and provides the dynamics functions for each backend.
+
+The ``DynamicsFn`` protocol is the calling convention shared by all Python
+dynamics functions — scipy and JAX.  Julia dynamics are referenced by name
+via the ``dynamics_fn`` string field (``"Module.function!"``) and resolved
+inside the Julia subprocess.
+"""
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, ClassVar, Generic, Protocol, TypeVar

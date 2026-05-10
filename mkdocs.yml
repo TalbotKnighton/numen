@@ -1,0 +1,50 @@
+site_name: Numen
+site_description: Hybrid Python/Julia physics simulation framework
+site_url: https://TalbotKnighton.github.io/numen/
+repo_url: https://github.com/TalbotKnighton/numen
+repo_name: TalbotKnighton/numen
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - toc.integrate
+    - search.suggest
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            show_source: false
+            docstring_style: google
+
+nav:
+  - Home: index.md
+  - Getting Started: getting-started.md
+  - User Guide:
+    - Components & Fields: guide/components.md
+    - Systems & Dynamics: guide/systems.md
+    - Backends: guide/backends.md
+    - Characterization: guide/characterization.md
+  - Examples:
+    - Oscillator: examples/oscillator.md
+    - Coupled Spring: examples/coupled_spring.md
+    - Fluid Poppet: examples/fluid_poppet.md
+  - API Reference:
+    - Fields: api/fields.md
+    - Compiler: api/compiler.md
+    - Backends: api/backends.md
+    - Reconstruction: api/reconstruction.md
+  - Julia Reference: julia.md

@@ -1,3 +1,16 @@
+"""Julia subprocess solver backend and SolveResult container.
+
+``JuliaBackend`` spawns a fresh Julia process per ``solve()`` call.  The
+process loads OrdinaryDiffEq.jl, parses the ``CompiledSpec`` JSON payload,
+includes the user's ``dynamics.jl`` file, and returns the solution as JSON.
+
+Cold start (Julia boot + JIT): ~6–7 s.  Warm solve (no startup): ~14 ms.
+
+For repeated solves, use ``JuliaServerBackend`` (persistent process) or
+``JuliaServerPool`` (parallel workers) from ``numen.bridge.server_backend``.
+
+``SolveResult`` is the common return type for all backends.
+"""
 from __future__ import annotations
 
 import json
@@ -22,12 +35,24 @@ _RUNNER_JL = _JULIA_PKG_DIR / "src" / "runner.jl"
 
 @dataclass
 class SolveResult:
-    t: np.ndarray           # shape (n_steps,)
-    x: np.ndarray           # shape (state_size, n_steps)
+    """Output from any backend ``solve()`` call.
+
+    Attributes:
+        t:          Time points, shape ``(n_steps,)``.
+        x:          State matrix, shape ``(state_size, n_steps)``.
+                    Row ``i`` is the time series for state slot ``i``.
+        timings_ms: Per-solve wall times in ms (Julia backends only).
+                    ``timings_ms[0]`` = first solve (JIT + dynamics);
+                    ``timings_ms[1:]`` = warm solves when ``reps > 1``.
+
+    Properties:
+        startup_ms: Wall time minus sum of ``timings_ms`` (subprocess + package load).
+        jit_ms:     First timing (includes JIT), or ``None`` if not available.
+        warm_ms:    Minimum of warm timings, or ``None`` if fewer than 2 reps.
+    """
+    t: np.ndarray
+    x: np.ndarray
     timings_ms: list[float] = field(default_factory=list)
-    # timings_ms[0]  = first solve  (JIT + dynamics), if reps >= 1
-    # timings_ms[1:] = warm solves  (dynamics only),  if reps >  1
-    # startup_ms     = wall time − sum(timings_ms)    (subprocess + package load)
 
     @property
     def startup_ms(self) -> float:
@@ -83,11 +108,19 @@ class JuliaBackend:
         method: str = "Tsit5",
         rtol: float = 1e-6,
         atol: float = 1e-8,
+        n_save_points: int = 0,
+        dtsave: float | None = None,
+        dtmax: float | None = None,
     ) -> None:
+        if n_save_points > 0 and dtsave is not None:
+            raise ValueError("Specify either n_save_points or dtsave, not both.")
         self._julia_file = str(Path(julia_file).resolve()) if julia_file else None
         self.method = method
         self.rtol = rtol
         self.atol = atol
+        self.n_save_points = n_save_points
+        self.dtsave = dtsave
+        self.dtmax = dtmax
 
     def solve(
         self,
@@ -114,12 +147,15 @@ class JuliaBackend:
         )
 
         payload = {
-            "spec":   compiled_spec.to_dict(),
-            "tspan":  list(tspan),
-            "reps":   reps,
-            "method": self.method,
-            "rtol":   self.rtol,
-            "atol":   self.atol,
+            "spec":          compiled_spec.to_dict(),
+            "tspan":         list(tspan),
+            "reps":          reps,
+            "method":        self.method,
+            "rtol":          self.rtol,
+            "atol":          self.atol,
+            "n_save_points": self.n_save_points,
+            "dtsave":        self.dtsave,
+            "dtmax":         self.dtmax,
         }
 
         payload_path = Path(tempfile.mktemp(suffix=".json"))

@@ -1,0 +1,331 @@
+# Characterization test plan for the nonlinear oscillator
+#
+#   ẍ + (c₀ + c₁·x²)ẋ + ω²x = F(t)
+#
+# Natural frequency: ω = 2π rad/s → f₀ = 1.0 Hz
+# Damping: c₀ = 0.1 (linear baseline), c₁ = 2.0 (position-dependent)
+#
+# The position-dependent term makes this system look linear when the probe
+# amplitude is small (c(x) ≈ c₀ near x=0), but the amplitude sweep and
+# DC sweep reveal the nonlinearity at larger amplitudes or offsets.
+#
+# Run:   uv run numen characterize test_plan.yaml       # characterise + plot
+#         uv run numen characterize test_plan.yaml -c    # characterise only
+#         uv run numen characterize test_plan.yaml -p    # plot only
+
+version: "1.0"
+output: results.json
+
+backend:
+  type: julia_server          # pays JIT once; all solves share the compiled kernel
+  julia_file: dynamics.jl    # resolved relative to this YAML file
+  method: Tsit5              # non-stiff adaptive solver; fast for this system
+  rtol: 1.0e-8
+  atol: 1.0e-9
+  n_save_points: 4000        # cap output density; prevents huge JSON payloads on long chirps
+
+model:
+  module: world           # world.py lives in the same directory as this YAML
+  factory: make_world
+  factory_kwargs:
+    x0: 0.0              # start at rest (let forcing build up the response)
+    v0: 0.0
+    omega: 6.283185307   # 2π rad/s → f₀ = 1.0 Hz
+    c0: 0.1
+    c1: 2.0
+
+excitation:
+  entity: osc
+  component: nl_oscillator   # component kind; disambiguates if multiple components share field names
+  port: force                # ExcitationPort field on NLOscillatorComponent
+  output_state: position     # state we measure
+
+tests:
+
+  # ── 1. Quick chirp survey ──────────────────────────────────────────────────
+  # One solve covers the whole band — use this first to locate resonance.
+  - name: chirp_survey
+    type: continuous_chirp
+    f_start: 0.2
+    f_end: 3.0
+    duration: 60.0
+    amplitude: 0.05
+    dc_offset: 0.0
+    chirp_type: log
+
+  # ── 2. Baseline FRF (stepped sine, small amplitude) ───────────────────────
+  # Steady-state Bode plot in the linear regime (small probe → c(x) ≈ c₀).
+  #
+  # Settle-period note: this oscillator has Q ≈ 63 at f₀ = 1 Hz.
+  # For an accurate measurement use settle_periods ≈ 5·Q ≈ 315.
+  # Here we use 8 for demo speed — the peak will be slightly underestimated.
+  # Use at least settle_periods=100 for publication-quality Bode plots.
+  - name: baseline_frf
+    type: discrete_frequency_sweep
+    frequencies:
+      spacing: log
+      f_start: 0.3
+      f_end: 2.5
+      n_points: 20
+    amplitude: 0.01
+    dc_offset: 0.0
+    settle_periods: 8     # intentionally short for demo speed; use ~315 for full accuracy
+    measure_periods: 4
+
+  # ── 3. Amplitude sweep at resonance ───────────────────────────────────────
+  # Fixed f = 1.0 Hz, increasing amplitude — nonlinearity signature.
+  # A linear system would show flat |H|; we expect |H| to drop at high amps
+  # because c₁·x² term increases effective damping.
+  #
+  # Settle-period note: same Q ≈ 63 caveat applies — 8 is intentionally short.
+  - name: amplitude_sweep_resonance
+    type: amplitude_sweep
+    frequency: 1.0
+    amplitudes: [0.005, 0.01, 0.05, 0.1, 0.3, 0.5, 1.0]
+    dc_offset: 0.0
+    settle_periods: 8     # intentionally short for demo speed
+    measure_periods: 4
+
+  # ── 4. DC operating-point sweep ───────────────────────────────────────────
+  # Shift the equilibrium with a constant force bias; measure small-signal FRF
+  # at each operating point.  At high DC offset, x ≠ 0 on average, so c₁·x²
+  # raises the effective damping → |H| decreases and phase changes.
+  #
+  # Settle-period note: for a high-Q system near resonance, insufficient settle
+  # causes beat-frequency leakage between the probe and the residual transient
+  # ringing at f₀.  With Q ≈ 63 you need settle_periods ≈ 5·Q ≈ 315.
+  # The 15 used here is for demo speed; increase to ≥ 315 for clean DC sweeps.
+  - name: dc_bias_sweep
+    type: dc_operating_point_sweep
+    dc_values: [0.0, 0.1, 0.3, 0.5, 0.8, 1.0]
+    probe_frequency: 1.0
+    probe_amplitude: 0.005
+    settle_periods: 15    # intentionally short for demo speed; use ~315 for full accuracy
+    measure_periods: 5
+
+  # ── 5. Bode at multiple DC offsets (excitation parameter sweep) ───────────
+  # Outer loop: sweep excitation.dc_offset from 0 → 1.0 (6 operating points).
+  # Inner test: stepped-sine FRF (baseline_frf) at each offset.
+  # Result: ParameterFamilyResult containing 6 FRFResults, coloured by DC offset
+  # in the parameter_family panel.  This directly shows how nonlinearity shifts
+  # the resonance peak and changes damping as the equilibrium moves away from 0.
+  - name: frf_vs_dc
+    type: parameter_sweep
+    sweep_param: excitation.dc_offset   # maps to _exc_osc_force.dc in param_index_map
+    values: [0.0, 0.1, 0.3, 0.5, 0.8, 1.0]
+    sub_test: baseline_frf
+
+  # ── 6. Chirp survey at multiple DC offsets ────────────────────────────────
+  # Same outer loop, inner test is the chirp survey — much faster than stepped
+  # sine, useful for a quick overview of how the resonance peak shifts with DC.
+  - name: chirp_vs_dc
+    type: parameter_sweep
+    sweep_param: excitation.dc_offset
+    values: [0.0, 0.3, 0.6, 1.0]
+    sub_test: chirp_survey
+
+  # ── 7. Two-tone intermodulation distortion ───────────────────────────────
+  # Drive at f1 = 0.9 Hz and f2 = 1.1 Hz (both near f0 = 1.0 Hz).
+  # The 3rd-order intermodulation products at 2f1-f2=0.7 Hz and 2f2-f1=1.3 Hz
+  # are diagnostic: a cubic (Duffing-like) damping nonlinearity produces these
+  # in-band products.  IMD3 and IP3 are extracted automatically.
+  #
+  # n_cycles=50 gives 50 periods of f1=0.9 Hz → t_end=55.6 s.
+  # First 70% (~38.9 s) is discarded as transient; remaining 30% (~16.7 s)
+  # provides the steady-state spectrum used for lock-in extraction.
+  - name: two_tone_near_resonance
+    type: two_tone
+    f1: 0.9          # Hz — lower tone (just below f0=1.0 Hz)
+    f2: 1.1          # Hz — upper tone (just above f0=1.0 Hz)
+    amplitude1: 0.05
+    amplitude2: 0.05
+    n_cycles: 50
+    max_order: 3
+    dc_offset: 0.0
+
+  # ── 8. Harmonic distortion sweep ─────────────────────────────────────────
+  # At each frequency, measure H1 (fundamental) and H2, H3, H4 (harmonics).
+  # A symmetric Duffing-type nonlinearity (x² damping) produces mainly odd
+  # harmonics H3; an asymmetric system produces even harmonics H2.
+  # THD peaks near resonance where x² damping is most significant.
+  - name: thd_sweep
+    type: harmonic_distortion_sweep
+    frequencies:
+      spacing: log
+      f_start: 0.3
+      f_end: 2.5
+      n_points: 20
+    amplitude: 0.1
+    dc_offset: 0.0
+    max_harmonic: 4
+    settle_periods: 8
+    measure_periods: 5
+
+  # ── 9. Free decay — backbone curve ───────────────────────────────────────
+  # Release from x0 = 2.0 m (well into the nonlinear damping regime).
+  # The Hilbert transform extracts instantaneous frequency f(t) and amplitude A(t)
+  # as the system rings down.  Plotting f vs A gives the backbone curve:
+  # for a linear system this is a flat horizontal line at f0 = 1.0 Hz;
+  # for this nonlinear system the effective frequency shifts as A decreases.
+  # Instantaneous damping ζ(A) reveals the amplitude-dependent behaviour of c₁x².
+  #
+  # t_end must be long enough for the system to decay to small amplitude.
+  # With c0=0.1, τ ≈ 2/(c0·ω) ≈ 3.2 s; t_end=60 s gives ~19 decay constants.
+  - name: free_decay_large_ic
+    type: free_decay
+    initial_displacement: 2.0
+    initial_velocity: 0.0
+    t_end: 60.0
+    bandpass_low: 0.3     # Hz — filter below f0/3 to suppress numeric DC drift
+    bandpass_high: 5.0    # Hz — filter above 5·f0 to suppress high-order harmonics
+
+  # ── 10. Phase portrait — limit cycle at resonance ────────────────────────
+  # Record the steady-state limit cycle at f0=1.0 Hz at two drive amplitudes.
+  # A linear system's portrait is a perfect ellipse; the nonlinear damping
+  # here distorts it.  Poincaré dots (stroboscopic at T=1/f) should cluster
+  # at a single point for a 1-periodic response.
+  - name: portrait_small
+    type: phase_portrait
+    frequency: 1.0
+    amplitude: 0.05
+    n_transient_cycles: 50
+    n_record_cycles: 10
+    poincare: true
+
+  - name: portrait_large
+    type: phase_portrait
+    frequency: 1.0
+    amplitude: 0.5
+    n_transient_cycles: 50
+    n_record_cycles: 10
+    poincare: true
+
+  # ── 11. Stochastic excitation — random vibration baseline ─────────────────
+  # Pre-compute a random signal from a simple flat PSD (0.3–3 Hz band)
+  # at a low level (small amplitudes → near-linear regime).
+  # The BLA should match the stepped-sine FRF; coherence near 1 confirms
+  # linear behaviour at this amplitude.
+  # dt_sig = 0.02 s → 50 Hz sample rate → Nyquist at 25 Hz >> 3 Hz band ceiling.
+  # Seed 99 → reproducible for CI; use null for independent realisations.
+  - name: stochastic_baseline
+    type: stochastic_excitation
+    duration: 60.0
+    dt_sig: 0.02
+    seed: 99
+    transient_fraction: 0.2
+    n_welch_segments: 8
+    dc_offset: 0.0
+    signal:
+      type: psd_profile
+      breakpoints:
+        - [0.3,  1.0e-4]   # flat band between f0/3 and 3·f0
+        - [3.0,  1.0e-4]
+      units: m_s2          # m²/s⁴/Hz → signal in m/s² (no g conversion needed)
+
+# ── Plot configuration ───────────────────────────────────────────────────────
+#
+# Controls what numen characterize -p (or the default both-in-one run) renders.
+# Set enabled: false on any panel to hide it without deleting the entry.
+
+plots:
+  output: characterization_summary.png
+  dpi: 150
+  figure:
+    title: "Nonlinear Oscillator — Characterization Campaign"
+    subtitle: "ẍ + (c₀ + c₁x²)ẋ + ω²x = F(t)      ω=2π rad/s  c₀=0.1  c₁=2.0"
+
+  panels:
+
+    # Bode plot: stepped sine curve; chirp magnitude overlay for survey context.
+    # Chirp phase is omitted (show_phase: false) — unreliable for Q≈63 systems
+    # because the resonance bandwidth (~0.016 Hz) is far below FFT resolution.
+    - type: bode
+      enabled: true
+      title: "Bode — Stepped Sine vs Chirp"
+      series:
+        - test: baseline_frf
+          label: stepped sine
+          show_phase: true
+          db: true
+        - test: chirp_survey
+          label: chirp (survey)
+          show_phase: false
+          db: true
+
+    # Raw chirp output — shows the amplitude build-up at resonance visually.
+    - type: chirp_timeseries
+      enabled: true
+      title: "Chirp Time Series (log-sweep 0.2→3 Hz)"
+      test: chirp_survey
+
+    # Amplitude sweep — flat for a linear system; droops here due to c₁x² damping.
+    - type: amplitude_sweep
+      enabled: true
+      title: "Amplitude Sweep — Nonlinearity Signature"
+      test: amplitude_sweep_resonance
+      show_phase: false   # phase not informative for this demo
+
+    # DC sweep — small-signal gain and phase vs equilibrium offset.
+    - type: dc_sweep
+      enabled: true
+      title: "DC Sweep"
+      test: dc_bias_sweep
+
+    # FRF family: Bode curves at 6 DC offsets, coloured by excitation.dc_offset.
+    # Nonlinearity is visible as a peak shift + broadening at higher DC offsets.
+    - type: parameter_family
+      enabled: true
+      title: "FRF vs DC Offset"
+      test: frf_vs_dc
+      show_phase: false   # short settle → unreliable phase; magnitude tells the story
+      db: true
+
+    # Chirp family: fast overview — 4 DC offsets overlaid, coloured by offset.
+    - type: parameter_family
+      enabled: true
+      title: "Chirp Survey vs DC Offset"
+      test: chirp_vs_dc
+      db: true
+
+    # Two-tone spectrum: FFT with annotated IM products.
+    # Orange lines = 3rd-order sidebands (IMD3); green = harmonics; red = tones.
+    - type: two_tone_spectrum
+      enabled: true
+      title: "Two-Tone Spectrum (f1=0.9, f2=1.1 Hz)"
+      test: two_tone_near_resonance
+      db_floor: -80.0
+      annotate_products: true
+
+    # Harmonic distortion sweep: THD(f) and H2, H3 vs frequency.
+    # THD peak localises where the nonlinearity is most active (near resonance).
+    - type: thd_spectrum
+      enabled: true
+      title: "Harmonic Distortion vs Frequency"
+      test: thd_sweep
+      show_harmonics: [2, 3, 4]
+
+    # Backbone curve: instantaneous frequency vs amplitude during free decay.
+    # Also shows the time-varying damping ratio ζ(t).
+    - type: backbone_curve
+      enabled: true
+      title: "Backbone Curve — Free Decay"
+      decay_test: free_decay_large_ic
+
+    # Phase portrait: small and large amplitude limit cycles overlaid.
+    # Poincaré dots confirm 1-periodic response (should each cluster tightly).
+    - type: phase_portrait_panel
+      enabled: true
+      title: "Phase Portrait — Limit Cycles at f=1 Hz"
+      tests: [portrait_small, portrait_large]
+      show_poincare: true
+
+    # Stochastic response: input PSD vs response PSD + BLA + coherence.
+    # For a linear system the BLA should match the stepped-sine FRF and
+    # coherence should be ~1 across the excitation band.
+    - type: stochastic_response
+      enabled: true
+      title: "Stochastic Response (flat PSD 0.3–3 Hz)"
+      test: stochastic_baseline
+      show_bla: true
+      show_coherence: true
+      psd_db: false

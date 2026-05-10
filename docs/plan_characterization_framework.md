@@ -1,5 +1,46 @@
 # Characterization Framework — Design Plan
 
+> **Living document.** As design decisions are refined during implementation, update
+> this file immediately so it stays the single source of truth. When a phase is
+> complete, the relevant sections graduate into `DESIGN.md` (architecture reference)
+> and `CLAUDE.md` (model-authoring guide for future sessions). Do not let the plan
+> drift from the code.
+
+---
+
+## North Star
+
+Build a **domain-agnostic characterization framework** that can run systematic
+test campaigns against any Numen physics model — oscillators, thermal systems,
+fluid networks, diffusion problems, chemical kinetics — without the framework
+itself knowing anything about those domains.
+
+The framework operates at the level of **signals and ports**. It applies waveforms
+(steps, sinusoids, chirps, DOE-sampled inputs) to model input ports and records
+responses from output states. Domain-specific knowledge lives entirely in the model
+and its associated metric extractors; the framework is just the orchestration layer.
+
+Long-term, computation lives in Julia (via the Julia server backend), and Python
+handles schema, orchestration, and visualization only. This keeps the hot path in
+the fastest available solver ecosystem without sacrificing the ergonomics of
+Pydantic-validated declarative test plans.
+
+### What does not exist yet
+
+Nothing in the open-source ecosystem does this. The closest analogues are:
+
+| Tool | Gap |
+|---|---|
+| MATLAB Control Toolbox | Linear systems only, closed ecosystem, Simulink-coupled |
+| ModelingToolkit.jl / SciML | Modeling toolkit, not a characterization framework |
+| DynamicalSystems.jl | Nonlinear analysis only (Lyapunov, attractors), not general characterization |
+| Modelica / OpenModelica | Separate language, not composable with Python/Pydantic |
+| AMESim / GT-Suite | Commercial, locked ecosystem |
+
+This is genuinely novel. Design decisions should be made with that in mind.
+
+---
+
 ## Overview
 
 This document captures the design decisions made for a general-purpose characterization
@@ -86,6 +127,116 @@ bias. Any change you observe is a direct measurement of the nonlinear character.
 
 ---
 
+## Domain-Agnostic Design Principle
+
+### The temptation to avoid
+
+As the framework grows to cover thermal, fluid, diffusion, and other domains, the
+temptation is to add domain-specific test types: `oscillator_bode`, `thermal_step`,
+`fluid_pressure_drop`. This leads to a combinatorial explosion of
+`test_type × physics_domain` specializations and a framework that needs to be
+rewritten every time a new domain is added.
+
+### The right abstraction: ports and signals
+
+Every physical domain shares the same port structure, captured by bond graph theory:
+
+| Domain | Effort variable | Flow variable |
+|---|---|---|
+| Mechanical | Force [N] | Velocity [m/s] |
+| Electrical | Voltage [V] | Current [A] |
+| Thermal | Temperature [K] | Heat flux [W/m²] |
+| Fluid | Pressure [Pa] | Volume flow [m³/s] |
+| Chemical | Chemical potential [J/mol] | Molar flux [mol/s] |
+
+Every test type — step, sine sweep, chirp, DOE — is simply applying a waveform to
+an effort or flow port and recording the response at another port. The framework
+never needs to know which domain it is in.
+
+**Domain-specific knowledge lives in exactly two places:**
+
+1. The model itself (components, dynamics, Julia functions)
+2. **Metric extractors** — small functions registered by the model author that know
+   how to compute physically meaningful scalars from a time series
+
+```python
+# metrics.py — written by the model author, not the framework
+METRICS = {
+    "f0":            extract_resonant_frequency,   # oscillator domain
+    "Q":             extract_quality_factor,
+    "settling_time": extract_settling_time,        # universal
+    "overshoot":     extract_overshoot,            # universal
+}
+```
+
+```python
+# A thermal model registers different metrics
+METRICS = {
+    "time_constant":      extract_time_constant,
+    "thermal_resistance": extract_steady_state_gain,
+    "peak_temperature":   extract_peak,
+}
+```
+
+The test plan names which metrics to extract; the framework resolves them against
+the model's registry at runtime. The framework itself is unchanged.
+
+### Port typing on ExcitationPort
+
+`ExcitationPort` should carry physical metadata so the framework can generate
+correct axis labels and perform basic dimensional checks without knowing the domain:
+
+```python
+force: Annotated[float, ExcitationPort(
+    targets  = "velocity",
+    domain   = "mechanical",   # optional, for documentation
+    quantity = "force",        # effort or flow variable name
+    units    = "N",            # SI units string
+)] = 0.0
+```
+
+---
+
+## Julia-First Architecture
+
+### Division of responsibilities
+
+The long-term target is for all computation to live in Julia, with Python handling
+only schema, orchestration, and visualization:
+
+```
+Python                              Julia
+─────────────────────────────────   ────────────────────────────────────
+Schema definition (Pydantic)        Dynamics (OrdinaryDiffEq.jl)
+Test plan parsing (YAML → dict)     Stiff/DAE solvers (Rodas5P, FBDF)
+Test orchestration (runner.py)      Sensitivity (ForwardDiff.jl)
+DOE sampling (scipy / pyDOE3)       Frequency analysis (DSP.jl)
+Sensitivity indices (SALib)         Control analysis (ControlSystems.jl)
+Visualization (matplotlib)          Bifurcation (BifurcationKit.jl)
+Result serialization (JSON)
+```
+
+Metric extraction — currently imagined on the Python side — can migrate to Julia
+using **DSP.jl** and **ControlSystems.jl** as the framework matures. This would
+eliminate a Python round-trip per solve and keep the entire hot path in Julia.
+
+### SciML ecosystem integration (future)
+
+The Julia SciML ecosystem provides building blocks we should plan to integrate:
+
+| Package | Capability |
+|---|---|
+| `ModelingToolkit.jl` | Symbolic model manipulation, automatic Jacobians |
+| `SciMLSensitivity.jl` | Adjoint-based parameter sensitivity (faster than finite diff for large models) |
+| `BifurcationKit.jl` | Bifurcation diagrams, stability analysis |
+| `ControlSystems.jl` | Transfer function extraction, Bode, Nyquist, root locus |
+| `DynamicalSystems.jl` | Lyapunov exponents, attractors, chaos characterization |
+
+None of these require changes to the Python schema — they are Julia-side analysis
+tools that consume the same solve results the current framework already produces.
+
+---
+
 ## Architecture
 
 ```
@@ -132,6 +283,28 @@ framework should respect that.
 This also constrains the test framework to valid experiments. Injecting an arbitrary
 force into an arbitrary derivative would often be physically meaningless.
 
+### Bond graph grounding
+
+The `targets` mechanism maps directly onto **effort source** excitation in bond graph
+theory: impose a known effort (force, pressure, voltage, heat flux) and let the system
+determine the conjugate flow response. This is the correct excitation type for FRF
+measurement in every physical domain:
+
+| Domain | Effort source | `targets` derivative of | Natural output to measure |
+|---|---|---|---|
+| Mechanical | Force [N] | velocity | velocity (mobility FRF) or position (receptance) |
+| Thermal | Heat flux [W/m²] | temperature | temperature |
+| Fluid | Pressure [Pa] | flow state | flow rate |
+| Electrical | Voltage [V] | current/charge state | current |
+
+The injection mechanism is identical across all domains — the `targets` field just
+names the right integrated state. Bond graph theory validates this abstraction and
+tells us *why* it generalises.
+
+**Flow source** excitation (`port_type="flow"` — impose velocity, measure force) is
+a valid alternative measurement mode. It is less common for FRF campaigns but should
+be supported in the schema from the start so the field is available when needed.
+
 ### Usage
 
 ```python
@@ -144,9 +317,18 @@ class NLOscillatorComponent(Component):
     omega:    Annotated[float, ParameterField()]  = 1.0
     c0:       Annotated[float, ParameterField()]  = 0.1
     c1:       Annotated[float, ParameterField()]  = 1.0
-    # Declares this as a force input port that adds to d(velocity)/dt
-    force:    Annotated[float, ExcitationPort(targets="velocity")] = 0.0
+    # Effort-source port: adds F(t) to d(velocity)/dt
+    force:    Annotated[float, ExcitationPort(
+                  targets   = "velocity",
+                  port_type = "effort",   # "effort" | "flow"
+                  units     = "N",        # SI units string — used for axis labels
+              )] = 0.0
 ```
+
+`port_type` and `units` are metadata only — they do not affect the injection
+mechanism. They enable the framework to auto-label plot axes and name the FRF
+correctly (effort-in / effort-out = impedance; flow-out / effort-in = mobility)
+without knowing the physics domain.
 
 `ExcitationPort(targets="velocity")` means: "the value of `force` is added to
 `d(velocity)/dt` by the framework's ExcitationSystem."
@@ -172,7 +354,9 @@ force port on each mass:
 ```python
 class MassComponent(Component):
     ...
-    force: Annotated[float, ExcitationPort(targets="velocity")] = 0.0
+    force: Annotated[float, ExcitationPort(
+               targets="velocity", port_type="effort", units="N"
+           )] = 0.0
 ```
 
 The test schema specifies which entity's port to drive: `entity: mass_1, port: force`.
@@ -212,6 +396,7 @@ model:
     omega: 6.283              # 1 Hz natural frequency
     c0: 0.1
     c1: 2.0
+  metrics: examples.nonlinear_oscillator.metrics   # optional METRICS registry
 
 excitation:
   entity: osc
@@ -277,6 +462,7 @@ class ModelSpec(BaseModel):
     module: str
     factory: str
     factory_kwargs: dict[str, Any] = {}
+    metrics: str | None = None   # optional module path to METRICS registry
 
 class ExcitationSpec(BaseModel):
     entity: str
@@ -517,33 +703,61 @@ gp = GaussianProcessRegressor().fit(df[["c0", "c1"]], df["Q"])
 
 ## Implementation Roadmap
 
-### Phase 1 — Foundation
+### Phase 1 — Foundation ✓ complete
 
-- [ ] `ExcitationPort` field marker in `src/numen/fields.py`
-- [ ] `ExcitationSystem` in `src/numen/characterization/excitation.py`
-- [ ] Update nonlinear oscillator to declare force port
-- [ ] Pydantic schema: `BackendSpec`, `ModelSpec`, `ExcitationSpec`, all test specs
-      in `src/numen/characterization/schema.py`
-- [ ] `CharacterizationRunner` skeleton with Julia server context manager
+- [x] `ExcitationPort` field marker in `src/numen/fields.py` — compiles as `ParameterField`;
+      carries `targets`, `port_type`, `units` metadata
+- [x] `src/numen/characterization/excitation.py` — `find_excitation_ports()`,
+      `inject_excitation()` (post-compile, pure function via `dataclasses.replace`),
+      `set_excitation_params()` (cheap parameter update for sweep inner loops)
+- [x] `src/numen/compiler/flatten.py` updated — recognises `ExcitationPort` in
+      `_get_numen_fields` and `compile_spec`
+- [x] Nonlinear oscillator `components.py` updated — `force: ExcitationPort(targets="velocity",
+      port_type="effort", units="N")`; dynamics unchanged (framework injects transparently)
+- [x] `src/numen/characterization/schema.py` — full Pydantic schema: `BackendSpec`,
+      `ModelSpec`, `ExcitationSpec`, `FrequencyGridSpec`, `DOEParamSpec`, all 7 test specs,
+      `CharacterizationConfig` with `from_yaml()` / `from_json()` loaders and validators
+- [x] `src/numen/characterization/runner.py` — `CharacterizationRunner` with backend
+      lifecycle context manager, `compiled_spec_for()` helper, Phase 2 dispatch stub
 
-### Phase 2 — Test Implementations
+### Phase 2 — Test Implementations ✓ complete
 
-- [ ] `DiscreteFrequencySweep` runner
-- [ ] Lock-in analysis and Q-factor extraction in `analysis.py`
-- [ ] `DCOperatingPointSweep` runner
-- [ ] `ParameterSweep` wrapper
-- [ ] Bode plot and operating-point waterfall in `plots.py`
-- [ ] Result serialization to JSON
+- [x] `analysis.py` — `lock_in()` (synchronous detection, handles non-integer cycles),
+      `extract_resonance()` (-3 dB bandwidth, linear interpolation, one-sided fallback),
+      `build_frequency_grid()`, `settle_tspan()`. Fixed: `np.trapezoid` (NumPy 2.0).
+- [x] `results.py` — `FRFResult`, `OperatingPointMeasurement`, `DCSweptFRFResult`,
+      `ParameterFamilyResult`, `CampaignResults` with `.save()` JSON serialisation.
+- [x] `tests/freq_sweep.py` — `run_discrete_frequency_sweep()`: per-frequency solve,
+      lock-in extraction, FRF normalised by drive amplitude, f0/Q extracted.
+- [x] `tests/dc_sweep.py` — `run_dc_operating_point_sweep()`: settle under DC-only,
+      probe from settled state via `dataclasses.replace(spec, x0=x_settled)`.
+- [x] `tests/param_sweep.py` — `run_parameter_sweep()`: `_set_model_param()` updates
+      p directly (no world rebuild); sub-runner closure built in CharacterizationRunner.
+- [x] `plots.py` — `plot_bode()` (single FRF, f0/Q annotation), `plot_bode_family()`
+      (parameter-sweep overlay, viridis colourmap), `plot_dc_sweep()`.
+- [x] `runner.py` — full dispatch: `DiscreteFrequencySweep`, `DCOperatingPointSweep`,
+      `ParameterSweep` (with sub-runner closure); Phase 3 types log a warning.
+- [x] Verified: f0=0.960 Hz, Q=5.99, ζ=0.083 for c0=0.5, ω=2π. c1 family correctly
+      shows no change at small probe amplitude (nonlinearity invisible at x≈0).
 
-### Phase 3 — Extended Tests & DOE
+### Phase 3 — Extended Tests & DOE ✓ complete
 
-- [ ] `AmplitudeSweep` runner
-- [ ] `ContinuousChirpSweep` runner (chirp signal generation + STFT analysis)
-- [ ] `ParameterGrid` runner (full/paired factorial over explicit value lists)
-- [ ] `DOESweep` runner using `scipy.stats.qmc` (LHS, Sobol) and `pyDOE3` (CCD, BBD)
-- [ ] `results.to_dataframe()` — flatten scalar outputs to pandas DataFrame
-- [ ] SALib integration for Sobol sensitivity indices on DOE results
-- [ ] YAML test plan loader + CLI: `uv run numen characterize test_plan.yaml`
+- [x] `AmplitudeSweep` runner (`tests/amplitude_sweep.py`) — fixed-frequency amplitude scan; H_magnitudes flat for linear, amplitude-dependent for nonlinear
+- [x] `ContinuousChirpSweep` runner (`tests/chirp_sweep.py`) + chirp injection (`excitation.inject_chirp_excitation`) — log/linear chirp; FRF extracted via FFT cross-spectrum H(f)=S_xy/S_xx; `analysis.chirp_phase()` and `analysis.analyze_chirp_frf()` helpers
+- [x] `ParameterGrid` runner (`tests/param_grid.py`) — full_factorial (Cartesian product) and pairs (zip) modes over explicit value lists
+- [x] `DOESweep` runner (`tests/doe_sweep.py`) — `latin_hypercube`, `sobol`, `halton` via `scipy.stats.qmc`; `central_composite`, `box_behnken` via `pyDOE3` (optional); `full_factorial` grid built-in
+- [x] `results.to_dataframe()` — long-format DataFrame with param columns + scalar metrics; handles FRF, AmplitudeSweep, DCSwept, Chirp, Family, Grid, DOE results recursively
+- [x] `numen characterize test_plan.yaml` CLI command — pretty table, progress spinner, optional `--output results.json`, `--verbose` for DEBUG logging
+- [x] `pyproject.toml`: `characterization = ["pyDOE3", "SALib", "pandas", "pyyaml"]` optional extra
+- [x] `plots.plot_amplitude_sweep()` and `plots.plot_chirp_frf()` added
+- [x] `examples/nonlinear_oscillator/test_plan.yaml` — complete 4-test campaign (chirp, FRF, amplitude sweep, DC sweep); settle-period guidance in comments
+- [x] `examples/nonlinear_oscillator/characterize_plot.py` — 6-panel summary plot (Bode stepped+chirp overlay, chirp time series, amplitude sweep, DC sweep gain+phase)
+- [x] `src/numen/init_data/CHARACTERIZATION.md` — package data guide: ExcitationPort setup, YAML schema, all 7 test types, settle-period rules, chirp vs stepped-sine table, loading results, full example reference
+- [x] `src/numen/init_data/CLAUDE.md` — package data template for `numen init` (replaced Python string constant); includes {project_name} placeholder and project slots (models table, analysis notes, known issues)
+- [x] `src/numen/cli.py` — `numen init` now copies both CLAUDE.md and CHARACTERIZATION.md from package data via `_write_init_data()`; dead `_INIT_CLAUDE_MD` string constant removed
+- [x] `README.md` — characterization section, `[characterization]` install instructions, `numen characterize` in CLI reference, `nonlinear_oscillator` in examples table
+- [x] `src/numen/_scaffold.py` — `nonlinear_oscillator` added to EXAMPLES registry
+- [ ] SALib integration for Sobol sensitivity indices on DOE results (Phase 4)
 
 ### Phase 4 — Nonlinearity Characterization (future)
 

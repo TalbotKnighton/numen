@@ -1,0 +1,179 @@
+# Characterization test plan — Pneumatic Dashpot
+#
+#  Piston (m = 0.5 kg) in a 40 mm bore cylinder.
+#  Both chambers vent to atmosphere through orifices.
+#
+#  Default geometry (bore 40 mm, ±80 mm stroke, 5 mm clearance):
+#    k_pneumatic ≈ 2 997 N/m  →  f₀ ≈ 12.3 Hz
+#
+#  Default orifice (A_o = 1e-5 m², Cd = 0.7):
+#    τ_equalization ≈ 0.05 s  →  f_corner ≈ 3 Hz
+#
+#  Excitation amplitudes are in m/s² (= N/kg, force/mass).
+#  For 1 N force on the 0.5 kg piston use amplitude = 2.0 m/s².
+#
+#  Run:
+#    uv run numen characterize test_plan.yaml        # characterise + plot
+#    uv run numen characterize test_plan.yaml -c     # characterise only
+#    uv run numen characterize test_plan.yaml -p     # plot only
+
+version: "1.0"
+output: results.json
+
+backend:
+  type: julia_server
+  julia_file: dynamics.jl
+  method: Rodas5P         # stiff solver — pressure ODEs can be stiff at large A_o
+  rtol: 1.0e-7
+  atol: 1.0e-8
+  n_save_points: 3000     # cap output density for long chirps
+
+model:
+  module: world
+  factory: make_world
+  factory_kwargs:
+    x0: 0.0              # start at rest; forcing builds the response
+    v0: 0.0
+    orifice_area: 1.0e-5 # default: f_corner ≈ 3 Hz < f₀ ≈ 12.3 Hz
+
+excitation:
+  entity: piston
+  component: pneumatic_dashpot   # component kind; disambiguates if multiple components share field names
+  port: force
+  output_state: position         # measure piston displacement
+
+tests:
+
+  # ── 1. Quick chirp survey ──────────────────────────────────────────────
+  # One solve, 1–40 Hz log-sweep.  Use this to locate the resonance peak
+  # and estimate damping before running the slower stepped-sine FRF.
+  - name: chirp_survey
+    type: continuous_chirp
+    f_start: 1.0
+    f_end: 40.0
+    duration: 30.0
+    amplitude: 4.0    # 4 m/s² ≡ 2 N on 0.5 kg piston
+    dc_offset: 0.0
+    chirp_type: log
+
+  # ── 2. Baseline FRF (stepped sine) ────────────────────────────────────
+  # Steady-state Bode plot at small amplitude (linear regime).
+  # k ≈ 2997 N/m, m = 0.5 kg, friction = 2 N·s/m
+  #   ζ ≈ friction / (2√(km)) = 2 / (2√1498.5) ≈ 0.026  →  Q ≈ 19
+  # For full accuracy use settle_periods ≈ 5·Q ≈ 95.
+  # settle_periods=15 is short (demo speed); increase to ≥ 95 for publication.
+  - name: baseline_frf
+    type: discrete_frequency_sweep
+    frequencies:
+      spacing: log
+      f_start: 2.0
+      f_end: 35.0
+      n_points: 25
+    amplitude: 1.0    # 1 m/s² (small probe → linear regime)
+    dc_offset: 0.0
+    settle_periods: 15
+    measure_periods: 5
+
+  # ── 3. Amplitude sweep at resonance ───────────────────────────────────
+  # Verify linearity: the system is physically linear (no state-dependent
+  # stiffness or damping), so |H| should be flat across amplitudes.
+  # Any deviation indicates numerical artefacts or stop contact.
+  - name: amplitude_sweep_resonance
+    type: amplitude_sweep
+    frequency: 12.3   # near f₀
+    amplitudes: [0.5, 1.0, 2.0, 4.0, 8.0, 15.0]
+    dc_offset: 0.0
+    settle_periods: 15
+    measure_periods: 5
+
+  # ── 4. Stochastic (random vibe) baseline ──────────────────────────────
+  # Flat PSD 1–40 Hz at 0.02 (m/s²)²/Hz → RMS ≈ 0.9 m/s².
+  # Covers both the pneumatic corner (≈3 Hz) and the mechanical resonance
+  # (≈12.3 Hz).  Welch estimate and BLA reveal frequency-dependent damping
+  # and the linear gain peak without running a stepped-sine sweep.
+  - name: stochastic_baseline
+    type: stochastic_excitation
+    duration: 60.0
+    dt_sig: 0.01          # 100 Hz: Nyquist at 50 Hz, well above 40 Hz band edge
+    seed: 7
+    transient_fraction: 0.1
+    n_welch_segments: 8
+    dc_offset: 0.0
+    signal:
+      type: psd_profile
+      units: m_s2
+      breakpoints:
+        - [1.0,  0.02]   # (m/s²)²/Hz — flat band
+        - [40.0, 0.02]
+
+  # ── 5. Orifice area parameter sweep — flagship feature ─────────────────
+  # Sweep orifice_area over three decades: nearly-sealed → nearly-open.
+  # This directly shows the frequency-dependent damping transition:
+  #
+  #   A_o = 1e-7 m²  (τ ≈ 5.3 s,   f_c ≈ 0.03 Hz) → pure spring, high Q
+  #   A_o = 1e-6 m²  (τ ≈ 0.53 s,  f_c ≈ 0.3 Hz)  → spring-dominated
+  #   A_o = 1e-5 m²  (τ ≈ 0.053 s, f_c ≈ 3 Hz)    → moderate damping
+  #   A_o = 1e-4 m²  (τ ≈ 5.3 ms,  f_c ≈ 30 Hz)   → heavily damped
+  #   A_o = 5e-4 m²  (τ ≈ 1.1 ms,  f_c ≈ 150 Hz)  → nearly open
+  #
+  # Inner test: chirp survey (fast); result: 5-curve Bode family.
+  - name: frf_vs_orifice
+    type: parameter_sweep
+    sweep_param: piston.orifice_area
+    values: [1.0e-7, 1.0e-6, 1.0e-5, 1.0e-4, 5.0e-4]
+    sub_test: chirp_survey
+
+# ── Plot configuration ────────────────────────────────────────────────────
+
+plots:
+  output: characterization_summary.png
+  dpi: 150
+  figure:
+    title: "Pneumatic Dashpot — Characterization Campaign"
+    subtitle: "40 mm bore · ±80 mm stroke · 0.5 kg piston · f₀ ≈ 12.3 Hz"
+
+  panels:
+
+    # Bode: stepped-sine baseline with chirp survey overlay
+    - type: bode
+      enabled: true
+      title: "Bode — Stepped Sine vs Chirp Survey"
+      series:
+        - test: baseline_frf
+          label: stepped sine (small amp)
+          show_phase: true
+          db: true
+        - test: chirp_survey
+          label: chirp (survey)
+          show_phase: false
+          db: true
+
+    # Chirp time-series — shows amplitude build-up at resonance
+    - type: chirp_timeseries
+      enabled: true
+      title: "Chirp Time Series (log-sweep 1–40 Hz)"
+      test: chirp_survey
+
+    # Amplitude sweep — should be flat (linear system)
+    - type: amplitude_sweep
+      enabled: true
+      title: "Amplitude Sweep at f₀ ≈ 12.3 Hz"
+      test: amplitude_sweep_resonance
+      show_phase: false
+
+    # Stochastic response — PSD, BLA gain, coherence
+    - type: stochastic_response
+      enabled: true
+      title: "Stochastic Baseline (1–40 Hz flat PSD)"
+      test: stochastic_baseline
+      show_bla: true
+      show_coherence: true
+      psd_db: true
+
+    # Orifice family — the headline result
+    - type: parameter_family
+      enabled: true
+      title: "FRF vs Orifice Area  (chirp survey)"
+      test: frf_vs_orifice
+      db: true
+      show_phase: false

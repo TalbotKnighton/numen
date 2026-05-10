@@ -1,0 +1,32 @@
+name: Deploy Documentation
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:  # allow manual trigger from GitHub UI
+
+permissions:
+  contents: write  # gh-deploy needs to push the gh-pages branch
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # full history for mkdocs git-revision-date plugin
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Install docs dependencies
+        run: uv pip install -e ".[docs]" --system
+
+      - name: Build and deploy docs
+        run: uv run mkdocs gh-deploy --force

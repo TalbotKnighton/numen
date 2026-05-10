@@ -1,3 +1,14 @@
+"""Numen framework errors and backend compatibility checks.
+
+``NumenFeatureError`` is raised before any solver work begins when the
+selected backend does not support a feature required by the compiled spec.
+This gives an actionable error message with a hint about which backend to
+use instead.
+
+``NumenMissingFnError`` is raised when a system is missing the required
+dynamics function for the selected backend (``python_fn`` for scipy/JAX,
+``dynamics_fn`` for Julia).
+"""
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
@@ -7,15 +18,23 @@ if TYPE_CHECKING:
 
 
 class NumenError(RuntimeError):
-    """Base class for all numen framework errors."""
+    """Base class for all Numen framework errors."""
 
 
 class NumenFeatureError(NumenError):
-    """A CompiledSpec requires features not supported by the selected backend."""
+    """A ``CompiledSpec`` requires features not supported by the selected backend.
+
+    Raised by ``check_backend_features`` before the solve begins, with a hint
+    about which backend to use instead.
+    """
 
 
 class NumenMissingFnError(NumenError):
-    """A System is missing the required dynamics function for the selected backend."""
+    """A ``System`` is missing the required dynamics function for the selected backend.
+
+    Raised by ``check_python_fns`` (scipy/JAX) or ``check_julia_fns`` (Julia)
+    before the solve begins.
+    """
 
 
 _FEATURE_HINTS: dict[str, str] = {

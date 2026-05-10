@@ -80,11 +80,19 @@ class JuliaServerBackend:
         rtol: float = 1e-6,
         atol: float = 1e-8,
         eager: bool = False,
+        n_save_points: int = 0,
+        dtsave: float | None = None,
+        dtmax: float | None = None,
     ) -> None:
+        if n_save_points > 0 and dtsave is not None:
+            raise ValueError("Specify either n_save_points or dtsave, not both.")
         self._julia_file = str(Path(julia_file).resolve()) if julia_file else None
         self.method = method
         self.rtol = rtol
         self.atol = atol
+        self.n_save_points = n_save_points
+        self.dtsave = dtsave
+        self.dtmax = dtmax
         self._proc: subprocess.Popen | None = None
         self._lock = threading.Lock()
         self.startup_ms: float | None = None
@@ -114,9 +122,9 @@ class JuliaServerBackend:
         check_backend_features(compiled_spec, "JuliaServerBackend", self.supported_features)
 
         _log.debug(
-            "solve: state_size=%d param_size=%d tspan=%s method=%s rtol=%g atol=%g",
+            "solve: state_size=%d param_size=%d tspan=%s method=%s rtol=%g atol=%g n_save=%d",
             compiled_spec.state_size, compiled_spec.param_size,
-            tspan, self.method, self.rtol, self.atol,
+            tspan, self.method, self.rtol, self.atol, self.n_save_points,
         )
 
         t0_wall = time.perf_counter()
@@ -128,24 +136,30 @@ class JuliaServerBackend:
                 self._proc.stdin.write(line.encode() + b"\n")
                 self._proc.stdin.flush()
                 if progress:
-                    response_line = _read_with_spinner(self._proc.stdout, label="julia")
+                    header_line = _read_with_spinner(self._proc.stdout, label="julia")
                 else:
-                    response_line = self._proc.stdout.readline()
+                    header_line = self._proc.stdout.readline()
+                header = json.loads(header_line)
+                if "error" not in header:
+                    # Chunked protocol: header gives counts, then t line, then x rows
+                    t_line = self._proc.stdout.readline()
+                    x_lines = [self._proc.stdout.readline()
+                                for _ in range(header["n_states"])]
             except (BrokenPipeError, OSError) as exc:
                 raise RuntimeError("Julia server process died unexpectedly.") from exc
 
-        if not response_line:
+        if not header_line:
             raise RuntimeError("Julia server closed stdout without responding.")
 
         elapsed_ms = (time.perf_counter() - t0_wall) * 1000
-        data = json.loads(response_line)
-        if "error" in data:
-            _log.error("Julia server error after %.0f ms: %s", elapsed_ms, data["error"][:200])
-            raise RuntimeError(f"Julia server error:\n{data['error']}")
+        if "error" in header:
+            _log.error("Julia server error after %.0f ms: %s", elapsed_ms, header["error"][:200])
+            raise RuntimeError(f"Julia server error:\n{header['error']}")
 
-        _log.debug("solve done in %.1f ms", elapsed_ms)
-        t = np.array(data["t"])
-        x = np.array(data["x"])
+        _log.debug("solve done in %.1f ms  n_t=%d  n_states=%d",
+                   elapsed_ms, header["n_t"], header["n_states"])
+        t = np.array(json.loads(t_line))
+        x = np.array([json.loads(row) for row in x_lines])
         return SolveResult(t=t, x=x)
 
     def close(self) -> None:
@@ -205,6 +219,8 @@ class JuliaServerBackend:
                 stderr_lines.append(decoded)
                 if decoded == _READY_SIGNAL:
                     ready_event.set()
+                elif decoded.startswith("NUMEN_PRECOMPILE_DONE"):
+                    _log.info("[julia] %s", decoded)
                 elif decoded.strip():
                     _log.debug("[julia] %s", decoded)
 
@@ -225,11 +241,14 @@ class JuliaServerBackend:
     def _build_payload(self, compiled_spec: CompiledSpec, tspan: tuple[float, float]) -> dict:
         check_julia_fns(compiled_spec, "JuliaServerBackend")
         return {
-            "spec":   compiled_spec.to_dict(),
-            "tspan":  list(tspan),
-            "method": self.method,
-            "rtol":   self.rtol,
-            "atol":   self.atol,
+            "spec":           compiled_spec.to_dict(),
+            "tspan":          list(tspan),
+            "method":         self.method,
+            "rtol":           self.rtol,
+            "atol":           self.atol,
+            "n_save_points":  self.n_save_points,
+            "dtsave":         self.dtsave,
+            "dtmax":          self.dtmax,
         }
 
 
@@ -270,10 +289,16 @@ class JuliaServerPool:
         method: str = "Tsit5",
         rtol: float = 1e-6,
         atol: float = 1e-8,
+        n_save_points: int = 0,
+        dtsave: float | None = None,
+        dtmax: float | None = None,
     ) -> None:
         self._n = n_workers
         self._servers = [
-            JuliaServerBackend(julia_file=julia_file, method=method, rtol=rtol, atol=atol, eager=True)
+            JuliaServerBackend(
+                julia_file=julia_file, method=method, rtol=rtol, atol=atol,
+                eager=True, n_save_points=n_save_points, dtsave=dtsave, dtmax=dtmax,
+            )
             for _ in range(n_workers)
         ]
         # Queue acts as a semaphore — each server token is available when idle
@@ -345,6 +370,27 @@ class JuliaServerPool:
                     f.result()
 
         return results
+
+    def borrow(self):
+        """Context manager that acquires one idle server and releases it on exit.
+
+        Use this to route a single (non-parallelisable) task through the pool
+        without bypassing the queue::
+
+            with pool.borrow() as server:
+                result = server.solve(spec, tspan)
+        """
+        from contextlib import contextmanager
+
+        @contextmanager
+        def _borrow():
+            server = self._q.get()
+            try:
+                yield server
+            finally:
+                self._q.put(server)
+
+        return _borrow()
 
     def close(self) -> None:
         """Shut down all server processes."""

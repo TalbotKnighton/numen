@@ -1,6 +1,78 @@
 """Scaffold templates for numen new and numen init commands."""
 from __future__ import annotations
 
+# ---------------------------------------------------------------------------
+# Backend option helpers
+# ---------------------------------------------------------------------------
+
+VALID_BACKENDS = ("scipy", "jax", "julia", "julia_server")
+
+_ALL_BACKEND_IMPORTS = (
+    ("scipy",        "from numen.bridge.scipy_backend import ScipyBackend"),
+    ("jax",          "from numen.bridge.jax_backend import JAXBackend"),
+    ("julia",        "from numen.bridge.runtime import JuliaBackend"),
+    ("julia_server", "from numen.bridge.runtime import JuliaServerBackend"),
+)
+
+_ALL_BACKEND_INITS = (
+    ("scipy",        "ScipyBackend(rtol=1e-8, atol=1e-10)"),
+    ("jax",          'JAXBackend(rtol=1e-8, atol=1e-10, solver="Dopri5", max_steps=100_000)'),
+    ("julia",        'JuliaBackend(julia_file="dynamics.jl", rtol=1e-8, atol=1e-10)'),
+    ("julia_server", 'JuliaServerBackend(julia_file="dynamics.jl", rtol=1e-8, atol=1e-10)'),
+)
+
+
+def _backend_import_block(backend: str) -> str:
+    lines = []
+    for name, imp in _ALL_BACKEND_IMPORTS:
+        lines.append(imp if name == backend else f"# {imp}")
+    return "\n".join(lines)
+
+
+def _backend_solve_line(backend: str) -> str:
+    """Return the solve line(s) for run.py. First line has no leading spaces
+    (the template's own indentation covers it); subsequent lines carry their own
+    4-space indent so they land correctly after template substitution."""
+    lines = []
+    for name, init in _ALL_BACKEND_INITS:
+        line = f"result = {init}.solve(spec, tspan)"
+        lines.append(line if name == backend else f"# {line}")
+    return "\n    ".join(lines)
+
+
+def _backend_yaml_section(backend: str) -> str:
+    lines = [
+        "backend:",
+        f"  type: {backend}   # options: scipy | jax | julia | julia_server",
+        "  rtol: 1.0e-8",
+        "  atol: 1.0e-10",
+    ]
+    if backend in ("julia", "julia_server"):
+        lines.append("  julia_file: dynamics.jl")
+    else:
+        lines.append("  # julia_file: dynamics.jl   # required for julia / julia_server")
+    if backend == "jax":
+        lines.append("  solver: Dopri5              # also Tsit5 / Vern7 / Rodas5P")
+    else:
+        lines.append("  # solver: Dopri5            # jax default; also Tsit5 / Vern7 / Rodas5P")
+    if backend == "julia_server":
+        lines.append("  n_save_points: 2000")
+        lines.append("  # n_workers: 1             # parallel sweep workers")
+    else:
+        lines.append("  # n_save_points: 2000      # cap output density (julia / julia_server)")
+        lines.append("  # n_workers: 1             # parallel sweep workers (julia_server)")
+    return "\n".join(lines)
+
+
+def get_substitutions(model_name: str, backend: str) -> dict[str, str]:
+    """Return all template substitution pairs for a given model name and backend."""
+    return {
+        "{{MODEL_NAME}}":           model_name,
+        "{{BACKEND_IMPORT_BLOCK}}": _backend_import_block(backend),
+        "{{BACKEND_SOLVE_LINE}}":   _backend_solve_line(backend),
+        "{{BACKEND_YAML_SECTION}}": _backend_yaml_section(backend),
+    }
+
 
 EXAMPLES: dict[str, dict] = {
     "oscillator": {
@@ -16,6 +88,16 @@ EXAMPLES: dict[str, dict] = {
     "fluid_poppet": {
         "description": "Pneumatic 4-CV network + spring-mass poppet check valve.",
         "concepts":    ["isentropic orifice flow", "smooth contact", "JAXBackend", "JuliaBackend"],
+        "domain":      "fluid/mechanical",
+    },
+    "nonlinear_oscillator": {
+        "description": "Nonlinear Duffing-type oscillator with ExcitationPort characterization campaign.",
+        "concepts":    ["ExcitationPort", "characterization", "FRF", "amplitude sweep", "chirp"],
+        "domain":      "mechanical",
+    },
+    "pneumatic_dashpot": {
+        "description": "Piston in a sealed cylinder with orifice vents — frequency-dependent pneumatic damping.",
+        "concepts":    ["orifice flow", "gas-spring", "stiff ODE", "parameter sweep", "Rodas5P"],
         "domain":      "fluid/mechanical",
     },
 }
@@ -103,43 +185,51 @@ import Main: CompiledSpec, CompiledSystemSpec, state_idx, param_idx
 
 
 function kinematics_dynamics!(
-    dx::Vector{Float64}, x::Vector{Float64}, p::Vector{Float64},
-    t::Float64, spec::CompiledSpec, sys::CompiledSystemSpec,
-)
+    dx  :: AbstractVector{T},
+    x   :: AbstractVector{S},
+    p   :: Vector{Float64},
+    t   :: Real,
+    spec:: CompiledSpec,
+    sys :: CompiledSystemSpec,
+) where {T <: Real, S <: Real}
     for id_body in sys.entity_ids
-        i_pos = state_idx(spec, id_body * ".position")
-        i_vel = state_idx(spec, id_body * ".velocity")
+        i_pos = state_idx(spec, id_body * ".body.position")
+        i_vel = state_idx(spec, id_body * ".body.velocity")
         dx[i_pos] += x[i_vel]
     end
 end
 
 
 function spring_dynamics!(
-    dx::Vector{Float64}, x::Vector{Float64}, p::Vector{Float64},
-    t::Float64, spec::CompiledSpec, sys::CompiledSystemSpec,
-)
+    dx  :: AbstractVector{T},
+    x   :: AbstractVector{S},
+    p   :: Vector{Float64},
+    t   :: Real,
+    spec:: CompiledSpec,
+    sys :: CompiledSystemSpec,
+) where {T <: Real, S <: Real}
     gs = sys.group_size  # 3
     for i in 1:gs:length(sys.entity_ids)
         id_a = sys.entity_ids[i]
         id_s = sys.entity_ids[i + 1]
         id_b = sys.entity_ids[i + 2]
 
-        pos_a = x[state_idx(spec, id_a * ".position")]
-        pos_b = x[state_idx(spec, id_b * ".position")]
-        vel_a = x[state_idx(spec, id_a * ".velocity")]
-        vel_b = x[state_idx(spec, id_b * ".velocity")]
-        mass_a     = p[param_idx(spec, id_a * ".mass")]
-        mass_b     = p[param_idx(spec, id_b * ".mass")]
-        stiffness  = p[param_idx(spec, id_s * ".stiffness")]
-        rest_len   = p[param_idx(spec, id_s * ".rest_length")]
-        damping    = p[param_idx(spec, id_s * ".damping")]
+        pos_a = x[state_idx(spec, id_a * ".body.position")]
+        pos_b = x[state_idx(spec, id_b * ".body.position")]
+        vel_a = x[state_idx(spec, id_a * ".body.velocity")]
+        vel_b = x[state_idx(spec, id_b * ".body.velocity")]
+        mass_a    = p[param_idx(spec, id_a * ".body.mass")]
+        mass_b    = p[param_idx(spec, id_b * ".body.mass")]
+        stiffness = p[param_idx(spec, id_s * ".spring.stiffness")]
+        rest_len  = p[param_idx(spec, id_s * ".spring.rest_length")]
+        damping   = p[param_idx(spec, id_s * ".spring.damping")]
 
         stretch = (pos_b - pos_a) - rest_len
         rel_vel = vel_b - vel_a
         force   = stiffness * stretch + damping * rel_vel
 
-        dx[state_idx(spec, id_a * ".velocity")] +=  force / mass_a
-        dx[state_idx(spec, id_b * ".velocity")] += -force / mass_b
+        dx[state_idx(spec, id_a * ".body.velocity")] +=  force / mass_a
+        dx[state_idx(spec, id_b * ".body.velocity")] += -force / mass_b
     end
 end
 
@@ -162,9 +252,9 @@ def make_world() -> World:
     """Two bodies connected by a spring-damper.  body_b starts displaced by 0.5 m."""
     return World(
         components={
-            "body_a": BodyComponent(position=0.0, velocity=0.0, mass=1.0),
-            "spring": SpringComponent(stiffness=100.0, rest_length=1.0, damping=1.0),
-            "body_b": BodyComponent(position=1.5, velocity=0.0, mass=1.0),
+            "body_a": {"body": BodyComponent(position=0.0, velocity=0.0, mass=1.0)},
+            "spring": {"spring": SpringComponent(stiffness=100.0, rest_length=1.0, damping=1.0)},
+            "body_b": {"body": BodyComponent(position=1.5, velocity=0.0, mass=1.0)},
         },
         systems={
             "kinematics": KinematicsSystem(),
@@ -180,7 +270,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from numen.compiler.flatten import compile_spec
-from numen.bridge.scipy_backend import ScipyBackend
+{{BACKEND_IMPORT_BLOCK}}
 from numen.reconstruction.collector import SnapshotCollector
 from world import make_world
 
@@ -193,12 +283,12 @@ def run():
     print("Param fields:", list(spec.param_index_map.keys()))
 
     tspan  = (0.0, 10.0)
-    result = ScipyBackend(rtol=1e-8, atol=1e-10).solve(spec, tspan)
+    {{BACKEND_SOLVE_LINE}}
     print(f"Solved: {len(result.t)} steps over {result.t[-1]:.1f} s")
 
     collector = SnapshotCollector(world, spec, result)
-    t, pos_a = collector.field_series("body_a", "position")
-    _, pos_b  = collector.field_series("body_b", "position")
+    t, pos_a = collector.field_series("body_a", "body", "position")
+    _, pos_b  = collector.field_series("body_b", "body", "position")
 
     fig, ax = plt.subplots(figsize=(10, 4))
     ax.plot(t, pos_a, label="body_a")
@@ -217,6 +307,20 @@ def run():
 
 if __name__ == "__main__":
     run()
+''',
+        "test_plan.yaml": '''\
+# Characterization campaign — see CHARACTERIZATION.md for the full schema.
+# Run with:  uv run numen characterize test_plan.yaml
+#            uv run numen characterize test_plan.yaml -c   # compute only
+#            uv run numen characterize test_plan.yaml -p   # plot only
+world_module: world
+tspan: [0.0, 10.0]
+
+{{BACKEND_YAML_SECTION}}
+
+tests: []   # TODO: add characterization tests (discrete_frequency_sweep, continuous_chirp, …)
+
+plots: []   # TODO: add plot panels (bode, chirp_timeseries, amplitude_sweep, …)
 ''',
     },
     "fluid": {
@@ -305,44 +409,50 @@ module {{MODEL_NAME}}Dynamics
 import Main: CompiledSpec, CompiledSystemSpec, state_idx, param_idx
 
 
+# Helper: isentropic orifice mass flow.  P_up/P_dn are type T so ForwardDiff
+# can differentiate through them for the state Jacobian.
 function orifice_mdot(
-    P_up::Float64, P_dn::Float64, T_up::Float64,
+    P_up::T, P_dn::T, T_up::Float64,
     R::Float64, Cd::Float64, A::Float64, gamma::Float64,
-)::Float64
-    (P_up <= 0.0 || A <= 0.0) && return 0.0
-    beta      = max(0.0, P_dn) / P_up
+)::T where T <: Real
+    (P_up <= 0.0 || A <= 0.0) && return zero(T)
+    beta      = max(zero(T), P_dn) / P_up
     beta_crit = (2.0 / (gamma + 1.0))^(gamma / (gamma - 1.0))
     if beta <= beta_crit
         choke_exp = (gamma + 1.0) / (2.0 * (gamma - 1.0))
         return Cd * A * P_up * sqrt(gamma / (R * T_up)) * (2.0/(gamma+1.0))^choke_exp
     else
         arg = beta^(2.0/gamma) - beta^((gamma+1.0)/gamma)
-        return Cd * A * P_up * sqrt(max(0.0, 2.0*gamma/((gamma-1.0)*R*T_up)*arg))
+        return Cd * A * P_up * sqrt(max(zero(T), 2.0*gamma/((gamma-1.0)*R*T_up)*arg))
     end
 end
 
 
 function orifice_flow_dynamics!(
-    dx::Vector{Float64}, x::Vector{Float64}, p::Vector{Float64},
-    t::Float64, spec::CompiledSpec, sys::CompiledSystemSpec,
-)
+    dx  :: AbstractVector{T},
+    x   :: AbstractVector{S},
+    p   :: Vector{Float64},
+    t   :: Real,
+    spec:: CompiledSpec,
+    sys :: CompiledSystemSpec,
+) where {T <: Real, S <: Real}
     gs = sys.group_size
     for i in 1:gs:length(sys.entity_ids)
         id_a = sys.entity_ids[i]
         id_o = sys.entity_ids[i + 1]
         id_b = sys.entity_ids[i + 2]
 
-        P_a = x[state_idx(spec, id_a * ".pressure")]
-        P_b = x[state_idx(spec, id_b * ".pressure")]
-        T_a = p[param_idx(spec, id_a * ".temperature")]
-        T_b = p[param_idx(spec, id_b * ".temperature")]
-        R_a = p[param_idx(spec, id_a * ".R_specific")]
-        R_b = p[param_idx(spec, id_b * ".R_specific")]
-        V_a = p[param_idx(spec, id_a * ".volume")]
-        V_b = p[param_idx(spec, id_b * ".volume")]
-        Cd  = p[param_idx(spec, id_o * ".Cd")]
-        A   = p[param_idx(spec, id_o * ".area")]
-        gam = p[param_idx(spec, id_o * ".gamma")]
+        P_a = x[state_idx(spec, id_a * ".control_volume.pressure")]
+        P_b = x[state_idx(spec, id_b * ".control_volume.pressure")]
+        T_a = p[param_idx(spec, id_a * ".control_volume.temperature")]
+        T_b = p[param_idx(spec, id_b * ".control_volume.temperature")]
+        R_a = p[param_idx(spec, id_a * ".control_volume.R_specific")]
+        R_b = p[param_idx(spec, id_b * ".control_volume.R_specific")]
+        V_a = p[param_idx(spec, id_a * ".control_volume.volume")]
+        V_b = p[param_idx(spec, id_b * ".control_volume.volume")]
+        Cd  = p[param_idx(spec, id_o * ".orifice.Cd")]
+        A   = p[param_idx(spec, id_o * ".orifice.area")]
+        gam = p[param_idx(spec, id_o * ".orifice.gamma")]
 
         if P_a >= P_b
             mdot = orifice_mdot(P_a, P_b, T_a, R_a, Cd, A, gam)
@@ -350,8 +460,8 @@ function orifice_flow_dynamics!(
             mdot = -orifice_mdot(P_b, P_a, T_b, R_b, Cd, A, gam)
         end
 
-        dx[state_idx(spec, id_a * ".pressure")] += -(R_a * T_a / V_a) * mdot
-        dx[state_idx(spec, id_b * ".pressure")] +=  (R_b * T_b / V_b) * mdot
+        dx[state_idx(spec, id_a * ".control_volume.pressure")] += -(R_a * T_a / V_a) * mdot
+        dx[state_idx(spec, id_b * ".control_volume.pressure")] +=  (R_b * T_b / V_b) * mdot
     end
 end
 
@@ -378,9 +488,9 @@ def make_world() -> World:
     """Two tanks connected by an orifice.  Inlet at 3 bar, outlet at 1 bar."""
     return World(
         components={
-            "inlet":  ControlVolumeComponent(pressure=P_HIGH, volume=1e-2, temperature=T),
-            "orifice": OrificeComponent(Cd=0.7, area=1e-5, gamma=1.4),
-            "outlet": ControlVolumeComponent(pressure=P_LOW,  volume=1e-2, temperature=T),
+            "inlet":   {"control_volume": ControlVolumeComponent(pressure=P_HIGH, volume=1e-2, temperature=T)},
+            "orifice": {"orifice": OrificeComponent(Cd=0.7, area=1e-5, gamma=1.4)},
+            "outlet":  {"control_volume": ControlVolumeComponent(pressure=P_LOW,  volume=1e-2, temperature=T)},
         },
         systems={
             "flow": OrificeFlowSystem(entity_groups=[["inlet", "orifice", "outlet"]]),
@@ -395,7 +505,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from numen.compiler.flatten import compile_spec
-from numen.bridge.scipy_backend import ScipyBackend
+{{BACKEND_IMPORT_BLOCK}}
 from numen.reconstruction.collector import SnapshotCollector
 from world import make_world
 
@@ -407,12 +517,12 @@ def run():
     print("State fields:", list(spec.state_index_map.keys()))
 
     tspan  = (0.0, 1.0)
-    result = ScipyBackend(rtol=1e-8, atol=1e-10).solve(spec, tspan)
+    {{BACKEND_SOLVE_LINE}}
     print(f"Solved: {len(result.t)} steps over {result.t[-1]:.2f} s")
 
     collector = SnapshotCollector(world, spec, result)
-    t, P_in  = collector.field_series("inlet",  "pressure")
-    _, P_out  = collector.field_series("outlet", "pressure")
+    t, P_in  = collector.field_series("inlet",  "control_volume", "pressure")
+    _, P_out  = collector.field_series("outlet", "control_volume", "pressure")
 
     fig, ax = plt.subplots(figsize=(10, 4))
     ax.plot(t, P_in  / 1e5, label="inlet (bar)")
@@ -431,6 +541,20 @@ def run():
 
 if __name__ == "__main__":
     run()
+''',
+        "test_plan.yaml": '''\
+# Characterization campaign — see CHARACTERIZATION.md for the full schema.
+# Run with:  uv run numen characterize test_plan.yaml
+#            uv run numen characterize test_plan.yaml -c   # compute only
+#            uv run numen characterize test_plan.yaml -p   # plot only
+world_module: world
+tspan: [0.0, 1.0]
+
+{{BACKEND_YAML_SECTION}}
+
+tests: []   # TODO: add characterization tests (discrete_frequency_sweep, continuous_chirp, …)
+
+plots: []   # TODO: add plot panels (bode, chirp_timeseries, amplitude_sweep, …)
 ''',
     },
 }
@@ -476,11 +600,15 @@ import Main: CompiledSpec, CompiledSystemSpec, state_idx, param_idx
 
 
 function my_dynamics!(
-    dx::Vector{Float64}, x::Vector{Float64}, p::Vector{Float64},
-    t::Float64, spec::CompiledSpec, sys::CompiledSystemSpec,
-)
+    dx  :: AbstractVector{T},
+    x   :: AbstractVector{S},
+    p   :: Vector{Float64},
+    t   :: Real,
+    spec:: CompiledSpec,
+    sys :: CompiledSystemSpec,
+) where {T <: Real, S <: Real}
     for id_e in sys.entity_ids
-        i_state = state_idx(spec, id_e * ".state")
+        i_state = state_idx(spec, id_e * ".my.state")
         # TODO: dx[i_state] += ...
     end
 end
@@ -502,7 +630,7 @@ World        = GenericWorld[AnyComponent, AnySystem, None]
 
 def make_world() -> World:
     return World(
-        components={"entity": MyComponent()},
+        components={"entity": {"my": MyComponent()}},
         systems={"system": MySystem()},
     )
 ''',
@@ -511,18 +639,33 @@ import os, sys
 sys.path.insert(0, os.path.dirname(__file__))
 
 from numen.compiler.flatten import compile_spec
-from numen.bridge.scipy_backend import ScipyBackend
+{{BACKEND_IMPORT_BLOCK}}
 from world import make_world
 
 
 def run():
     world  = make_world()
     spec   = compile_spec(world)
-    result = ScipyBackend(rtol=1e-8, atol=1e-10).solve(spec, tspan=(0.0, 1.0))
+    tspan  = (0.0, 1.0)
+    {{BACKEND_SOLVE_LINE}}
     print(f"Solved: {len(result.t)} steps")
 
 
 if __name__ == "__main__":
     run()
+''',
+    "test_plan.yaml": '''\
+# Characterization campaign — see CHARACTERIZATION.md for the full schema.
+# Run with:  uv run numen characterize test_plan.yaml
+#            uv run numen characterize test_plan.yaml -c   # compute only
+#            uv run numen characterize test_plan.yaml -p   # plot only
+world_module: world
+tspan: [0.0, 1.0]
+
+{{BACKEND_YAML_SECTION}}
+
+tests: []   # TODO: add characterization tests (discrete_frequency_sweep, continuous_chirp, …)
+
+plots: []   # TODO: add plot panels (bode, chirp_timeseries, amplitude_sweep, …)
 ''',
 }
