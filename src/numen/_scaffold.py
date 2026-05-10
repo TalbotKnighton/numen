@@ -1,6 +1,78 @@
 """Scaffold templates for numen new and numen init commands."""
 from __future__ import annotations
 
+# ---------------------------------------------------------------------------
+# Backend option helpers
+# ---------------------------------------------------------------------------
+
+VALID_BACKENDS = ("scipy", "jax", "julia", "julia_server")
+
+_ALL_BACKEND_IMPORTS = (
+    ("scipy",        "from numen.bridge.scipy_backend import ScipyBackend"),
+    ("jax",          "from numen.bridge.jax_backend import JAXBackend"),
+    ("julia",        "from numen.bridge.runtime import JuliaBackend"),
+    ("julia_server", "from numen.bridge.runtime import JuliaServerBackend"),
+)
+
+_ALL_BACKEND_INITS = (
+    ("scipy",        "ScipyBackend(rtol=1e-8, atol=1e-10)"),
+    ("jax",          'JAXBackend(rtol=1e-8, atol=1e-10, solver="Dopri5", max_steps=100_000)'),
+    ("julia",        'JuliaBackend(julia_file="dynamics.jl", rtol=1e-8, atol=1e-10)'),
+    ("julia_server", 'JuliaServerBackend(julia_file="dynamics.jl", rtol=1e-8, atol=1e-10)'),
+)
+
+
+def _backend_import_block(backend: str) -> str:
+    lines = []
+    for name, imp in _ALL_BACKEND_IMPORTS:
+        lines.append(imp if name == backend else f"# {imp}")
+    return "\n".join(lines)
+
+
+def _backend_solve_line(backend: str) -> str:
+    """Return the solve line(s) for run.py. First line has no leading spaces
+    (the template's own indentation covers it); subsequent lines carry their own
+    4-space indent so they land correctly after template substitution."""
+    lines = []
+    for name, init in _ALL_BACKEND_INITS:
+        line = f"result = {init}.solve(spec, tspan)"
+        lines.append(line if name == backend else f"# {line}")
+    return "\n    ".join(lines)
+
+
+def _backend_yaml_section(backend: str) -> str:
+    lines = [
+        "backend:",
+        f"  type: {backend}   # options: scipy | jax | julia | julia_server",
+        "  rtol: 1.0e-8",
+        "  atol: 1.0e-10",
+    ]
+    if backend in ("julia", "julia_server"):
+        lines.append("  julia_file: dynamics.jl")
+    else:
+        lines.append("  # julia_file: dynamics.jl   # required for julia / julia_server")
+    if backend == "jax":
+        lines.append("  solver: Dopri5              # also Tsit5 / Vern7 / Rodas5P")
+    else:
+        lines.append("  # solver: Dopri5            # jax default; also Tsit5 / Vern7 / Rodas5P")
+    if backend == "julia_server":
+        lines.append("  n_save_points: 2000")
+        lines.append("  # n_workers: 1             # parallel sweep workers")
+    else:
+        lines.append("  # n_save_points: 2000      # cap output density (julia / julia_server)")
+        lines.append("  # n_workers: 1             # parallel sweep workers (julia_server)")
+    return "\n".join(lines)
+
+
+def get_substitutions(model_name: str, backend: str) -> dict[str, str]:
+    """Return all template substitution pairs for a given model name and backend."""
+    return {
+        "{{MODEL_NAME}}":           model_name,
+        "{{BACKEND_IMPORT_BLOCK}}": _backend_import_block(backend),
+        "{{BACKEND_SOLVE_LINE}}":   _backend_solve_line(backend),
+        "{{BACKEND_YAML_SECTION}}": _backend_yaml_section(backend),
+    }
+
 
 EXAMPLES: dict[str, dict] = {
     "oscillator": {
@@ -190,7 +262,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from numen.compiler.flatten import compile_spec
-from numen.bridge.scipy_backend import ScipyBackend
+{{BACKEND_IMPORT_BLOCK}}
 from numen.reconstruction.collector import SnapshotCollector
 from world import make_world
 
@@ -203,7 +275,7 @@ def run():
     print("Param fields:", list(spec.param_index_map.keys()))
 
     tspan  = (0.0, 10.0)
-    result = ScipyBackend(rtol=1e-8, atol=1e-10).solve(spec, tspan)
+    {{BACKEND_SOLVE_LINE}}
     print(f"Solved: {len(result.t)} steps over {result.t[-1]:.1f} s")
 
     collector = SnapshotCollector(world, spec, result)
@@ -227,6 +299,20 @@ def run():
 
 if __name__ == "__main__":
     run()
+''',
+        "test_plan.yaml": '''\
+# Characterization campaign — see CHARACTERIZATION.md for the full schema.
+# Run with:  uv run numen characterize test_plan.yaml
+#            uv run numen characterize test_plan.yaml -c   # compute only
+#            uv run numen characterize test_plan.yaml -p   # plot only
+world_module: world
+tspan: [0.0, 10.0]
+
+{{BACKEND_YAML_SECTION}}
+
+tests: []   # TODO: add characterization tests (discrete_frequency_sweep, continuous_chirp, …)
+
+plots: []   # TODO: add plot panels (bode, chirp_timeseries, amplitude_sweep, …)
 ''',
     },
     "fluid": {
@@ -405,7 +491,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from numen.compiler.flatten import compile_spec
-from numen.bridge.scipy_backend import ScipyBackend
+{{BACKEND_IMPORT_BLOCK}}
 from numen.reconstruction.collector import SnapshotCollector
 from world import make_world
 
@@ -417,7 +503,7 @@ def run():
     print("State fields:", list(spec.state_index_map.keys()))
 
     tspan  = (0.0, 1.0)
-    result = ScipyBackend(rtol=1e-8, atol=1e-10).solve(spec, tspan)
+    {{BACKEND_SOLVE_LINE}}
     print(f"Solved: {len(result.t)} steps over {result.t[-1]:.2f} s")
 
     collector = SnapshotCollector(world, spec, result)
@@ -441,6 +527,20 @@ def run():
 
 if __name__ == "__main__":
     run()
+''',
+        "test_plan.yaml": '''\
+# Characterization campaign — see CHARACTERIZATION.md for the full schema.
+# Run with:  uv run numen characterize test_plan.yaml
+#            uv run numen characterize test_plan.yaml -c   # compute only
+#            uv run numen characterize test_plan.yaml -p   # plot only
+world_module: world
+tspan: [0.0, 1.0]
+
+{{BACKEND_YAML_SECTION}}
+
+tests: []   # TODO: add characterization tests (discrete_frequency_sweep, continuous_chirp, …)
+
+plots: []   # TODO: add plot panels (bode, chirp_timeseries, amplitude_sweep, …)
 ''',
     },
 }
@@ -521,18 +621,33 @@ import os, sys
 sys.path.insert(0, os.path.dirname(__file__))
 
 from numen.compiler.flatten import compile_spec
-from numen.bridge.scipy_backend import ScipyBackend
+{{BACKEND_IMPORT_BLOCK}}
 from world import make_world
 
 
 def run():
     world  = make_world()
     spec   = compile_spec(world)
-    result = ScipyBackend(rtol=1e-8, atol=1e-10).solve(spec, tspan=(0.0, 1.0))
+    tspan  = (0.0, 1.0)
+    {{BACKEND_SOLVE_LINE}}
     print(f"Solved: {len(result.t)} steps")
 
 
 if __name__ == "__main__":
     run()
+''',
+    "test_plan.yaml": '''\
+# Characterization campaign — see CHARACTERIZATION.md for the full schema.
+# Run with:  uv run numen characterize test_plan.yaml
+#            uv run numen characterize test_plan.yaml -c   # compute only
+#            uv run numen characterize test_plan.yaml -p   # plot only
+world_module: world
+tspan: [0.0, 1.0]
+
+{{BACKEND_YAML_SECTION}}
+
+tests: []   # TODO: add characterization tests (discrete_frequency_sweep, continuous_chirp, …)
+
+plots: []   # TODO: add plot panels (bode, chirp_timeseries, amplitude_sweep, …)
 ''',
 }

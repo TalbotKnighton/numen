@@ -86,7 +86,27 @@ tests:
     settle_periods: 15
     measure_periods: 5
 
-  # ── 4. Orifice area parameter sweep — flagship feature ─────────────────
+  # ── 4. Stochastic (random vibe) baseline ──────────────────────────────
+  # Flat PSD 1–40 Hz at 0.02 (m/s²)²/Hz → RMS ≈ 0.9 m/s².
+  # Covers both the pneumatic corner (≈3 Hz) and the mechanical resonance
+  # (≈12.3 Hz).  Welch estimate and BLA reveal frequency-dependent damping
+  # and the linear gain peak without running a stepped-sine sweep.
+  - name: stochastic_baseline
+    type: stochastic_excitation
+    duration: 60.0
+    dt_sig: 0.01          # 100 Hz: Nyquist at 50 Hz, well above 40 Hz band edge
+    seed: 7
+    transient_fraction: 0.1
+    n_welch_segments: 8
+    dc_offset: 0.0
+    signal:
+      type: psd_profile
+      units: m_s2
+      breakpoints:
+        - [1.0,  0.02]   # (m/s²)²/Hz — flat band
+        - [40.0, 0.02]
+
+  # ── 5. Orifice area parameter sweep — flagship feature ─────────────────
   # Sweep orifice_area over three decades: nearly-sealed → nearly-open.
   # This directly shows the frequency-dependent damping transition:
   #
@@ -140,6 +160,15 @@ plots:
       title: "Amplitude Sweep at f₀ ≈ 12.3 Hz"
       test: amplitude_sweep_resonance
       show_phase: false
+
+    # Stochastic response — PSD, BLA gain, coherence
+    - type: stochastic_response
+      enabled: true
+      title: "Stochastic Baseline (1–40 Hz flat PSD)"
+      test: stochastic_baseline
+      show_bla: true
+      show_coherence: true
+      psd_db: true
 
     # Orifice family — the headline result
     - type: parameter_family

@@ -45,7 +45,7 @@ from rich.syntax import Syntax
 from rich.table import Table
 from rich.text import Text
 
-from numen._scaffold import EXAMPLES, TEMPLATES
+from numen._scaffold import EXAMPLES, TEMPLATES, VALID_BACKENDS, get_substitutions
 
 # Ensure UTF-8 output on Windows (cmd.exe / PowerShell default to CP1252)
 if sys.platform == "win32":
@@ -305,12 +305,16 @@ def init(
 def new(
     name: str = typer.Argument(..., help="Model name (becomes directory name)"),
     domain: str = typer.Option("generic", "--domain", "-d", help="Template: mechanical | fluid | generic"),
+    backend: str = typer.Option("scipy", "--backend", "-b", help=f"Solver backend: {' | '.join(VALID_BACKENDS)}"),
     output: Optional[str] = typer.Option(None, "--output", "-o", help="Parent directory (default: cwd)"),
     force: bool = typer.Option(False, "--force", "-f", help="Overwrite if exists"),
 ) -> None:
     """Scaffold a new model directory."""
     if domain not in TEMPLATES:
         console.print(f"  [bold #ef4444]✗[/]  Unknown domain [bold]{domain!r}[/]. Choose: {', '.join(TEMPLATES)}")
+        raise typer.Exit(code=1)
+    if backend not in VALID_BACKENDS:
+        console.print(f"  [bold #ef4444]✗[/]  Unknown backend [bold]{backend!r}[/]. Choose: {' | '.join(VALID_BACKENDS)}")
         raise typer.Exit(code=1)
 
     outdir = Path(output) / name if output else Path(name)
@@ -320,26 +324,35 @@ def new(
 
     outdir.mkdir(parents=True, exist_ok=True)
     model_name = name.replace("-", "_").replace(" ", "_").title().replace("_", "")
+    subs = get_substitutions(model_name, backend)
     tmpl = TEMPLATES[domain]
     for filename, content in tmpl.items():
-        (outdir / filename).write_text(content.replace("{{MODEL_NAME}}", model_name), encoding="utf-8")
+        for key, val in subs.items():
+            content = content.replace(key, val)
+        (outdir / filename).write_text(content, encoding="utf-8")
 
-    _header(f"Scaffolded: {name}  [{domain}]")
-    _file("components.py", "Component classes (IntegratedField, ParameterField)")
-    _file("dynamics.py",   "Physics functions — JAX-compatible, use jnp.*")
-    _file("dynamics.jl",   "Julia mirror for JuliaBackend / JuliaServerBackend")
-    _file("world.py",      "World assembly and make_world()")
-    _file("run.py",        "Solve and plot")
+    _header(f"Scaffolded: {name}  [{domain}]  [backend: {backend}]")
+    _file("components.py",  "Component classes (IntegratedField, ParameterField)")
+    _file("dynamics.py",    "Physics functions — JAX-compatible, use jnp.*")
+    _file("dynamics.jl",    "Julia mirror for JuliaBackend / JuliaServerBackend")
+    _file("world.py",       "World assembly and make_world()")
+    _file("run.py",         f"Solve and plot  [{backend} backend active; others commented]")
+    _file("test_plan.yaml", f"Characterization campaign  [{backend} backend active; others commented]")
     console.print()
     console.print("  [dim]Next steps:[/dim]")
     _step(1, f"Edit [bold]{outdir}/components.py[/bold]  — define state and parameter fields")
     _step(2, f"Edit [bold]{outdir}/dynamics.py[/bold]    — write physics (use [bold]jnp.*[/bold], not np.*)")
     _step(3, f"Edit [bold]{outdir}/world.py[/bold]       — set initial conditions")
     _step(4, f"Run:  [bold]cd {outdir} && python run.py[/bold]")
-    console.print()
-    console.print("  [dim]Julia backend (optional, ~300–600× faster):[/dim]")
-    _step(5, f"Edit [bold]{outdir}/dynamics.jl[/bold]    — mirror Python dynamics in Julia")
-    _step(6, "Use [bold]JuliaServerBackend[/bold] or [bold]JuliaBackend[/bold] in run.py")
+    if backend in ("julia", "julia_server"):
+        console.print()
+        console.print("  [dim]Julia backend selected — also edit:[/dim]")
+        _step(5, f"Edit [bold]{outdir}/dynamics.jl[/bold]    — mirror Python dynamics in Julia")
+    else:
+        console.print()
+        console.print("  [dim]Julia backend (optional, ~300–600× faster):[/dim]")
+        _step(5, f"Edit [bold]{outdir}/dynamics.jl[/bold]    — mirror Python dynamics in Julia")
+        _step(6, f"Uncomment [bold]JuliaServerBackend[/bold] in run.py and test_plan.yaml")
     console.print()
 
 

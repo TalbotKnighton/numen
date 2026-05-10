@@ -65,10 +65,16 @@ def generate_psd_signal(
             np.interp(np.log(freq[mask]), np.log(bkf), np.log(bkp))
         )
 
-    # PSD amplitude → one-sided amplitude spectrum
-    # Parseval: sum(|X(f)|²) = N · var(x) ← one-sided with factor 2
-    df  = freq[1] - freq[0]              # = 1/duration
-    amp = np.sqrt(2.0 * psd * df)        # one-sided → two-sided energy
+    # PSD amplitude → one-sided complex amplitude spectrum.
+    #
+    # NumPy irfft convention: x[n] = (1/N) sum_k X[k] exp(2πi k n/N)
+    # Parseval: E[x²] = (1/N²) · (|X[0]|² + 2·Σ|X[k]|² + |X[N/2]|²)
+    #
+    # Welch one-sided PSD: S[k] = (2/(N·fs)) · |X[k]|²
+    # → |X[k]|² = N·fs/2 · S[k]
+    # → amplitude for bin k: amp[k] = sqrt(N·fs/2 · psd[k])
+    fs  = 1.0 / dt_sig
+    amp = np.sqrt(N * fs / 2.0 * psd)
     amp[0]  = 0.0                         # force zero DC
     if len(amp) > 1:
         amp[-1] = 0.0                     # zero Nyquist (avoid artefacts)
