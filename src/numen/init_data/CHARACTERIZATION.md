@@ -112,6 +112,8 @@ backend:
   n_save_points: 0            # 0 = save every adaptive step; N = save N uniform points
   dtsave: null                # save every dtsave seconds (mutually exclusive with n_save_points)
   dtmax: null                 # cap adaptive step size (prevents aliasing / missing transients)
+  maxiters: null              # raise OrdinaryDiffEq iteration cap (default 1e5); julia* only
+  precompile: true            # julia_server only: skip startup precompile() if false
 
 model:
   module: world               # importable module (YAML dir added to sys.path)
@@ -124,6 +126,7 @@ excitation:
   port: force                 # ExcitationPort field name on that component
   output_state: position      # state field to measure (response signal)
   output_component: null      # component kind for output_state; defaults to component if null
+  scale_by: null              # optional "entity.component.field" divisor — see §1a
 
 tests:
   - name: my_test
@@ -179,9 +182,114 @@ not parallelised; they run on one worker sequentially.
 | `n_save_points: N` | Save exactly N uniformly-spaced output points |
 | `dtsave: 0.001` | Save every 1 ms (mutually exclusive with `n_save_points`) |
 | `dtmax: 0.0005` | Cap adaptive step size at 0.5 ms (independent of save density) |
+| `maxiters: 10_000_000` | Raise OrdinaryDiffEq's iteration cap (default 1e5).  Required for long chirps or fine `dtmax` that need millions of steps.  julia / julia_server only. |
+| `precompile: false` | julia_server only: skip startup `precompile()` pass.  Saves a few seconds at server startup; first solve pays full JIT cost.  Useful for short campaigns or development cycles. |
 
 Rule of thumb for `dtmax` / `dtsave`: set to `1 / (10 × f_max)` for 10 samples per
 period of the highest-frequency content you care about.
+
+If a chirp test terminates early with `"Interrupted. Larger maxiters is needed."`,
+raise `maxiters` — a 120-second chirp at `dtmax: 0.0001` requires ≥ 1.2M steps,
+well above the default cap.
+
+---
+
+## 2b  Excitation is unit-agnostic — use `scale_by` for force / acceleration
+
+When the framework injects a value at your `ExcitationPort`, it adds the value
+**directly** to the target state's derivative.  `port_type` (`"effort"` / `"flow"`)
+and `units` are metadata for plot labels and bond-graph conventions only — they
+do **not** affect the math.
+
+If your port targets a velocity-like state, "amplitude in Newtons" without
+scaling is actually being interpreted as acceleration [m/s²].  To convert, set
+`excitation.scale_by` to the full path of the divisor (typically the mass):
+
+```yaml
+excitation:
+  entity: osc
+  component: my_component
+  port: force
+  output_state: position
+  scale_by: osc.my_component.mass   # divide injected value by mass at every RHS step
+```
+
+`scale_by` must be the full three-level path `entity.component.field` of an
+existing `ParameterField`.  It composes with `excitation.*` sweeps — sweeping
+amplitude in Newtons is preserved, division by mass happens inside the RHS.
+
+---
+
+## 2c  Custom excitation functions — `inject_custom_excitation`
+
+The built-in test types drive your model with a sinusoid (`inject_excitation`),
+a chirp (`inject_chirp_excitation`), or a precomputed signal table
+(`inject_table_excitation`).  For anything else — gated sinusoids, step / pulse
+/ burst patterns, shocks, or arbitrary user-defined `f(t, *params)` — use
+`inject_custom_excitation` from a `run.py` script:
+
+```python
+# run.py
+import math
+from world import make_world
+from numen.compiler.flatten import compile_spec
+from numen.characterization.excitation import inject_custom_excitation
+from numen.bridge.scipy_backend import ScipyBackend
+
+world = make_world()
+spec  = compile_spec(world)
+
+def my_gate(t, amp, freq, t_on, t_off):
+    """Gated sinusoid: on between t_on and t_off, zero elsewhere."""
+    if t_on <= t < t_off:
+        return amp * math.sin(2 * math.pi * freq * t)
+    return 0.0
+
+spec = inject_custom_excitation(
+    spec,
+    entity_id      = "osc",
+    component_kind = "my_component",
+    port_name      = "force",
+    target_field   = "velocity",
+    params         = {"amp": 1.0, "freq": 100.0, "t_on": 0.1, "t_off": 0.4},
+    python_fn      = my_gate,
+    julia_fn       = "MyDyn.my_gate_dyn!",
+    scale_by       = "osc.my_component.mass",   # optional divisor
+)
+
+result = ScipyBackend(rtol=1e-8, atol=1e-10).solve(spec, tspan=(0.0, 1.0))
+```
+
+**Contract.**  `python_fn` must take `t` as its first positional argument
+followed by one positional argument per entry in `params`, in the dict's
+insertion order.  The helper validates this at injection time and raises
+`ValueError` on mismatch.
+
+**Sweepable.**  Every entry of `params` lives in the parameter vector `p`,
+so each one is sweepable via `excitation.<name>` paths in YAML
+(`sweep_param: excitation.amp`, etc.).
+
+**Julia side.**  For Julia backends you must define `julia_fn` in your
+`dynamics.jl`.  The cleanest pattern uses the framework's wrapper helper:
+
+```julia
+module MyDyn
+function my_gate(t, amp, freq, t_on, t_off)
+    (t < t_on || t >= t_off) && return 0.0
+    return amp * sin(2π * freq * t)
+end
+
+# One-line wrapper — type-stable, zero per-step dispatch overhead
+const my_gate_dyn! = Main.NumenCharacterization.make_custom_excitation_dyn(
+    my_gate, ("amp", "freq", "t_on", "t_off"),
+)
+end
+```
+
+**Constraints** (same as the other `inject_*` helpers):
+- The function reads `t` and its own params only — it cannot read state `x`.
+  For feedback / closed-loop behaviour, use a `Callback`, not excitation.
+- One target field per injection.  Call the helper twice for two-port forcing.
 
 ---
 

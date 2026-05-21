@@ -224,6 +224,72 @@ immediately on bad keys. See [CHARACTERIZATION.md](CHARACTERIZATION.md) for
 the full schema and the JSON Schema (`test_plan.schema.json`) for IDE
 autocomplete.
 
+⚠️ **Excitation injection is unit-agnostic.** When a test injects a value at
+an `ExcitationPort`, the value is added **directly** to the target state's
+derivative — `port_type` and `units` are metadata for plot labels only.  If
+your port targets a velocity-like state, an `amplitude` of 10 (in "Newtons")
+will actually be interpreted as 10 m/s² acceleration unless you set
+`excitation.scale_by` to the full path of a divisor (typically the mass):
+
+```yaml
+excitation:
+  entity: osc
+  component: my_component
+  port: force
+  output_state: position
+  scale_by: osc.my_component.mass   # divide injected value by mass at every RHS step
+```
+
+`scale_by` applies to all `inject_*` helpers (sine, chirp, table, custom)
+called by the framework on your behalf.
+
+**Custom excitation functions.** For arbitrary forcing (gated sinusoids,
+step / pulse / burst patterns, anything else), call
+`inject_custom_excitation` from a `run.py` script:
+
+```python
+from numen.characterization.excitation import inject_custom_excitation
+import math
+
+def my_gate(t, amp, freq, t_on, t_off):
+    if t_on <= t < t_off:
+        return amp * math.sin(2 * math.pi * freq * t)
+    return 0.0
+
+spec = inject_custom_excitation(
+    spec,
+    entity_id="osc", component_kind="my_component",
+    port_name="force", target_field="velocity",
+    params={"amp": 1.0, "freq": 100.0, "t_on": 0.1, "t_off": 0.4},
+    python_fn=my_gate,
+    julia_fn="MyDyn.my_gate_dyn!",       # name in your dynamics.jl
+    scale_by="osc.my_component.mass",    # optional
+)
+```
+
+The `params` dict entries live in `p` and are sweepable via `excitation.amp`,
+`excitation.freq`, etc.  The Python signature is validated against
+`("t",) + tuple(params.keys())` at injection time.
+
+For Julia backends, define the matching function in your `dynamics.jl`:
+
+```julia
+module MyDyn
+function my_gate(t, amp, freq, t_on, t_off)
+    (t < t_on || t >= t_off) && return 0.0
+    return amp * sin(2π * freq * t)
+end
+
+# One-line wrapper — type-stable, no per-step dispatch overhead
+const my_gate_dyn! = Main.NumenCharacterization.make_custom_excitation_dyn(
+    my_gate, ("amp", "freq", "t_on", "t_off"),
+)
+end
+```
+
+The user function reads `t` and its own params only — it cannot read state `x`.
+For feedback / closed-loop behaviour, use a `Callback`, not excitation.
+
 **Plot panel types:** `bode`, `chirp_timeseries`, `amplitude_sweep`, `dc_sweep`,
 `parameter_family` (family of curves coloured by sweep param), `doe_scatter`,
 `parameter_grid_heatmap`.

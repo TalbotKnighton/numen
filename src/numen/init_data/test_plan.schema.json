@@ -212,6 +212,23 @@
           ],
           "default": null,
           "title": "Dtmax"
+        },
+        "maxiters": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Maxiters"
+        },
+        "precompile": {
+          "default": true,
+          "title": "Precompile",
+          "type": "boolean"
         }
       },
       "title": "BackendSpec",
@@ -674,7 +691,7 @@
       "type": "object"
     },
     "ExcitationSpec": {
-      "description": "Which entity / port to drive and which state to measure.\n\nFull path for the excitation port:  entity / component (kind) / port (field name).\nFull path for the output state:     entity / output_component (kind) / output_state (field name).\n``output_component`` defaults to ``component`` when omitted (most models drive and\nmeasure on the same component).",
+      "description": "Which entity / port to drive and which state to measure.\n\nFull path for the excitation port:  entity / component (kind) / port (field name).\nFull path for the output state:     entity / output_component (kind) / output_state (field name).\n``output_component`` defaults to ``component`` when omitted (most models drive and\nmeasure on the same component).\n\nThe framework is unit-agnostic: the value injected at the ExcitationPort is\nadded directly to the target state derivative.  Use ``scale_by`` to apply a\ndivision (e.g. divide a force by mass to get an acceleration when the target\nis a velocity-like state).  ``scale_by`` must be the full path\n``\"entity.component.field\"`` of an existing ParameterField.",
       "properties": {
         "entity": {
           "title": "Entity",
@@ -703,6 +720,18 @@
           ],
           "default": null,
           "title": "Output Component"
+        },
+        "scale_by": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Scale By"
         }
       },
       "required": [
