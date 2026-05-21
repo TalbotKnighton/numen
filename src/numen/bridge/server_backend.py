@@ -83,6 +83,8 @@ class JuliaServerBackend:
         n_save_points: int = 0,
         dtsave: float | None = None,
         dtmax: float | None = None,
+        maxiters: int | None = None,
+        precompile: bool = True,
     ) -> None:
         if n_save_points > 0 and dtsave is not None:
             raise ValueError("Specify either n_save_points or dtsave, not both.")
@@ -93,6 +95,8 @@ class JuliaServerBackend:
         self.n_save_points = n_save_points
         self.dtsave = dtsave
         self.dtmax = dtmax
+        self.maxiters = maxiters
+        self.precompile = precompile
         self._proc: subprocess.Popen | None = None
         self._lock = threading.Lock()
         self.startup_ms: float | None = None
@@ -202,12 +206,18 @@ class JuliaServerBackend:
         if self._julia_file:
             cmd.append(self._julia_file)
 
+        env = None
+        if not self.precompile:
+            import os
+            env = {**os.environ, "NUMEN_DISABLE_PRECOMPILE": "1"}
+
         t0 = time.perf_counter()
         proc = subprocess.Popen(
             cmd,
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
+            env=env,
         )
 
         ready_event = threading.Event()
@@ -249,6 +259,7 @@ class JuliaServerBackend:
             "n_save_points":  self.n_save_points,
             "dtsave":         self.dtsave,
             "dtmax":          self.dtmax,
+            "maxiters":       self.maxiters,
         }
 
 
@@ -292,12 +303,15 @@ class JuliaServerPool:
         n_save_points: int = 0,
         dtsave: float | None = None,
         dtmax: float | None = None,
+        maxiters: int | None = None,
+        precompile: bool = True,
     ) -> None:
         self._n = n_workers
         self._servers = [
             JuliaServerBackend(
                 julia_file=julia_file, method=method, rtol=rtol, atol=atol,
                 eager=True, n_save_points=n_save_points, dtsave=dtsave, dtmax=dtmax,
+                maxiters=maxiters, precompile=precompile,
             )
             for _ in range(n_workers)
         ]

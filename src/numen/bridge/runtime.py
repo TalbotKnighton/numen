@@ -111,6 +111,7 @@ class JuliaBackend:
         n_save_points: int = 0,
         dtsave: float | None = None,
         dtmax: float | None = None,
+        maxiters: int | None = None,
     ) -> None:
         if n_save_points > 0 and dtsave is not None:
             raise ValueError("Specify either n_save_points or dtsave, not both.")
@@ -121,6 +122,7 @@ class JuliaBackend:
         self.n_save_points = n_save_points
         self.dtsave = dtsave
         self.dtmax = dtmax
+        self.maxiters = maxiters
 
     def solve(
         self,
@@ -156,6 +158,7 @@ class JuliaBackend:
             "n_save_points": self.n_save_points,
             "dtsave":        self.dtsave,
             "dtmax":         self.dtmax,
+            "maxiters":      self.maxiters,
         }
 
         payload_path = Path(tempfile.mktemp(suffix=".json"))

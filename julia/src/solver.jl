@@ -5,7 +5,7 @@ Entry point called from Python via runner.jl or server.jl.  Receives a
 JSON-encoded SolvePayload, builds and solves the ODE/DAE system, returns a
 SolveResult.
 """
-function solve(payload_json::String; n_save_points::Int = 0, dtsave::Float64 = 0.0, dtmax::Float64 = 0.0)::SolveResult
+function solve(payload_json::String; n_save_points::Int = 0, dtsave::Float64 = 0.0, dtmax::Float64 = 0.0, maxiters::Int = 0)::SolveResult
     payload   = JSON3.read(payload_json, SolvePayload)
     spec      = payload.spec
     tspan     = (payload.tspan[1], payload.tspan[2])
@@ -87,6 +87,11 @@ function solve(payload_json::String; n_save_points::Int = 0, dtsave::Float64 = 0
     # or aliasing high-frequency inputs.  0.0 means no limit (solver default).
     if dtmax > 0.0
         kw = merge(kw, (dtmax = dtmax,))
+    end
+    # maxiters > 0 raises the solver's iteration cap above the default (1e5).
+    # Required for long chirps or fine dtmax that need millions of steps.
+    if maxiters > 0
+        kw = merge(kw, (maxiters = maxiters,))
     end
     sol = cb_set !== nothing ?
         OrdinaryDiffEq.solve(prob, solver; kw..., callback = cb_set) :

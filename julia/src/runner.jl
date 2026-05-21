@@ -48,17 +48,19 @@ dtsave_raw   = get(raw, :dtsave, nothing)
 dtsave       = (dtsave_raw === nothing) ? 0.0 : Float64(dtsave_raw)
 dtmax_raw    = get(raw, :dtmax, nothing)
 dtmax        = (dtmax_raw === nothing) ? 0.0 : Float64(dtmax_raw)
+maxiters_raw = get(raw, :maxiters, nothing)
+maxiters     = (maxiters_raw === nothing) ? 0 : Int(maxiters_raw)
 payload      = JSON3.read(raw_json, SolvePayload)
 
 payload_json = JSON3.write(payload)
 
 timings_ms = Float64[]
 t0         = time_ns()
-result     = Numen.solve(payload_json; n_save_points = n_save, dtsave = dtsave, dtmax = dtmax)
+result     = Numen.solve(payload_json; n_save_points = n_save, dtsave = dtsave, dtmax = dtmax, maxiters = maxiters)
 push!(timings_ms, (time_ns() - t0) / 1e6)
 for _ in 2:reps
     t0     = time_ns()
-    result = Numen.solve(payload_json; n_save_points = n_save, dtsave = dtsave, dtmax = dtmax)
+    result = Numen.solve(payload_json; n_save_points = n_save, dtsave = dtsave, dtmax = dtmax, maxiters = maxiters)
     push!(timings_ms, (time_ns() - t0) / 1e6)
 end
 

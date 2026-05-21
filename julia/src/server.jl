@@ -60,7 +60,12 @@ function _precompile_dynamics_modules()
     flush(stderr)
 end
 
-_precompile_dynamics_modules()
+if get(ENV, "NUMEN_DISABLE_PRECOMPILE", "") == "1"
+    println(stderr, "NUMEN_PRECOMPILE_SKIPPED")
+    flush(stderr)
+else
+    _precompile_dynamics_modules()
+end
 
 println(stderr, "NUMEN_SERVER_READY")
 flush(stderr)
@@ -69,13 +74,15 @@ while !eof(stdin)
     line = readline(stdin)
     isempty(line) && continue
     try
-        raw        = JSON3.read(line)
-        n_save     = get(raw, :n_save_points, 0)
-        dtsave_raw = get(raw, :dtsave, nothing)
-        dtsave     = (dtsave_raw === nothing) ? 0.0 : Float64(dtsave_raw)
-        dtmax_raw  = get(raw, :dtmax, nothing)
-        dtmax      = (dtmax_raw === nothing) ? 0.0 : Float64(dtmax_raw)
-        result = Numen.solve(line; n_save_points = n_save, dtsave = dtsave, dtmax = dtmax)
+        raw          = JSON3.read(line)
+        n_save       = get(raw, :n_save_points, 0)
+        dtsave_raw   = get(raw, :dtsave, nothing)
+        dtsave       = (dtsave_raw === nothing) ? 0.0 : Float64(dtsave_raw)
+        dtmax_raw    = get(raw, :dtmax, nothing)
+        dtmax        = (dtmax_raw === nothing) ? 0.0 : Float64(dtmax_raw)
+        maxiters_raw = get(raw, :maxiters, nothing)
+        maxiters     = (maxiters_raw === nothing) ? 0 : Int(maxiters_raw)
+        result = Numen.solve(line; n_save_points = n_save, dtsave = dtsave, dtmax = dtmax, maxiters = maxiters)
         n_t      = length(result.t)
         n_states = size(result.x, 1)
         # Chunked protocol: header line, then t line, then one line per state row.

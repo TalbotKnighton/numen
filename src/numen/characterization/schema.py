@@ -38,10 +38,17 @@ class BackendSpec(BaseModel):
     n_save_points:  int          = 0
     dtsave:         float | None = None
     dtmax:          float | None = None
+    maxiters:       int   | None = None
+    precompile:     bool         = True
     # n_workers:     parallel Julia server processes (julia_server only; 1 = sequential).
     # n_save_points: save exactly N uniformly-spaced output points (0 = every adaptive step).
     # dtsave:        save every dtsave time units.  Mutually exclusive with n_save_points.
     # dtmax:         cap the adaptive step size (prevents missing transients / aliasing).
+    # maxiters:      raise OrdinaryDiffEq's iteration cap (default 1e5).  Needed for long
+    #                chirps or fine dtmax that require millions of steps.  julia/julia_server only.
+    # precompile:    if False, skip startup precompile() pass on dynamics functions.
+    #                Saves a few seconds at server startup; first solve pays full JIT cost.
+    #                Useful for short campaigns or development cycles.  julia_server only.
 
     @model_validator(mode="after")
     def _validate(self) -> "BackendSpec":
@@ -77,12 +84,19 @@ class ExcitationSpec(BaseModel):
     Full path for the output state:     entity / output_component (kind) / output_state (field name).
     ``output_component`` defaults to ``component`` when omitted (most models drive and
     measure on the same component).
+
+    The framework is unit-agnostic: the value injected at the ExcitationPort is
+    added directly to the target state derivative.  Use ``scale_by`` to apply a
+    division (e.g. divide a force by mass to get an acceleration when the target
+    is a velocity-like state).  ``scale_by`` must be the full path
+    ``"entity.component.field"`` of an existing ParameterField.
     """
     entity:           str
     component:        str          # component kind that owns the ExcitationPort field
     port:             str
     output_state:     str
     output_component: str | None = None  # component kind for output_state; defaults to component
+    scale_by:         str  | None = None  # full path of a ParameterField divisor; None = no scaling
 
 
 # ---------------------------------------------------------------------------

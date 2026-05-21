@@ -85,6 +85,22 @@ Rules:
 
 `ExcitationPort` fields are **not** compiled into the parameter vector `p`. They are pure annotation metadata used by the characterization framework to identify which fields accept excitation signals. The compiler ignores them; no slot is allocated in `x` or `p`.
 
+**Injection is unit-agnostic.** When you call `inject_excitation`, `inject_chirp_excitation`, or `inject_table_excitation`, the computed value F(t) is added **directly** to `d(target_field)/dt` — no automatic unit conversion. `port_type` (`"effort"` / `"flow"`) and `units` are metadata for plot labels and bond-graph conventions only; they do **not** affect the math.
+
+This means if your `ExcitationPort` targets a velocity-like state, "F in Newtons" with no scaling is actually being interpreted as an acceleration [m/s²]. To convert correctly, use the `scale_by` kwarg to **divide** by a parameter:
+
+```python
+spec = inject_excitation(
+    spec,
+    entity_id="osc", component_kind="mass_body",
+    port_name="force", target_field="velocity",
+    amp=10.0,                      # Newtons
+    scale_by="osc.mass_body.mass", # full path of the ParameterField to divide by
+)
+```
+
+In YAML test plans, set `excitation.scale_by` (full path `entity.component.field`) at the top of the campaign. The same divisor applies to all injection helpers, and it composes with `excitation.*` sweeps — sweeping the amplitude in Newtons is preserved, division by mass happens inside the RHS at every step.
+
 #### Vector / array fields — `size=N`
 
 Any field can hold a contiguous array by setting `size=N`. The compiler packs it
@@ -306,9 +322,15 @@ All Julia backends and ScipyBackend accept these kwargs (also available in YAML 
 | `n_save_points=N` | 0 | Save N uniformly-spaced output points instead of every adaptive step |
 | `dtsave=dt` | None | Save every `dt` time units (mutually exclusive with `n_save_points`) |
 | `dtmax=dt` | None | Cap the adaptive step size — prevents aliasing or missing brief transients |
+| `maxiters=N` | None | Raise OrdinaryDiffEq's iteration cap (default 1e5). Required for long chirps or fine `dtmax` that need millions of steps. Julia backends only. |
+| `precompile=False` | True | (`JuliaServerBackend` / `JuliaServerPool` only) Skip the startup `precompile()` pass on dynamics functions. Saves a few seconds at server startup; first solve pays full JIT cost. Useful for short campaigns or development cycles. |
 
 Rule of thumb: `dtmax = dtsave = 1 / (10 × f_max)` for 10 samples per period of the
 highest-frequency content you care about.
+
+If a chirp test terminates early with `"Interrupted. Larger maxiters is needed."`,
+raise `maxiters` (e.g. `maxiters=10_000_000`) — a 120-second chirp at
+`dtmax=1e-4` requires ≥ 1.2M steps, well above the default cap.
 
 ### Stiff solvers (Rodas5P, Rodas4, Rosenbrock23, …)
 
@@ -700,11 +722,74 @@ server processes.  Each worker precompiles all dynamics at startup (via Julia's
 backend:
   type: julia_server
   julia_file: dynamics.jl
-  n_workers: 4          # 4 parallel processes
-  n_save_points: 2000   # cap output size to avoid huge JSON payloads
+  n_workers: 4           # 4 parallel processes
+  n_save_points: 2000    # cap output size to avoid huge JSON payloads
+  maxiters: 10_000_000   # raise iteration cap for long chirps / fine dtmax
+  precompile: false      # skip startup precompile() (faster boot, slower first solve)
 ```
 
+Set `precompile: false` when the campaign is too short for the precompile pass
+to amortise — e.g. during dynamics development, or campaigns with only a handful
+of solves.  The default is `true`.
+
 CLI override: `numen characterize test_plan.yaml --workers 4`
+
+### Custom excitation functions
+
+Built-in `inject_excitation` (sine), `inject_chirp_excitation`, and
+`inject_table_excitation` cover the common cases.  For arbitrary user-defined
+forcing — gated sinusoids, step responses, shocks, bursts, pulse trains — use
+`inject_custom_excitation`:
+
+```python
+from numen.characterization.excitation import inject_custom_excitation
+import math
+
+def my_gate(t, amp, freq, t_on, t_off):
+    if t_on <= t < t_off:
+        return amp * math.sin(2 * math.pi * freq * t)
+    return 0.0
+
+spec = inject_custom_excitation(
+    spec,
+    entity_id      = "osc",
+    component_kind = "squeeze_film_osc",
+    port_name      = "force",
+    target_field   = "velocity",
+    params         = {"amp": 4.9, "freq": 1250.0, "t_on": 0.1, "t_off": 0.4},
+    python_fn      = my_gate,            # f(t, amp, freq, t_on, t_off) -> float
+    julia_fn       = "MyDyn.my_gate_dyn!",
+    scale_by       = "osc.squeeze_film_osc.mass",   # optional divisor
+)
+```
+
+All entries of `params` live in the parameter vector `p`, so they are
+sweepable via `sweep_param: excitation.amp` (etc.).  The helper inspects
+`python_fn`'s signature and raises `ValueError` if it doesn't match
+`("t",) + tuple(params.keys())`.
+
+For Julia backends, the user must define `julia_fn` in their `dynamics.jl`.
+The cleanest pattern uses `make_custom_excitation_dyn` to wrap a
+human-readable function:
+
+```julia
+module MyDyn
+function my_gate(t, amp, freq, t_on, t_off)
+    (t < t_on || t >= t_off) && return 0.0
+    return amp * sin(2π * freq * t)
+end
+
+# One-line wrapper — type-stable, zero per-step dispatch overhead
+const my_gate_dyn! = Main.NumenCharacterization.make_custom_excitation_dyn(
+    my_gate, ("amp", "freq", "t_on", "t_off"),
+)
+end
+```
+
+**Constraints** (same as built-in `inject_*`):
+- The function reads `t` and its own params only — it cannot read state `x`.
+  For feedback / closed-loop behaviour, use a `Callback`, not excitation.
+- One target field per injection.  Call the helper twice for two-port forcing.
 
 - `parameter_sweep`, `parameter_grid`, `doe_sweep` dispatch each design point to
   a free worker in parallel; results are returned in input order.

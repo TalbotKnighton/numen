@@ -77,7 +77,7 @@ def _open_backend(spec: BackendSpec) -> Any:
         from numen.bridge.runtime import JuliaBackend
         kwargs: dict[str, Any] = {"julia_file": spec.julia_file, "rtol": spec.rtol, "atol": spec.atol,
                                   "n_save_points": spec.n_save_points, "dtsave": spec.dtsave,
-                                  "dtmax": spec.dtmax}
+                                  "dtmax": spec.dtmax, "maxiters": spec.maxiters}
         if spec.method:
             kwargs["method"] = spec.method
         return JuliaBackend(**kwargs)
@@ -85,7 +85,8 @@ def _open_backend(spec: BackendSpec) -> Any:
     if spec.type == "julia_server":
         from numen.bridge.server_backend import JuliaServerBackend
         kwargs = {"julia_file": spec.julia_file, "rtol": spec.rtol, "atol": spec.atol,
-                  "n_save_points": spec.n_save_points, "dtsave": spec.dtsave, "dtmax": spec.dtmax}
+                  "n_save_points": spec.n_save_points, "dtsave": spec.dtsave, "dtmax": spec.dtmax,
+                  "maxiters": spec.maxiters, "precompile": spec.precompile}
         if spec.method:
             kwargs["method"] = spec.method
         return JuliaServerBackend(**kwargs)
@@ -112,6 +113,8 @@ def _backend_context(spec: BackendSpec) -> Generator[Any, None, None]:
             n_save_points = spec.n_save_points,
             dtsave        = spec.dtsave,
             dtmax         = spec.dtmax,
+            maxiters      = spec.maxiters,
+            precompile    = spec.precompile,
         )
         with pool:
             _log.info("Julia pool started (%d workers)", spec.n_workers)
@@ -153,6 +156,7 @@ def _make_exc_spec(base_spec: Any, world: Any, exc: ExcitationSpec) -> Any:
         port_name      = exc.port,
         target_field   = port_info.targets,
         amp=0.0, freq=1.0, dc=0.0,
+        scale_by       = exc.scale_by,
     )
 
 
