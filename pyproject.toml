@@ -67,3 +67,10 @@ exclude = [
 dev = [
     "pytest>=9.0.3",
 ]
+
+[tool.setuptools]
+packages = ["numen", "julia"]
+
+[tool.setuptools.package-data]
+julia = ["src/*.jl", "*.toml"]
+
