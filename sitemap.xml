@@ -2,110 +2,110 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <url>
          <loc>https://TalbotKnighton.github.io/numen/</loc>
-         <lastmod>2026-05-21</lastmod>
+         <lastmod>2026-07-13</lastmod>
     </url>
     <url>
          <loc>https://TalbotKnighton.github.io/numen/architecture/</loc>
-         <lastmod>2026-05-21</lastmod>
+         <lastmod>2026-07-13</lastmod>
     </url>
     <url>
          <loc>https://TalbotKnighton.github.io/numen/getting-started/</loc>
-         <lastmod>2026-05-21</lastmod>
+         <lastmod>2026-07-13</lastmod>
     </url>
     <url>
          <loc>https://TalbotKnighton.github.io/numen/julia/</loc>
-         <lastmod>2026-05-21</lastmod>
+         <lastmod>2026-07-13</lastmod>
     </url>
     <url>
          <loc>https://TalbotKnighton.github.io/numen/nonlinear_characterization_methods/</loc>
-         <lastmod>2026-05-21</lastmod>
+         <lastmod>2026-07-13</lastmod>
     </url>
     <url>
          <loc>https://TalbotKnighton.github.io/numen/plan_characterization_framework/</loc>
-         <lastmod>2026-05-21</lastmod>
+         <lastmod>2026-07-13</lastmod>
     </url>
     <url>
          <loc>https://TalbotKnighton.github.io/numen/plan_characterization_plots/</loc>
-         <lastmod>2026-05-21</lastmod>
+         <lastmod>2026-07-13</lastmod>
     </url>
     <url>
          <loc>https://TalbotKnighton.github.io/numen/plan_nonlinear_test_suite/</loc>
-         <lastmod>2026-05-21</lastmod>
+         <lastmod>2026-07-13</lastmod>
     </url>
     <url>
          <loc>https://TalbotKnighton.github.io/numen/plan_parallel_characterization/</loc>
-         <lastmod>2026-05-21</lastmod>
+         <lastmod>2026-07-13</lastmod>
     </url>
     <url>
          <loc>https://TalbotKnighton.github.io/numen/plan_random_vibe_testing/</loc>
-         <lastmod>2026-05-21</lastmod>
+         <lastmod>2026-07-13</lastmod>
     </url>
     <url>
          <loc>https://TalbotKnighton.github.io/numen/plan_symbolic_codegen/</loc>
-         <lastmod>2026-05-21</lastmod>
+         <lastmod>2026-07-13</lastmod>
     </url>
     <url>
          <loc>https://TalbotKnighton.github.io/numen/tour/</loc>
-         <lastmod>2026-05-21</lastmod>
+         <lastmod>2026-07-13</lastmod>
     </url>
     <url>
          <loc>https://TalbotKnighton.github.io/numen/api/backends/</loc>
-         <lastmod>2026-05-21</lastmod>
+         <lastmod>2026-07-13</lastmod>
     </url>
     <url>
          <loc>https://TalbotKnighton.github.io/numen/api/compiler/</loc>
-         <lastmod>2026-05-21</lastmod>
+         <lastmod>2026-07-13</lastmod>
     </url>
     <url>
          <loc>https://TalbotKnighton.github.io/numen/api/fields/</loc>
-         <lastmod>2026-05-21</lastmod>
+         <lastmod>2026-07-13</lastmod>
     </url>
     <url>
          <loc>https://TalbotKnighton.github.io/numen/api/reconstruction/</loc>
-         <lastmod>2026-05-21</lastmod>
+         <lastmod>2026-07-13</lastmod>
     </url>
     <url>
          <loc>https://TalbotKnighton.github.io/numen/examples/coupled_spring/</loc>
-         <lastmod>2026-05-21</lastmod>
+         <lastmod>2026-07-13</lastmod>
     </url>
     <url>
          <loc>https://TalbotKnighton.github.io/numen/examples/coupled_spring_julia/</loc>
-         <lastmod>2026-05-21</lastmod>
+         <lastmod>2026-07-13</lastmod>
     </url>
     <url>
          <loc>https://TalbotKnighton.github.io/numen/examples/fluid_poppet/</loc>
-         <lastmod>2026-05-21</lastmod>
+         <lastmod>2026-07-13</lastmod>
     </url>
     <url>
          <loc>https://TalbotKnighton.github.io/numen/examples/fluid_poppet_julia/</loc>
-         <lastmod>2026-05-21</lastmod>
+         <lastmod>2026-07-13</lastmod>
     </url>
     <url>
          <loc>https://TalbotKnighton.github.io/numen/examples/oscillator/</loc>
-         <lastmod>2026-05-21</lastmod>
+         <lastmod>2026-07-13</lastmod>
     </url>
     <url>
          <loc>https://TalbotKnighton.github.io/numen/examples/oscillator_julia/</loc>
-         <lastmod>2026-05-21</lastmod>
+         <lastmod>2026-07-13</lastmod>
     </url>
     <url>
          <loc>https://TalbotKnighton.github.io/numen/examples/pneumatic_dashpot_julia/</loc>
-         <lastmod>2026-05-21</lastmod>
+         <lastmod>2026-07-13</lastmod>
     </url>
     <url>
          <loc>https://TalbotKnighton.github.io/numen/guide/backends/</loc>
-         <lastmod>2026-05-21</lastmod>
+         <lastmod>2026-07-13</lastmod>
     </url>
     <url>
          <loc>https://TalbotKnighton.github.io/numen/guide/characterization/</loc>
-         <lastmod>2026-05-21</lastmod>
+         <lastmod>2026-07-13</lastmod>
     </url>
     <url>
          <loc>https://TalbotKnighton.github.io/numen/guide/components/</loc>
-         <lastmod>2026-05-21</lastmod>
+         <lastmod>2026-07-13</lastmod>
     </url>
     <url>
          <loc>https://TalbotKnighton.github.io/numen/guide/systems/</loc>
-         <lastmod>2026-05-21</lastmod>
+         <lastmod>2026-07-13</lastmod>
     </url>
 </urlset>
